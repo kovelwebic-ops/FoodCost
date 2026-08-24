@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FoodCost</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand"><span class="brand-name">FoodCost</span></div>
+
+  <nav class="nav-group" aria-label="Основне">
+    <button class="nav-item" data-screen="home">
+      <span class="nav-name">Головна</span>
+    </button>
+    <button class="nav-item" data-screen="base">
+      <span class="nav-name">База продуктів</span>
+      <span class="nav-count" id="nav-base-count"></span>
+    </button>
+    <button class="nav-item" data-screen="expbase">
+      <span class="nav-name">База витрат</span>
+      <span class="nav-count" id="nav-expbase-count"></span>
+    </button>
+    <button class="nav-item is-cta" data-recipe="new">
+      <span>+</span><span class="nav-name">Нова калькуляція</span>
+    </button>
+  </nav>
+
+  <div class="nav-group">
+    <div class="nav-label">Папки</div>
+    <div id="nav-folders"></div>
+    <button class="nav-item is-add" id="btn-add-folder">+ Додати папку</button>
+  </div>
+
+  <div class="nav-foot">
+    <button class="nav-item" data-screen="settings">
+      <span class="nav-name">Налаштування</span>
+    </button>
+    <button class="nav-item is-muted" data-todo="Інструкція зʼявиться пізніше">
+      <span class="nav-name">Інструкція</span>
+    </button>
+  </div>
+</aside>
+
+<main class="work">
+
+  <!-- ГОЛОВНА -->
+  <section class="screen home is-active" id="s-home">
+    <h1 class="h1">Порахуйте, скільки насправді коштує ваша страва</h1>
+    <p class="lede">Внесіть ціни продуктів один раз — грамовки у кожному рецепті вказуєте ви, решту FoodCost рахує сам.</p>
+
+    <div class="home-cards">
+      <div class="home-card">
+        <span class="home-card-step">Крок 1</span>
+        <span class="home-card-title">Заповнити базу продуктів</span>
+        <span class="home-card-desc">Назва, ціна упаковки, вага. Вносите один раз.</span>
+        <button class="btn btn-soft" data-screen="base">Перейти до бази</button>
+      </div>
+      <div class="home-card">
+        <span class="home-card-step">Крок 2</span>
+        <span class="home-card-title">Створити калькуляцію</span>
+        <span class="home-card-desc">Вказуєте грамовки — отримуєте собівартість, маржу й ціну продажу.</span>
+        <button class="btn btn-soft" data-recipe="new">Нова калькуляція</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- БАЗА ПРОДУКТІВ -->
+  <section class="screen" id="s-base">
+    <div class="screen-head with-action">
+      <div>
+        <h1 class="h1">База продуктів</h1>
+        <p class="lede">Ціни упаковок, які підтягуються в калькуляції.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-soft" id="btn-add-product">+ Додати продукт</button>
+      </div>
+    </div>
+
+    <div class="search-wrap" style="margin-bottom:16px">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input class="inp" id="base-search" placeholder="Пошук продукту" autocomplete="off">
+    </div>
+
+    <div class="panel panel-scroll">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Назва</th>
+            <th class="h-num w-price">Ціна упаковки</th>
+            <th class="h-num w-pack">К-сть в уп.</th>
+            <th class="h-mid w-unit">Одиниця</th>
+            <th class="t-act"></th>
+          </tr>
+        </thead>
+        <tbody id="base-body"></tbody>
+      </table>
+      <div class="panel-foot">
+        <button class="btn-dash" id="btn-add-product-2">+ Додати продукт</button>
+        <span class="panel-tip" id="base-tip"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- БАЗА ВИТРАТ -->
+  <section class="screen" id="s-expbase">
+    <div class="screen-head with-action">
+      <div>
+        <h1 class="h1">База витрат</h1>
+        <p class="lede">Типові витрати, які підтягуються в калькуляції.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-soft" id="btn-add-expbase">+ Додати витрату</button>
+      </div>
+    </div>
+
+    <div class="search-wrap" style="margin-bottom:16px">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input class="inp" id="expbase-search" placeholder="Пошук витрати" autocomplete="off">
+    </div>
+
+    <div class="panel panel-scroll">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Назва</th>
+            <th class="h-mid w-mode">Тип</th>
+            <th class="h-num w-price">Значення</th>
+            <th class="t-act"></th>
+          </tr>
+        </thead>
+        <tbody id="expbase-body"></tbody>
+      </table>
+      <div class="panel-foot">
+        <button class="btn-dash" id="btn-add-expbase-2">+ Додати витрату</button>
+        <span class="panel-tip" id="expbase-tip"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ПАПКА -->
+  <section class="screen" id="s-folder">
+    <div class="screen-head with-action">
+      <div style="min-width:0">
+        <h1 class="h1" id="folder-title">Папка</h1>
+        <div class="folder-meta">
+          <span class="num" id="folder-count"></span>
+          <span class="sep"></span>
+          <button class="link-btn" id="folder-rename">Перейменувати</button>
+          <span class="sep"></span>
+          <button class="link-btn is-danger" id="folder-delete">Видалити</button>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-soft" data-recipe="new">+ Нова калькуляція</button>
+      </div>
+    </div>
+
+    <div class="folder-tools">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="inp" id="folder-search" placeholder="Пошук у папці" autocomplete="off">
+      </div>
+      <div class="seg" id="seg-sort">
+        <button data-sort="name" aria-pressed="true">А–Я</button>
+        <button data-sort="price" aria-pressed="false">За ціною</button>
+        <button data-sort="new" aria-pressed="false">Нові</button>
+      </div>
+    </div>
+
+    <div class="grid-cards" id="folder-grid"></div>
+  </section>
+
+  <!-- КАЛЬКУЛЯЦІЯ -->
+  <section class="screen" id="s-calc">
+    <div class="calc-top">
+      <button class="back-btn" id="calc-back">
+        <span>←</span><span id="calc-crumb">Нова калькуляція</span>
+      </button>
+      <span class="save-state" id="save-state"></span>
+    </div>
+
+    <div class="calc-titlebar">
+      <input class="inp title-inp" id="calc-name" placeholder="Назва страви" autocomplete="off">
+      <button class="photo-btn" id="photo-add">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4.5L13 16l3-3 3 3"/></svg>
+        Додати фото
+      </button>
+      <div class="photo-box" id="photo-box" hidden>
+        <img id="photo-img" alt="Фото страви">
+        <span class="photo-acts">
+          <button class="btn-mini" id="photo-change">Змінити</button>
+          <button class="btn-mini is-danger" id="photo-remove">Прибрати</button>
+        </span>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" hidden>
+    </div>
+
+    <div class="panel panel-scroll">
+      <div class="panel-head">
+        <h2 class="h2">Інгредієнти</h2>
+        <span class="panel-sum">Собівартість <b class="num" id="sum-ing">—</b></span>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Інгредієнт</th>
+            <th class="h-num w-price">Ціна упаковки</th>
+            <th class="h-num w-pack">К-сть в уп.</th>
+            <th class="h-num w-qty">У страві</th>
+            <th class="h-num w-cost">Вартість</th>
+            <th class="t-act"></th>
+          </tr>
+        </thead>
+        <tbody id="ing-body"></tbody>
+      </table>
+      <div class="panel-foot">
+        <button class="btn-dash" id="btn-add-ing">+ Додати інгредієнт</button>
+        <span class="panel-tip">Почніть вводити назву — дані підтягнуться з бази продуктів</span>
+      </div>
+    </div>
+
+    <div class="calc-mid">
+      <div class="panel panel-scroll">
+        <div class="panel-head">
+          <h2 class="h2">Додаткові витрати</h2>
+          <span class="panel-sum">Всього <b class="num" id="sum-exp">—</b></span>
+        </div>
+        <table class="tbl">
+          <thead><tr>
+            <th>Назва витрати</th>
+            <th class="h-mid w-mode">Тип</th>
+            <th class="h-num w-price">Значення</th>
+            <th class="h-num w-cost">Вартість</th>
+            <th class="t-act"></th>
+          </tr></thead>
+          <tbody id="exp-body"></tbody>
+        </table>
+        <div class="panel-foot">
+          <button class="btn-dash" id="btn-add-exp">+ Додати витрату</button>
+        </div>
+      </div>
+
+      <div class="panel panel-margin">
+        <h2 class="h2">Маржа</h2>
+        <div class="margin-row">
+          <span class="margin-field">
+            <input class="inp is-num" id="margin-inp" value="50" inputmode="decimal" aria-label="Маржа у відсотках">
+            <span class="suffix">%</span>
+          </span>
+          <span id="margin-sum">—</span>
+        </div>
+        <div class="margin-quick" id="margin-quick">
+          <button data-m="30" aria-pressed="false">30%</button>
+          <button data-m="50" aria-pressed="true">50%</button>
+          <button data-m="80" aria-pressed="false">80%</button>
+          <button data-m="100" aria-pressed="false">100%</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel panel-total">
+      <div class="panel-head"><h2 class="h2">Підсумок</h2></div>
+      <div class="receipt">
+        <div class="receipt-row"><span class="lbl">Собівартість</span><span class="val" id="r-cost">0,00 ₴</span></div>
+        <div class="receipt-row"><span class="lbl">Додаткові витрати</span><span class="val" id="r-exp">+ 0,00 ₴</span></div>
+        <div class="receipt-row is-sub"><span class="lbl">Разом з витратами</span><span class="val" id="r-sub">0,00 ₴</span></div>
+        <div class="receipt-row is-margin"><span class="lbl" id="r-mlbl">Маржа 50%</span><span class="val" id="r-margin">+ 0,00 ₴</span></div>
+      </div>
+      <div class="total-bar">
+        <div class="total-box">
+          <span class="total-lbl">Ціна продажу</span>
+          <span class="total-val" id="r-price">0,00 ₴</span>
+          <span class="total-note" id="r-note">До прайсу зручно округлити вгору до <b id="r-round">0 ₴</b></span>
+        </div>
+        <div class="total-acts">
+          <button class="btn btn-ghost" id="btn-clear-calc">Очистити</button>
+          <button class="btn" id="btn-pdf">Експортувати PDF</button>
+          <button class="btn btn-primary" id="btn-save">Зберегти калькуляцію</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- НАЛАШТУВАННЯ -->
+  <section class="screen" id="s-settings">
+    <div class="screen-head">
+      <h1 class="h1">Налаштування</h1>
+      <p class="lede">Діють на весь застосунок одразу.</p>
+    </div>
+    <div class="panel">
+      <div class="set-row">
+        <div class="set-row-txt">
+          <span class="h2">Валюта</span>
+          <span class="set-row-desc">Показується в таблицях і в PDF</span>
+        </div>
+        <div class="seg" id="seg-currency">
+          <button data-cur-val="₴" aria-pressed="true">₴</button>
+          <button data-cur-val="zł" aria-pressed="false">zł</button>
+          <button data-cur-val="$" aria-pressed="false">$</button>
+          <button data-cur-val="€" aria-pressed="false">€</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <span class="h2">Округлення ціни</span>
+          <span class="set-row-desc">Підказка «округлити вгору» в підсумку та на картках</span>
+        </div>
+        <div class="seg" id="seg-round">
+          <button data-round="1" aria-pressed="false">Без</button>
+          <button data-round="5" aria-pressed="true">До 5</button>
+          <button data-round="10" aria-pressed="false">До 10</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <span class="h2">Тема</span>
+          <span class="set-row-desc">Світла або темна — застосовується одразу</span>
+        </div>
+        <div class="seg" id="seg-theme">
+          <button data-theme-val="light" aria-pressed="true">Світла</button>
+          <button data-theme-val="dark" aria-pressed="false">Темна</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <span class="h2">Резервна копія</span>
+          <span class="set-row-desc">Дані живуть лише в цьому браузері — файл убереже їх при очищенні історії чи переїзді на інший компʼютер. Синхронізація зʼявиться разом з акаунтом.</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="btn-export">Зберегти у файл</button>
+          <button class="btn" id="btn-import">Відновити з файла</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <span class="h2">Демо-набір</span>
+          <span class="set-row-desc">Повернути базу продуктів, витрат і всі папки до початкового прикладу.</span>
+        </div>
+        <button class="btn" id="btn-reset">Скинути дані</button>
+      </div>
+      <input type="file" id="import-input" accept="application/json,.json" hidden>
+    </div>
+  </section>
+
+</main>
+
+<!-- Модалка: вибір папки при збереженні -->
+<div class="overlay" id="save-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="save-title">
+    <div class="modal-title" id="save-title">Зберегти калькуляцію</div>
+    <div class="modal-sub" id="save-sub">Оберіть папку</div>
+    <div class="folder-list" id="save-folders"></div>
+    <div class="modal-foot">
+      <button class="btn" id="save-cancel">Скасувати</button>
+      <button class="btn btn-primary" id="save-confirm">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: універсальний запит (ввід тексту / підтвердження) -->
+<div class="overlay" id="ask-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ask-title">
+    <div class="modal-title" id="ask-title">Заголовок</div>
+    <div class="modal-sub" id="ask-sub"></div>
+    <input class="inp" id="ask-input" autocomplete="off">
+    <div class="modal-foot">
+      <button class="btn" id="ask-cancel">Скасувати</button>
+      <button class="btn btn-primary" id="ask-ok">Готово</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Прев'ю перед експортом: документ має бути реально видимим, інакше html2canvas знімає порожнечу -->
+<div class="overlay" id="pdf-overlay">
+  <div class="pdf-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-title">
+    <div class="pdf-modal-head">
+      <div>
+        <div class="modal-title" id="pdf-title">Експорт у PDF</div>
+        <div class="modal-sub" id="pdf-sub">Формат А4</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="pdf-close">Закрити</button>
+        <button class="btn btn-primary" id="pdf-file">Завантажити</button>
+      </div>
+    </div>
+    <div class="pdf-modal-body" id="pdf-modal-body">
+      <div class="pdf-stage" id="pdf-stage"></div>
+    </div>
+  </div>
+</div>
+
+<datalist id="dl-products"></datalist>
+<datalist id="dl-expenses"></datalist>
+
+<script src="app.js"></script>
+</body>
+</html>
