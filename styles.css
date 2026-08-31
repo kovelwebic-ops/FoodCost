@@ -249,6 +249,95 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .w-unit  { width: 76px; }
 .w-mode  { width: 68px; }
 
+/* ═════════════════ Групи (напівфабрикат у калькуляції) ═════════════════
+   Шапка групи та її складники — звичайні рядки таблиці з міткою. Межу групи
+   тримає вертикальна рейка зліва, а не рамка: у щільній таблиці рамка на
+   кожну групу перетворює екран на сітку. */
+
+.ing-group > td { background: var(--side); border-bottom-color: var(--edge); }
+.ing-group:hover > td { background: var(--side-hov); }
+
+/* Шеврон живе у власному жолобі ліворуч, а не в потоці назви — інакше
+   назва групи опиняється правіше за свої ж складники, і ієрархія читається
+   навиворіт. Тому в цієї клітинки свій відступ замість табличних 20px. */
+.tbl tbody tr.ing-group > td:first-child { padding-left: 8px; }
+.grp-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.grp-chev {
+  flex: 0 0 auto; display: grid; place-items: center; width: 20px; height: 20px;
+  border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.grp-chev:hover { background: var(--edge); color: var(--fg); }
+.grp-chev svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .16s ease; }
+.ing-group.is-closed .grp-chev svg { transform: rotate(-90deg); }
+.grp-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp-of { flex: 0 0 auto; font-family: var(--num); font-size: 11.5px; color: var(--muted); }
+
+/* Рідкісна дія — тримаємо місце, але показуємо лише під курсором,
+   щоб шапка групи не перетворювалась на смугу з трьох написів. */
+.grp-unlink { flex: 0 0 auto; opacity: 0; pointer-events: none; transition: opacity .13s ease; }
+.ing-group:hover .grp-unlink, .grp-unlink:focus-visible { opacity: 1; pointer-events: auto; }
+/* На тачскріні наведення не буває — там кнопка має бути видима завжди */
+@media (hover: none) { .grp-unlink { opacity: 1; pointer-events: auto; } }
+.ing-group .t-cost { color: var(--accent); }
+
+/* Рейка вздовж складників групи. Псевдоелемент на першій клітинці, бо
+   border-left на самому tr у складених таблицях не малюється.
+   Селектор довший за потрібне навмисне: .tbl tbody td:first-child задає
+   padding-left і без цієї ваги перебиває відступ. */
+.tbl tbody tr.ing-child > td:first-child { position: relative; padding-left: 48px; }
+.tbl tbody tr.ing-child > td:first-child::before {
+  content: ''; position: absolute; left: 26px; top: 0; bottom: 0;
+  width: 2px; background: var(--edge);
+}
+.tbl tbody tr.ing-child.is-last > td:first-child::before { bottom: 50%; }
+
+.foot-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ═════════════════ Смуга «ціни змінились» ═════════════════
+   Зʼявляється лише коли є що оновлювати, тому не мозолить око. */
+
+.stale-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-bottom: 18px; padding: 12px 14px 12px 16px;
+  border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--accent-soft);
+}
+.stale-txt { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--fg); min-width: 0; }
+.stale-txt svg {
+  flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: var(--accent);
+  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.stale-bar .btn { flex: 0 0 auto; height: 36px; }
+
+/* ═════════════════ Напівфабрикат ═════════════════ */
+
+.prep-name-btn {
+  padding: 11px 0; border: 0; background: transparent; font-size: 14.5px; font-weight: 600;
+  color: var(--fg); text-align: left; cursor: pointer; width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prep-name-btn:hover { color: var(--accent-2); text-decoration: underline; }
+.t-mono { text-align: right; font-family: var(--num); font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+.t-mono.t-empty { color: var(--dim); }
+
+/* Такі самі 20px, як між панелями калькуляції */
+.panel-yield { margin: 20px 0; }
+.yield-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 20px; }
+.yield-ctl { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+.yield-ctl .cell-pair { border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field); padding: 0 8px 0 2px; }
+.yield-ctl .cell-pair .inp.is-num { width: 84px; height: 38px; }
+.yield-ctl .cell-pair .inp.is-num:focus { box-shadow: none; border-color: transparent; }
+
+/* Модалка вставки */
+.modal > select.inp { cursor: pointer; }
+.prep-pick-meta { margin-top: 8px; font-family: var(--num); font-size: 12.5px; color: var(--muted); }
+.prep-take-lbl { display: block; margin-top: 18px; margin-bottom: 6px; font-size: 13.5px; color: var(--fg-2); }
+.prep-take-row { display: flex; align-items: center; gap: 12px; }
+.prep-take-row .qty-wrap {
+  flex: 0 0 132px; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field);
+}
+.prep-take-row .inp { height: 40px; padding: 0 30px 0 12px; }
+.prep-take-hint { font-family: var(--num); font-size: 12.5px; color: var(--muted); }
+
 /* ═════════════════ Головна ═════════════════ */
 
 .home .h1 { max-width: 620px; margin-bottom: 20px; font-size: 52px; line-height: 1.08; text-wrap: balance; }
@@ -522,6 +611,15 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .pdf-tbl td.r { text-align: right; font-family: var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pdf-tbl td.b { font-weight: 600; }
 
+/* Напівфабрикат у друкованій калькуляції: шапка групи й відступ у складників.
+   Кольори тут задані вручну — документ завжди друкується світлим. */
+.pdf-grp td { background: #f2efe9; font-weight: 700; border-bottom: 1px solid #e4dfd6; }
+.pdf-grp td.r { font-weight: 700; }
+.pdf-sub td:first-child { padding-left: 2em; position: relative; }
+.pdf-sub td:first-child::before {
+  content: ''; position: absolute; left: 1.1em; top: 0; bottom: 0; width: 1px; background: #d9d4ca;
+}
+
 .pdf-subtotal { display: flex; justify-content: space-between; gap: 1em; padding: .66em 1em; font-size: 1em; font-weight: 700; }
 .pdf-subtotal b { font-family: var(--num); font-weight: 700; }
 .pdf-line { display: flex; justify-content: space-between; gap: 1em; padding: .5em 1em; font-size: .96em; }
@@ -556,6 +654,13 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
   .title-inp { font-size: 27px; }
   .panel-scroll .tbl { min-width: 660px; }
   .panel-margin { max-width: none; }
+  /* Опис виходу довший за підпис у налаштуваннях — у вузьку колонку не влазить */
+  .yield-row { flex-direction: column; align-items: stretch; gap: 14px; }
+  .yield-ctl { justify-content: space-between; }
+  /* Поруч із кнопкою тексту лишається смужка на три рядки — краще в стовпчик */
+  .stale-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .stale-bar .btn { width: 100%; }
+  .panel-foot { flex-wrap: wrap; }
   .total-bar { flex-direction: column; align-items: stretch; }
   .total-acts { flex-wrap: wrap; }
   .total-acts .btn { flex: 1; }

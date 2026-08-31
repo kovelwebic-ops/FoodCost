@@ -27,6 +27,10 @@
       <span class="nav-name">База витрат</span>
       <span class="nav-count" id="nav-expbase-count"></span>
     </button>
+    <button class="nav-item" data-screen="prep">
+      <span class="nav-name">Напівфабрикати</span>
+      <span class="nav-count" id="nav-prep-count"></span>
+    </button>
     <button class="nav-item is-cta" data-recipe="new">
       <span>+</span><span class="nav-name">Нова калькуляція</span>
     </button>
@@ -88,6 +92,11 @@
       <input class="inp" id="base-search" placeholder="Пошук продукту" autocomplete="off">
     </div>
 
+    <div class="stale-bar" data-stale hidden>
+      <span class="stale-txt"></span>
+      <button class="btn btn-soft" data-refresh-all>Перерахувати всі</button>
+    </div>
+
     <div class="panel panel-scroll">
       <table class="tbl">
         <thead>
@@ -125,6 +134,11 @@
       <input class="inp" id="expbase-search" placeholder="Пошук витрати" autocomplete="off">
     </div>
 
+    <div class="stale-bar" data-stale hidden>
+      <span class="stale-txt"></span>
+      <button class="btn btn-soft" data-refresh-all>Перерахувати всі</button>
+    </div>
+
     <div class="panel panel-scroll">
       <table class="tbl">
         <thead>
@@ -140,6 +154,120 @@
       <div class="panel-foot">
         <button class="btn-dash" id="btn-add-expbase-2">+ Додати витрату</button>
         <span class="panel-tip" id="expbase-tip"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- НАПІВФАБРИКАТИ: список -->
+  <section class="screen" id="s-prep">
+    <div class="screen-head with-action">
+      <div>
+        <h1 class="h1">Напівфабрикати</h1>
+        <p class="lede">Заготовки, які йдуть у кілька страв: тісто, крем, начинка.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-soft" id="btn-add-prep">+ Додати напівфабрикат</button>
+      </div>
+    </div>
+
+    <div class="search-wrap" style="margin-bottom:16px">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input class="inp" id="prep-search" placeholder="Пошук напівфабрикату" autocomplete="off">
+    </div>
+
+    <div class="panel panel-scroll">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Назва</th>
+            <th class="h-num w-pack">Складників</th>
+            <th class="h-num w-qty">Вихід</th>
+            <th class="h-num w-price">Собівартість</th>
+            <th class="h-num w-cost">За 100</th>
+            <th class="t-act"></th>
+          </tr>
+        </thead>
+        <tbody id="prep-body"></tbody>
+      </table>
+      <div class="panel-foot">
+        <button class="btn-dash" id="btn-add-prep-2">+ Додати напівфабрикат</button>
+        <span class="panel-tip" id="prep-tip"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- НАПІВФАБРИКАТ: редактор -->
+  <section class="screen" id="s-prep-edit">
+    <div class="calc-top">
+      <button class="back-btn" id="prep-back">
+        <span>←</span><span>Напівфабрикати</span>
+      </button>
+    </div>
+
+    <div class="calc-titlebar">
+      <input class="inp title-inp" id="prep-name" placeholder="Назва напівфабрикату" autocomplete="off">
+    </div>
+
+    <div class="stale-bar" id="prep-stale" hidden>
+      <span class="stale-txt" id="prep-stale-txt"></span>
+      <button class="btn btn-soft" id="btn-refresh-prep">Перерахувати</button>
+    </div>
+
+    <div class="panel panel-scroll">
+      <div class="panel-head">
+        <h2 class="h2">Склад</h2>
+        <span class="panel-sum">Разом <b class="num" id="prep-sum">—</b></span>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Інгредієнт</th>
+            <th class="h-num w-price">Ціна упаковки</th>
+            <th class="h-num w-pack">К-сть в уп.</th>
+            <th class="h-num w-qty">У заміс</th>
+            <th class="h-num w-cost">Вартість</th>
+            <th class="t-act"></th>
+          </tr>
+        </thead>
+        <tbody id="prep-ing-body"></tbody>
+      </table>
+      <div class="panel-foot">
+        <button class="btn-dash" id="btn-add-prep-ing">+ Додати складник</button>
+        <span class="panel-tip">Почніть вводити назву — дані підтягнуться з бази продуктів</span>
+      </div>
+    </div>
+
+    <div class="panel panel-yield">
+      <div class="yield-row">
+        <div class="set-row-txt">
+          <span class="h2">Вихід</span>
+          <span class="set-row-desc">Скільки заготовки вийшло із замісу. При випіканні вага змінюється — тому число ваше.</span>
+        </div>
+        <div class="yield-ctl">
+          <span class="cell-pair">
+            <input class="inp is-num" id="prep-yield" inputmode="decimal" placeholder="0" aria-label="Вихід">
+            <select class="unit-sel" id="prep-unit" aria-label="Одиниця виходу"></select>
+          </span>
+          <button class="link-btn" id="prep-yield-auto" hidden></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel panel-total">
+      <div class="panel-head"><h2 class="h2">Підсумок</h2></div>
+      <div class="receipt">
+        <div class="receipt-row"><span class="lbl">Складників</span><span class="val" id="prep-r-count">0</span></div>
+        <div class="receipt-row is-sub"><span class="lbl">Собівартість замісу</span><span class="val" id="prep-r-cost">0,00 ₴</span></div>
+      </div>
+      <div class="total-bar">
+        <div class="total-box">
+          <span class="total-lbl" id="prep-r-unit-lbl">За 100 г</span>
+          <span class="total-val" id="prep-r-unit">0,00 ₴</span>
+        </div>
+        <div class="total-acts">
+          <button class="btn btn-ghost is-danger" id="btn-del-prep">Видалити</button>
+          <button class="btn btn-primary" id="btn-prep-done">Готово</button>
+        </div>
       </div>
     </div>
   </section>
@@ -202,6 +330,11 @@
       <input type="file" id="photo-input" accept="image/*" hidden>
     </div>
 
+    <div class="stale-bar" id="calc-stale" hidden>
+      <span class="stale-txt" id="calc-stale-txt"></span>
+      <button class="btn btn-soft" id="btn-refresh-calc">Перерахувати</button>
+    </div>
+
     <div class="panel panel-scroll">
       <div class="panel-head">
         <h2 class="h2">Інгредієнти</h2>
@@ -221,7 +354,10 @@
         <tbody id="ing-body"></tbody>
       </table>
       <div class="panel-foot">
-        <button class="btn-dash" id="btn-add-ing">+ Додати інгредієнт</button>
+        <span class="foot-acts">
+          <button class="btn-dash" id="btn-add-ing">+ Додати інгредієнт</button>
+          <button class="btn-dash" id="btn-add-group">+ Напівфабрикат</button>
+        </span>
         <span class="panel-tip">Почніть вводити назву — дані підтягнуться з бази продуктів</span>
       </div>
     </div>
@@ -360,6 +496,31 @@
     <div class="modal-foot">
       <button class="btn" id="save-cancel">Скасувати</button>
       <button class="btn btn-primary" id="save-confirm">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: вставка напівфабрикату в калькуляцію -->
+<div class="overlay" id="prep-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="prep-pick-title">
+    <div class="modal-title" id="prep-pick-title">Додати напівфабрикат</div>
+    <div class="modal-sub">Складники стануть окремими рядками, перерахованими під вашу кількість.</div>
+
+    <select class="inp" id="prep-pick" aria-label="Напівфабрикат"></select>
+    <div class="prep-pick-meta" id="prep-pick-meta"></div>
+
+    <label class="prep-take-lbl" for="prep-take">Скільки потрібно?</label>
+    <div class="prep-take-row">
+      <span class="qty-wrap">
+        <input class="inp is-num" id="prep-take" inputmode="decimal" placeholder="0">
+        <span class="unit-tag" id="prep-take-unit">г</span>
+      </span>
+      <span class="prep-take-hint" id="prep-take-hint"></span>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn" id="prep-pick-cancel">Скасувати</button>
+      <button class="btn btn-primary" id="prep-pick-ok">Додати</button>
     </div>
   </div>
 </div>

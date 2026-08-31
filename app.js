@@ -14,6 +14,8 @@ var PHOTO_Q = 0.72;      // якість jpeg
 
 var ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 var ICON_TICK = '<svg class="tick" viewBox="0 0 24 24"><path d="m5 13 4.5 4.5L19 7"/></svg>';
+var ICON_CHEV = '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>';
+var ICON_SYNC = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-4.5L4 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5l2-2.5"/><path d="M20 19v-4h-4"/></svg>';
 
 /* ═════════════════ 2. Утиліти ═════════════════ */
 
@@ -71,10 +73,17 @@ var draftDirty = false;
 /**
  * Модель:
  *   product = { id, name, price, pack, unit }
- *   ingredient = { name, price, pack, unit, qty }   ← копія даних, не посилання
+ *   ingredient = { name, price, pack, unit, qty, g? }   ← копія даних, не посилання
  *   expense = { name, mode, value }   mode: 'sum' (валюта) | 'pct' (% від собівартості)
- *   recipe = { id, name, photo, margin, ing[], exp[] }
+ *   prep = { id, name, ing[], yield, unit }            ← напівфабрикат (тісто, крем)
+ *   group = { id, prepId, name, take, of, unit }       ← напівфабрикат у рецепті
+ *   recipe = { id, name, photo, margin, ing[], exp[], groups[] }
  *   folder = { id, title, recipes[] }
+ *
+ * Напівфабрикат у рецепті не згортається в один рядок: його складники лежать
+ * у тому ж r.ing плоским списком і позначені міткою i.g = group.id. Завдяки
+ * цьому totals(), cleanRecipe() і збірка PDF бачать звичайний список рядків
+ * і нічого не знають про групи — про них знає лише промальовка таблиці.
  */
 function emptyState() {
   return {
@@ -83,6 +92,7 @@ function emptyState() {
     theme: 'light',
     products: [],
     expenseBase: [],
+    preps: [],
     folders: [],
     draft: null,                                   // незбережена калькуляція
     ui: { screen: 'home', folderId: null, editing: null, folderQuery: '', folderSort: 'name' }
@@ -130,16 +140,26 @@ function normalize(s) {
   if (s.ui.folderQuery == null) s.ui.folderQuery = '';
   if (!s.products) s.products = [];
   if (!s.expenseBase) s.expenseBase = [];   // до появи бази витрат поля не було
+  if (!s.preps) s.preps = [];               // до появи напівфабрикатів поля не було
   if (!s.folders) s.folders = [];
+  s.preps.forEach(function (p) {
+    if (!p.ing) p.ing = [];
+    if (!p.unit) p.unit = 'г';
+    if (p['yield'] == null) p['yield'] = 0;
+  });
   s.folders.forEach(function (f) {
     if (!f.recipes) f.recipes = [];
     f.recipes.forEach(function (r) {
       if (!r.ing) r.ing = [];
       if (!r.exp) r.exp = [];
+      if (!r.groups) r.groups = [];
       migrateExpenseList(r.exp);
     });
   });
-  if (s.draft) migrateExpenseList(s.draft.exp);
+  if (s.draft) {
+    migrateExpenseList(s.draft.exp);
+    if (!s.draft.groups) s.draft.groups = [];
+  }
   return s;
 }
 
@@ -224,6 +244,31 @@ function seed() {
   ];
   s.expenseBase = E.map(function (e) {
     return { id: uid('e'), name: e[0], mode: e[1], value: e[2] };
+  });
+
+  // Напівфабрикати: [назва, вихід, одиниця, [[назва, ціна уп., к-сть в уп., од., у заміс], …]]
+  var K = [
+    ['Медове тісто', 1200, 'г', [
+      ['Борошно вищий ґатунок', 45, 1000, 'г', 400],
+      ['Мед натуральний', 180, 500, 'г', 150],
+      ['Цукор білий', 32, 1000, 'г', 150],
+      ['Масло вершкове 82%', 118, 200, 'г', 100],
+      ['Яйця С1', 68, 10, 'шт', 2]
+    ]],
+    ['Крем-чіз на вершках', 800, 'г', [
+      ['Сир вершковий', 145, 340, 'г', 340],
+      ['Вершки 33%', 89, 500, 'мл', 300],
+      ['Цукрова пудра', 46, 500, 'г', 90],
+      ['Ванільний екстракт', 210, 50, 'мл', 5]
+    ]]
+  ];
+  s.preps = K.map(function (k) {
+    return {
+      id: uid('k'), name: k[0], 'yield': k[1], unit: k[2],
+      ing: k[3].map(function (i) {
+        return { name: i[0], price: i[1], pack: i[2], unit: i[3], qty: i[4] };
+      })
+    };
   });
 
   // [назва, ціна упаковки, к-сть в упаковці, одиниця, к-сть у страві]
@@ -374,6 +419,29 @@ function totals(r) {
   };
 }
 
+/** Собівартість усього замісу напівфабрикату. */
+function prepCost(p) {
+  var sum = 0;
+  for (var i = 0; i < p.ing.length; i++) sum += ingCost(p.ing[i]);
+  return sum;
+}
+
+/** Ціна однієї одиниці виходу — з неї рахується вартість у страві. */
+function prepUnitCost(p) {
+  var y = num(p['yield']);
+  return y > 0 ? prepCost(p) / y : 0;
+}
+
+/* Порівняльна ціна для списку. Грами й мілілітри показуємо за 100 —
+   «0,22 ₴/г» після округлення до копійок перетворює дешеві заготовки
+   на однакові нулі. Для штук за 100 рахувати безглуздо. */
+function prepUnitLabel(p) {
+  return p.unit === 'шт' ? 'За 1 шт' : 'За 100 ' + p.unit;
+}
+function prepUnitValue(p) {
+  return prepUnitCost(p) * (p.unit === 'шт' ? 1 : 100);
+}
+
 /* Пошук по колекціях. Усі три бази (продукти, витрати, папки) шукаються
    однаково, тож сам цикл живе в одному місці, а іменовані обгортки
    лишаються заради читабельності на місцях виклику. */
@@ -395,8 +463,93 @@ function byName(list, name) {
 function productById(id) { return byId(S.products, id); }
 function expenseById(id) { return byId(S.expenseBase, id); }
 function folderById(id) { return byId(S.folders, id); }
+function prepById(id) { return byId(S.preps, id); }
 function findProduct(name) { return byName(S.products, name); }
 function findExpense(name) { return byName(S.expenseBase, name); }
+
+/* ═════════════════ 5a. Звірка з базами ═════════════════
+   Рецепт зберігає копію даних продукту, а не посилання — тому подорожчання
+   борошна не міняє вже збережені калькуляції заднім числом. Це навмисно:
+   збережена калькуляція — знімок, за яким виставили ціну клієнту. Але коли
+   ціни таки треба підтягнути, це має бути одна свідома дія. */
+
+/** Порівняння грошей і кількостей: обидва числа пройшли num(), різниця нижче копійки — те саме. */
+function same(a, b) { return Math.abs(num(a) - num(b)) < 0.0005; }
+
+function nameKey(n) { return String(n || '').trim().toLowerCase(); }
+
+/**
+ * Індекс «назва → запис бази». Звірка проходить по всіх рецептах на кожну
+ * правку ціни, а byName() сканує базу лінійно — на сотні продуктів це вже
+ * помітно гальмувало б набір тексту.
+ * Перший запис виграє, як і в byName().
+ */
+function baseIndex() {
+  var pi = Object.create(null), ei = Object.create(null);
+  S.products.forEach(function (p) { var k = nameKey(p.name); if (k && !pi[k]) pi[k] = p; });
+  S.expenseBase.forEach(function (x) { var k = nameKey(x.name); if (k && !ei[k]) ei[k] = x; });
+  return { p: pi, e: ei };
+}
+
+/**
+ * Звіряє рядки рецепта з базами продуктів і витрат.
+ * dry = true — тільки рахує, нічого не міняє.
+ *
+ * Кількість у страві не чіпаємо ніколи — вона належить рецепту, а не базі.
+ * Якщо в базі змінилась одиниця виміру, рядок пропускаємо: 300 «г» не можна
+ * механічно перечитати як 300 «шт», і мовчки зіпсувати грамовку гірше, ніж
+ * лишити стару ціну.
+ */
+function syncWithBase(r, dry, idx) {
+  idx = idx || baseIndex();
+  var changed = 0, skipped = 0;
+
+  (r.ing || []).forEach(function (i) {
+    var p = idx.p[nameKey(i.name)];
+    if (!p) return;                                   // рядок не з бази — це власний інгредієнт
+    if (p.unit !== i.unit) { skipped++; return; }
+    if (same(p.price, i.price) && same(p.pack, i.pack)) return;
+    changed++;
+    if (!dry) { i.price = p.price; i.pack = p.pack; }
+  });
+
+  (r.exp || []).forEach(function (e) {
+    var x = idx.e[nameKey(e.name)];
+    if (!x) return;
+    if (x.mode === e.mode && same(x.value, e.value)) return;
+    changed++;
+    if (!dry) { e.mode = x.mode; e.value = x.value; }
+  });
+
+  return { changed: changed, skipped: skipped };
+}
+
+/**
+ * Скільки збереженого рахується за застарілими цінами.
+ * Напівфабрикати рахуємо нарівні з рецептами: вони теж зберігають копії
+ * цін, і якщо їх не оновити, кожна наступна вставка в калькуляцію знову
+ * принесе стару ціну.
+ */
+function staleCount() {
+  var idx = baseIndex(), recipes = 0, preps = 0;
+  S.folders.forEach(function (f) {
+    f.recipes.forEach(function (r) {
+      if (syncWithBase(r, true, idx).changed) recipes++;
+    });
+  });
+  S.preps.forEach(function (p) {
+    if (syncWithBase(p, true, idx).changed) preps++;
+  });
+  return { recipes: recipes, preps: preps, total: recipes + preps };
+}
+
+/** «9 калькуляцій і 2 напівфабрикати» — залежно від того, що саме застаріло. */
+function staleLabel(c) {
+  var parts = [];
+  if (c.recipes) parts.push(c.recipes + ' ' + plural(c.recipes, 'калькуляція', 'калькуляції', 'калькуляцій'));
+  if (c.preps) parts.push(c.preps + ' ' + plural(c.preps, 'напівфабрикат', 'напівфабрикати', 'напівфабрикатів'));
+  return parts.join(' і ');
+}
 
 /* ═════════════════ 6. Тост і модалки ═════════════════ */
 
@@ -477,6 +630,7 @@ function renderSidebar() {
   }
   $('#nav-base-count').textContent = S.products.length || '';
   $('#nav-expbase-count').textContent = S.expenseBase.length || '';
+  $('#nav-prep-count').textContent = S.preps.length || '';
 }
 
 /* ═════════════════ 9. База продуктів ═════════════════ */
@@ -533,6 +687,75 @@ function renderBase() {
     ? S.products.length + ' ' + plural(S.products.length, 'продукт', 'продукти', 'продуктів') + ' у базі'
     : '';
   renderDatalist();
+  updateBaseStale();
+}
+
+/* Пропозиція підтягнути нові значення в раніше збережені калькуляції.
+   Смуга однакова на обох базах — витрати впливають на підсумок так само,
+   як ціни продуктів, тож ховати її на одному з екранів було б непослідовно. */
+function updateBaseStale() {
+  var c = staleCount();
+  var html = c.total ? ICON_SYNC + '<span>' + esc(staleLabel(c) + ' ' +
+    plural(c.total, 'рахується', 'рахуються', 'рахуються') + ' за старими цінами') + '</span>' : '';
+  $$('[data-stale]').forEach(function (bar) {
+    bar.hidden = !c.total;
+    if (c.total) $('.stale-txt', bar).innerHTML = html;
+  });
+}
+
+function refreshAllRecipes() {
+  var c = staleCount();
+  if (!c.total) { updateBaseStale(); toast('Усе вже рахується за поточними цінами'); return; }
+
+  ask({
+    title: 'Перерахувати все?',
+    sub: staleLabel(c) + ' ' + plural(c.total, 'отримає', 'отримають', 'отримають') +
+         ' поточні ціни з бази. Грамовки у стравах не зміняться. ' +
+         'Повернути старі ціни потім не вийде — якщо вони потрібні, спершу збережіть копію у файл.',
+    input: false, ok: 'Перерахувати'
+  }, function () {
+    closeAsk();
+    var idx = baseIndex(), changed = 0, skipped = 0, touched = 0;
+
+    S.folders.forEach(function (f) {
+      f.recipes.forEach(function (r) {
+        var res = syncWithBase(r, false, idx);
+        if (res.changed) touched++;
+        changed += res.changed; skipped += res.skipped;
+      });
+    });
+
+    S.preps.forEach(function (p) {
+      var res = syncWithBase(p, false, idx);
+      if (res.changed) touched++;
+      changed += res.changed; skipped += res.skipped;
+    });
+
+    // Відкрита чернетка — той самий рецепт, тільки ще не в папці
+    if (S.draft) {
+      var dres = syncWithBase(S.draft, false, idx);
+      changed += dres.changed; skipped += dres.skipped;
+      if (dres.changed && $('#ing-body').children.length) {
+        loadCalc(S.draft, $('#calc-crumb').textContent);
+        draftDirty = true;   // чернетка розійшлася зі збереженою версією
+        updateSaveBtn();
+      }
+    }
+
+    persist(true);
+    updateBaseStale();
+    renderPreps();
+    if (S.ui.screen === 'prep-edit' && editingPrep()) openPrep(editingPrepId);
+    if (S.ui.folderId) renderFolder();
+
+    var msg = 'Оновлено ' + touched + ' ' + plural(touched, 'запис', 'записи', 'записів') +
+              ' — ' + changed + ' ' + plural(changed, 'рядок', 'рядки', 'рядків');
+    if (skipped) {
+      msg += '. ' + skipped + ' ' + plural(skipped, 'рядок', 'рядки', 'рядків') +
+             ' пропущено — у базі інша одиниця виміру';
+    }
+    toast(msg);
+  });
 }
 
 function baseRow(p) {
@@ -563,13 +786,14 @@ function bindBase() {
     persist();
     // підказка автопідстановки показує ціну й упаковку — оновлюємо за будь-якою правкою рядка, не тільки за назвою
     renderDatalist();
+    updateBaseStale();
   });
 
   body.addEventListener('change', function (e) {
     if (e.target.getAttribute('data-f') !== 'unit') return;
     var tr = e.target.closest('tr');
     var p = productById(tr.getAttribute('data-id'));
-    if (p) { p.unit = e.target.value; persist(); renderDatalist(); }
+    if (p) { p.unit = e.target.value; persist(); renderDatalist(); updateBaseStale(); }
   });
 
   // Акуратне форматування чисел після виходу з поля
@@ -607,6 +831,7 @@ function bindBase() {
   }
   $('#btn-add-product').addEventListener('click', function () { addProduct(true); });
   $('#btn-add-product-2').addEventListener('click', function () { addProduct(false); });
+  $$('[data-refresh-all]').forEach(function (b) { b.addEventListener('click', refreshAllRecipes); });
 }
 
 function renderDatalist() {
@@ -646,6 +871,7 @@ function renderExpBase() {
     ? S.expenseBase.length + ' ' + plural(S.expenseBase.length, 'витрата', 'витрати', 'витрат') + ' у базі'
     : '';
   renderExpDatalist();
+  updateBaseStale();
 }
 
 function expBaseRow(x) {
@@ -673,6 +899,7 @@ function bindExpBase() {
     else if (f === 'value') x.value = num(e.target.value);
     persist();
     renderExpDatalist();
+    updateBaseStale();
   });
 
   body.addEventListener('change', function (e) {
@@ -682,7 +909,7 @@ function bindExpBase() {
     if (!x) return;
     x.mode = e.target.value === 'pct' ? 'pct' : 'sum';
     syncExpSuffix(tr); paintExpValue(tr, x);
-    persist(); renderExpDatalist();
+    persist(); renderExpDatalist(); updateBaseStale();
   });
 
   body.addEventListener('blur', function (e) {
@@ -730,6 +957,290 @@ function renderExpDatalist() {
       var label = x.mode === 'pct' ? qtyFmt(x.value) + '%' : fmt(x.value) + ' ' + S.currency;
       return '<option value="' + esc(x.name) + '">' + esc(label) + '</option>';
     }).join('');
+}
+
+/* ═════════════════ 9b. Напівфабрикати ═════════════════
+   Заготовка зі своїм складом і виходом: тісто, крем, начинка. У калькуляцію
+   потрапляє не одним рядком, а всіма складниками — перерахованими під потрібну
+   кількість. Редактор навмисне побудований на тих самих ingRow()/autofill(),
+   що й калькуляція: та сама таблиця, ті самі звички. */
+
+function renderPreps() {
+  var body = $('#prep-body');
+  var q = $('#prep-search').value.trim().toLowerCase();
+  body.innerHTML = '';
+
+  var list = S.preps.filter(function (p) {
+    return !q || p.name.toLowerCase().indexOf(q) !== -1;
+  });
+
+  if (!list.length) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="6" class="tbl-empty"><b style="display:block;margin-bottom:6px;font-size:16px;color:var(--fg)">' +
+      (q ? 'Нічого не знайшли за запитом «' + esc(q) + '»' : 'Напівфабрикатів ще немає') + '</b>' +
+      (q ? 'Спробуйте коротший запит або створіть новий напівфабрикат.'
+         : 'Заведіть тісто чи крем один раз — далі додаватимете його в страви однією дією.') + '</td>';
+    body.appendChild(tr);
+  } else {
+    list.forEach(function (p) { body.appendChild(prepRow(p)); });
+  }
+
+  $('#prep-tip').textContent = S.preps.length
+    ? S.preps.length + ' ' + plural(S.preps.length, 'напівфабрикат', 'напівфабрикати', 'напівфабрикатів') + ' у базі'
+    : '';
+}
+
+function prepRow(p) {
+  var tr = document.createElement('tr');
+  var n = p.ing.length;
+  var ready = num(p['yield']) > 0;
+  tr.setAttribute('data-id', p.id);
+  tr.innerHTML =
+    '<td><button class="prep-name-btn" data-open-prep>' + esc(p.name || 'Без назви') + '</button></td>' +
+    '<td class="t-mono">' + n + '</td>' +
+    '<td class="t-mono' + (ready ? '' : ' t-empty') + '">' + (ready ? qtyFmt(p['yield']) + ' ' + p.unit : '—') + '</td>' +
+    '<td class="t-cost' + (n ? '' : ' t-empty') + '">' + (n ? fmt(prepCost(p)) : '—') + '</td>' +
+    '<td class="t-mono' + (ready ? '' : ' t-empty') + '">' + (ready ? fmt(prepUnitValue(p)) : '—') + '</td>' +
+    '<td class="t-act"><button class="icon-btn is-danger" data-del-prep aria-label="Видалити напівфабрикат">' + ICON_X + '</button></td>';
+  return tr;
+}
+
+/* Скільки рецептів уже спираються на цю заготовку — питаємо перед видаленням.
+   Самі рецепти не постраждають: у них лежать копії рядків, а не посилання. */
+function prepUsage(id) {
+  var n = 0;
+  S.folders.forEach(function (f) {
+    f.recipes.forEach(function (r) {
+      if ((r.groups || []).some(function (g) { return g.prepId === id; })) n++;
+    });
+  });
+  return n;
+}
+
+function deletePrep(p) {
+  var used = prepUsage(p.id);
+  ask({
+    title: 'Видалити напівфабрикат?',
+    sub: '«' + (p.name || 'Без назви') + '» зникне з бази.' +
+         // Формулювання навмисне безособове: «1 калькуляція … вони не постраждають»
+         // не узгоджується, а число тут може бути будь-яке
+         (used ? ' Калькуляції, які його використовують (' + used + '), не постраждають — у них лежить копія складників.' : ''),
+    input: false, ok: 'Видалити', danger: true
+  }, function () {
+    S.preps = S.preps.filter(function (x) { return x.id !== p.id; });
+    closeAsk();
+    if (editingPrepId === p.id) { editingPrepId = null; S.ui.prepId = null; show('prep'); }
+    renderPreps(); renderSidebar(); persist(true);
+    toast('Напівфабрикат видалено');
+  });
+}
+
+function bindPreps() {
+  var body = $('#prep-body');
+
+  body.addEventListener('click', function (e) {
+    var tr = e.target.closest('tr'); if (!tr) return;
+    var p = prepById(tr.getAttribute('data-id')); if (!p) return;
+    if (e.target.closest('[data-del-prep]')) { deletePrep(p); return; }
+    if (e.target.closest('[data-open-prep]')) openPrep(p.id);
+  });
+
+  $('#prep-search').addEventListener('input', renderPreps);
+
+  function addPrep() {
+    var p = { id: uid('k'), name: '', ing: [], 'yield': 0, unit: 'г' };
+    S.preps.unshift(p);
+    $('#prep-search').value = '';
+    renderPreps(); renderSidebar(); persist();
+    openPrep(p.id);
+    $('#prep-name').focus();
+  }
+  $('#btn-add-prep').addEventListener('click', addPrep);
+  $('#btn-add-prep-2').addEventListener('click', addPrep);
+}
+
+/* ── Редактор ───────────────────────────────────────────────── */
+
+var editingPrepId = null;
+
+function editingPrep() { return prepById(editingPrepId); }
+
+function openPrep(id) {
+  var p = prepById(id); if (!p) return;
+  editingPrepId = id;
+  S.ui.prepId = id;
+
+  $('#prep-name').value = p.name || '';
+  $('#prep-unit').innerHTML = UNITS.map(function (u) {
+    return '<option value="' + u + '"' + (u === p.unit ? ' selected' : '') + '>' + u + '</option>';
+  }).join('');
+  $('#prep-yield').value = qtyFmt(p['yield']);
+
+  var ib = $('#prep-ing-body'); ib.innerHTML = '';
+  var ing = p.ing.slice();
+  while (ing.length < 4) ing.push(null);
+  ing.forEach(function (i) { ib.appendChild(ingRow(i)); });
+
+  prepRecalc();
+  updatePrepStale();
+  show('prep-edit', 'prep');
+}
+
+/* Як і на калькуляції — перевіряємо тільки на відкритті, інакше смуга
+   спливала б у відповідь на власну ж правку ціни користувачем. */
+function updatePrepStale() {
+  var p = editingPrep();
+  var bar = $('#prep-stale');
+  if (!p) { bar.hidden = true; return; }
+  var res = syncWithBase(p, true);
+  bar.hidden = !res.changed;
+  if (!res.changed) return;
+  $('#prep-stale-txt').innerHTML = ICON_SYNC + '<span>' + esc(res.changed + ' ' +
+    plural(res.changed, 'складник рахується', 'складники рахуються', 'складників рахуються') +
+    ' за старими цінами') + '</span>';
+}
+
+function refreshPrepPrices() {
+  var p = editingPrep(); if (!p) return;
+  var res = syncWithBase(p, false);
+  if (!res.changed) { updatePrepStale(); toast('Тут уже поточні ціни'); return; }
+
+  openPrep(p.id);          // перемальовує склад із новими цінами
+  persist(true);
+  renderPreps();
+
+  var msg = 'Оновлено ' + res.changed + ' ' + plural(res.changed, 'складник', 'складники', 'складників');
+  if (res.skipped) {
+    msg += ', ' + res.skipped + ' ' + plural(res.skipped, 'складник', 'складники', 'складників') +
+           ' пропущено — у базі інша одиниця виміру';
+  }
+  toast(msg);
+}
+
+/** Зчитує таблицю складу в об'єкт напівфабрикату й перемальовує підсумки. */
+function prepRecalc() {
+  var p = editingPrep(); if (!p) return;
+
+  var rows = $$('#prep-ing-body tr').map(function (tr) {
+    return {
+      name: $('[data-f=name]', tr).value.trim(),
+      price: num($('[data-f=price]', tr).value),
+      pack: num($('[data-f=pack]', tr).value),
+      unit: $('[data-f=unit]', tr).value,
+      qty: num($('[data-f=qty]', tr).value)
+    };
+  });
+
+  $$('#prep-ing-body tr').forEach(function (tr, idx) {
+    var i = rows[idx];
+    var cell = $('.t-cost', tr);
+    var ok = i.price > 0 && i.pack > 0 && i.qty > 0;
+    cell.textContent = ok ? fmt(ingCost(i)) : '—';
+    cell.classList.toggle('t-empty', !ok);
+  });
+
+  p.name = $('#prep-name').value.trim();
+  p.unit = $('#prep-unit').value;
+  p['yield'] = num($('#prep-yield').value);
+  p.ing = rows.filter(function (i) { return i.name || i.price || i.pack || i.qty; });
+
+  var cost = prepCost(p);
+  var ready = num(p['yield']) > 0;
+
+  $('#prep-sum').textContent = p.ing.length ? money(cost) : '—';
+  $('#prep-r-count').textContent = p.ing.length;
+  $('#prep-r-cost').textContent = money(cost);
+  $('#prep-r-unit-lbl').textContent = prepUnitLabel(p);
+  $('#prep-r-unit').textContent = ready ? money(prepUnitValue(p)) : '—';
+
+  // Підказка про вихід має сенс, лише поки всі складники в одній одиниці:
+  // яйця в штуках у грами не додаються.
+  var auto = autoYield(p);
+  var btn = $('#prep-yield-auto');
+  var showAuto = auto > 0 && Math.abs(auto - num(p['yield'])) > 0.005;
+  btn.hidden = !showAuto;
+  if (showAuto) btn.textContent = 'Сума складників — ' + qtyFmt(auto) + ' ' + p.unit + '. Підставити';
+
+  persist();
+}
+
+/** Сума ваги складників — лише якщо всі вони в тій самій одиниці, що й вихід. */
+function autoYield(p) {
+  var sum = 0;
+  for (var i = 0; i < p.ing.length; i++) {
+    if (p.ing[i].unit !== p.unit) return 0;
+    sum += num(p.ing[i].qty);
+  }
+  return sum;
+}
+
+function bindPrepEdit() {
+  var ib = $('#prep-ing-body');
+
+  ib.addEventListener('input', function (e) {
+    var tr = e.target.closest('tr'); if (!tr) return;
+    if (e.target.getAttribute('data-f') === 'name') autofill(tr);
+    prepRecalc();
+  });
+  ib.addEventListener('change', function (e) {
+    if (e.target.getAttribute('data-f') === 'unit') { syncUnitTag(e.target.closest('tr')); prepRecalc(); }
+  });
+  ib.addEventListener('blur', function (e) {
+    var f = e.target.getAttribute && e.target.getAttribute('data-f');
+    if (f === 'price') e.target.value = num(e.target.value) ? fmt(num(e.target.value)) : '';
+    if (f === 'pack' || f === 'qty') e.target.value = qtyFmt(num(e.target.value));
+  }, true);
+
+  ib.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-del-row]')) return;
+    e.target.closest('tr').remove();
+    if (!ib.children.length) ib.appendChild(ingRow(null));
+    prepRecalc();
+  });
+
+  ib.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    var tr = e.target.closest('tr');
+    if (tr && tr === ib.lastElementChild) {
+      var n = ingRow(null); ib.appendChild(n); $('[data-f=name]', n).focus(); prepRecalc();
+    } else if (tr && tr.nextElementSibling) {
+      $('[data-f=name]', tr.nextElementSibling).focus();
+    }
+  });
+
+  $('#btn-add-prep-ing').addEventListener('click', function () {
+    var tr = ingRow(null); ib.appendChild(tr); $('[data-f=name]', tr).focus(); prepRecalc();
+  });
+
+  $('#prep-name').addEventListener('input', prepRecalc);
+  $('#prep-yield').addEventListener('input', prepRecalc);
+  $('#prep-yield').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
+  $('#prep-unit').addEventListener('change', prepRecalc);
+
+  $('#prep-yield-auto').addEventListener('click', function () {
+    var p = editingPrep(); if (!p) return;
+    $('#prep-yield').value = qtyFmt(autoYield(p));
+    prepRecalc();
+  });
+
+  $('#btn-del-prep').addEventListener('click', function () {
+    var p = editingPrep(); if (p) deletePrep(p);
+  });
+  $('#btn-refresh-prep').addEventListener('click', refreshPrepPrices);
+
+  function done() {
+    var p = editingPrep();
+    if (p && !p.name) { toast('Вкажіть назву напівфабрикату'); $('#prep-name').focus(); return; }
+    if (p && !num(p['yield'])) { toast('Вкажіть вихід — без нього не порахувати вартість у страві'); $('#prep-yield').focus(); return; }
+    persist(true);
+    renderPreps(); renderSidebar();
+    show('prep');
+  }
+  $('#btn-prep-done').addEventListener('click', done);
+  $('#prep-back').addEventListener('click', function () {
+    persist(true); renderPreps(); renderSidebar(); show('prep');
+  });
 }
 
 /* ═════════════════ 10. Папка (сітка карток) ═════════════════ */
@@ -885,6 +1396,7 @@ var calcPhoto = null;   // dataURL поточної калькуляції
 function ingRow(data) {
   var v = data || { name: '', price: 0, pack: 0, unit: 'г', qty: 0 };
   var tr = document.createElement('tr');
+  if (v.g) { tr.className = 'ing-child'; tr.setAttribute('data-g', v.g); }
   tr.innerHTML =
     '<td><input class="inp" data-f="name" list="dl-products" placeholder="Почніть вводити назву" autocomplete="off"></td>' +
     '<td><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
@@ -897,6 +1409,48 @@ function ingRow(data) {
   $('[data-f=pack]', tr).value = qtyFmt(v.pack);
   $('[data-f=qty]', tr).value = qtyFmt(v.qty);
   return tr;
+}
+
+/* Шапка групи. Дані групи живуть в атрибутах самого рядка — так таблиця
+   лишається єдиним джерелом правди для readCalc(), як і решта полів екрана. */
+function groupRow(g) {
+  var unit = g.unit || 'г';
+  var tr = document.createElement('tr');
+  tr.className = 'ing-group';
+  tr.setAttribute('data-group', g.id);
+  tr.setAttribute('data-prep', g.prepId || '');
+  tr.setAttribute('data-name', g.name || '');
+  tr.setAttribute('data-of', g.of || 0);
+  tr.setAttribute('data-unit', unit);
+  tr.setAttribute('data-take', g.take || 0);
+  tr.innerHTML =
+    '<td colspan="3"><span class="grp-head">' +
+      '<button class="grp-chev" data-grp-toggle aria-label="Згорнути складники">' + ICON_CHEV + '</button>' +
+      '<span class="grp-name">' + esc(g.name || 'Напівфабрикат') + '</span>' +
+      '<span class="grp-of">із ' + qtyFmt(g.of) + ' ' + esc(unit) + '</span>' +
+      '<button class="link-btn grp-unlink" data-grp-unlink>розгрупувати</button>' +
+    '</span></td>' +
+    '<td><span class="qty-wrap"><input class="inp is-num" data-grp-take inputmode="decimal" placeholder="0" aria-label="Скільки взяти">' +
+      '<span class="unit-tag">' + esc(unit) + '</span></span></td>' +
+    '<td class="t-cost t-empty">—</td>' +
+    '<td class="t-act"><button class="icon-btn is-danger" data-grp-del aria-label="Видалити напівфабрикат">' + ICON_X + '</button></td>';
+  $('[data-grp-take]', tr).value = qtyFmt(g.take);
+  return tr;
+}
+
+function ingRows() { return $$('#ing-body tr:not(.ing-group)'); }
+function grpRows() { return $$('#ing-body tr.ing-group'); }
+function groupChildren(gtr) {
+  return $$('#ing-body tr[data-g="' + gtr.getAttribute('data-group') + '"]');
+}
+
+/** Рейка обривається на половині останнього складника — так видно, де група закінчилась. */
+function paintGroupRails() {
+  $$('#ing-body tr.ing-child').forEach(function (tr) {
+    var g = tr.getAttribute('data-g');
+    var next = tr.nextElementSibling;
+    tr.classList.toggle('is-last', !next || next.getAttribute('data-g') !== g);
+  });
 }
 
 function expRow(data) {
@@ -920,13 +1474,26 @@ function readCalc() {
     name: $('#calc-name').value.trim(),
     photo: calcPhoto,
     margin: num($('#margin-inp').value),
-    ing: $$('#ing-body tr').map(function (tr) {
-      return {
+    ing: ingRows().map(function (tr) {
+      var g = tr.getAttribute('data-g');
+      var o = {
         name: $('[data-f=name]', tr).value.trim(),
         price: num($('[data-f=price]', tr).value),
         pack: num($('[data-f=pack]', tr).value),
         unit: $('[data-f=unit]', tr).value,
         qty: num($('[data-f=qty]', tr).value)
+      };
+      if (g) o.g = g;
+      return o;
+    }),
+    groups: grpRows().map(function (tr) {
+      return {
+        id: tr.getAttribute('data-group'),
+        prepId: tr.getAttribute('data-prep') || null,
+        name: tr.getAttribute('data-name'),
+        take: num($('[data-grp-take]', tr).value),
+        of: num(tr.getAttribute('data-of')),
+        unit: tr.getAttribute('data-unit')
       };
     }),
     exp: $$('#exp-body tr').map(function (tr) {
@@ -941,11 +1508,16 @@ function readCalc() {
 
 /** Прибирає порожні рядки — у стан їх писати не треба. */
 function cleanRecipe(d) {
+  var ing = d.ing.filter(function (i) { return i.name || i.price || i.pack || i.qty; });
   return {
     name: d.name,
     photo: d.photo,
     margin: d.margin,
-    ing: d.ing.filter(function (i) { return i.name || i.price || i.pack || i.qty; }),
+    ing: ing,
+    // Група без жодного складника не має сенсу: рядки могли прибрати вручну
+    groups: (d.groups || []).filter(function (g) {
+      return ing.some(function (i) { return i.g === g.id; });
+    }),
     exp: d.exp.filter(function (e) { return e.name || e.value; })
   };
 }
@@ -1004,12 +1576,21 @@ function paintReceipt(t, m) {
 function recalc() {
   var d = readCalc();
 
-  $$('#ing-body tr').forEach(function (tr, idx) {
+  ingRows().forEach(function (tr, idx) {
     var i = d.ing[idx];
     var cell = $('.t-cost', tr);
     var ok = i.price > 0 && i.pack > 0 && i.qty > 0;
     cell.textContent = ok ? fmt(ingCost(i)) : '—';
     cell.classList.toggle('t-empty', !ok);
+  });
+
+  // Підсумок групи — сума її складників: у згорнутому вигляді це єдина видима цифра
+  grpRows().forEach(function (tr) {
+    var id = tr.getAttribute('data-group'), sum = 0;
+    d.ing.forEach(function (i) { if (i.g === id) sum += ingCost(i); });
+    var cell = $('.t-cost', tr);
+    cell.textContent = sum > 0 ? fmt(sum) : '—';
+    cell.classList.toggle('t-empty', !(sum > 0));
   });
 
   var t = totals(d);
@@ -1068,8 +1649,18 @@ function loadCalc(rec, crumb) {
 
   var ib = $('#ing-body'); ib.innerHTML = '';
   var ing = (rec.ing || []).slice();
+  var groups = rec.groups || [];
   while (ing.length < 5) ing.push(null);              // стартово 5 рядків
-  ing.forEach(function (i) { ib.appendChild(ingRow(i)); });
+  // Шапка групи йде перед її першим складником — порядок рядків беремо зі стану
+  var seenGroup = {};
+  ing.forEach(function (i) {
+    if (i && i.g && !seenGroup[i.g]) {
+      var g = byId(groups, i.g);
+      if (g) { ib.appendChild(groupRow(g)); seenGroup[i.g] = 1; }
+    }
+    ib.appendChild(ingRow(i));
+  });
+  paintGroupRails();
 
   var eb = $('#exp-body'); eb.innerHTML = '';
   var exp = (rec.exp || []).slice();
@@ -1079,6 +1670,41 @@ function loadCalc(rec, crumb) {
   recalc();
   draftDirty = false;   // щойно завантажили — незбережених правок ще немає
   updateSaveBtn();
+  updateCalcStale();
+}
+
+/**
+ * Смуга «ціни змінились» над таблицею. Перевіряємо лише на завантаженні
+ * рецепта, а не на кожну правку: якщо людина щойно вручну виправила ціну
+ * в рядку, той рядок теж «розійшовся з базою» — і смуга спливала б у
+ * відповідь на власну ж дію користувача.
+ */
+function updateCalcStale() {
+  var res = syncWithBase(readCalc(), true);
+  var bar = $('#calc-stale');
+  bar.hidden = !res.changed;
+  if (!res.changed) return;
+  $('#calc-stale-txt').innerHTML = ICON_SYNC + '<span>' + esc(res.changed + ' ' +
+    plural(res.changed, 'рядок рахується', 'рядки рахуються', 'рядків рахуються') +
+    ' за старими цінами') + '</span>';
+}
+
+function refreshCalcPrices() {
+  var d = cleanRecipe(readCalc());
+  var res = syncWithBase(d, false);
+  if (!res.changed) { updateCalcStale(); toast('Тут уже поточні ціни'); return; }
+
+  loadCalc(d, $('#calc-crumb').textContent);
+  draftDirty = true;             // рецепт розійшовся зі збереженою версією
+  updateSaveBtn();
+
+  var msg = 'Оновлено ' + res.changed + ' ' + plural(res.changed, 'рядок', 'рядки', 'рядків');
+  if (res.skipped) {
+    msg += ', ' + res.skipped + ' ' + plural(res.skipped, 'рядок', 'рядки', 'рядків') +
+           ' пропущено — у базі інша одиниця виміру';
+  }
+  if (S.ui.editing) msg += '. Натисніть «Оновити калькуляцію», щоб зберегти';
+  toast(msg);
 }
 
 function newCalc() {
@@ -1128,13 +1754,24 @@ function bindCalc() {
     recalc();
   });
   ib.addEventListener('change', function (e) {
-    if (e.target.getAttribute('data-f') === 'unit') { syncUnitTag(e.target.closest('tr')); recalc(); }
+    if (e.target.getAttribute('data-f') === 'unit') { syncUnitTag(e.target.closest('tr')); recalc(); return; }
+    // Кількість групи міняємо на change, а не на кожну натиснуту клавішу:
+    // інакше «300» під час набору встигло б перерахувати склад тричі.
+    if (e.target.hasAttribute('data-grp-take')) rescaleGroup(e.target.closest('tr'));
   });
   ib.addEventListener('blur', function (e) {
     var f = e.target.getAttribute && e.target.getAttribute('data-f');
     if (f === 'price') e.target.value = num(e.target.value) ? fmt(num(e.target.value)) : '';
     if (f === 'pack' || f === 'qty') e.target.value = qtyFmt(num(e.target.value));
   }, true);
+
+  // Дії на шапці групи
+  ib.addEventListener('click', function (e) {
+    var gtr = e.target.closest('tr.ing-group'); if (!gtr) return;
+    if (e.target.closest('[data-grp-toggle]')) { toggleGroup(gtr); return; }
+    if (e.target.closest('[data-grp-unlink]')) { unlinkGroup(gtr); return; }
+    if (e.target.closest('[data-grp-del]')) deleteGroup(gtr);
+  });
 
   eb.addEventListener('input', function (e) {
     var tr = e.target.closest('tr'); if (!tr) return;
@@ -1162,8 +1799,16 @@ function bindCalc() {
   [ib, eb].forEach(function (body) {
     body.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-del-row]'); if (!btn) return;
-      btn.closest('tr').remove();
+      var tr = btn.closest('tr');
+      var gid = tr.getAttribute('data-g');
+      tr.remove();
+      // Пішов останній складник — шапці групи більше нема над чим стояти
+      if (gid && !$$('#ing-body tr[data-g="' + gid + '"]').length) {
+        var gtr = $('#ing-body tr.ing-group[data-group="' + gid + '"]');
+        if (gtr) gtr.remove();
+      }
       if (!body.children.length) body.appendChild(body === ib ? ingRow(null) : expRow(null));
+      if (body === ib) paintGroupRails();
       recalc();
     });
   });
@@ -1171,6 +1816,8 @@ function bindCalc() {
   $('#btn-add-ing').addEventListener('click', function () {
     var tr = ingRow(null); ib.appendChild(tr); $('[data-f=name]', tr).focus(); recalc();
   });
+  $('#btn-add-group').addEventListener('click', openPrepPick);
+  $('#btn-refresh-calc').addEventListener('click', refreshCalcPrices);
   $('#btn-add-exp').addEventListener('click', function () {
     var tr = expRow(null); eb.appendChild(tr); $('[data-f=name]', tr).focus(); recalc();
   });
@@ -1197,12 +1844,186 @@ function bindCalc() {
   ib.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
+    // У кількості групи Enter означає «застосувати», а не «наступний рядок»
+    if (e.target.hasAttribute && e.target.hasAttribute('data-grp-take')) { e.target.blur(); return; }
     var tr = e.target.closest('tr');
     if (tr && tr === ib.lastElementChild) {
       var n = ingRow(null); ib.appendChild(n); $('[data-f=name]', n).focus(); recalc();
     } else if (tr && tr.nextElementSibling) {
       $('[data-f=name]', tr.nextElementSibling).focus();
     }
+  });
+}
+
+/* ═════════════════ 11a. Напівфабрикат у калькуляції ═════════════════ */
+
+function toggleGroup(gtr) {
+  var closed = gtr.classList.toggle('is-closed');
+  // Приховані рядки лишаються в DOM — readCalc() бачить їх як завжди,
+  // тож згортання не втрачає жодної цифри.
+  groupChildren(gtr).forEach(function (tr) { tr.hidden = closed; });
+  $('[data-grp-toggle]', gtr).setAttribute('aria-label', closed ? 'Показати складники' : 'Згорнути складники');
+}
+
+/**
+ * Перерахунок під нову кількість. Множимо те, що зараз у полях, а не вихідні
+ * грамовки замісу: якщо користувач підправив масло саме в цьому торті, правка
+ * має пережити зміну кількості, а не зникнути.
+ */
+function rescaleGroup(gtr) {
+  var inp = $('[data-grp-take]', gtr);
+  var take = num(inp.value);
+  var prev = num(gtr.getAttribute('data-take'));
+
+  if (take > 0 && prev > 0 && Math.abs(take - prev) > 0.0005) {
+    var k = take / prev;
+    groupChildren(gtr).forEach(function (tr) {
+      var q = $('[data-f=qty]', tr);
+      q.value = qtyFmt(num(q.value) * k);
+    });
+  }
+  gtr.setAttribute('data-take', take);
+  inp.value = qtyFmt(take);
+  recalc();
+}
+
+function unlinkGroup(gtr) {
+  groupChildren(gtr).forEach(function (tr) {
+    tr.removeAttribute('data-g');
+    tr.classList.remove('ing-child', 'is-last');
+  });
+  gtr.remove();
+  paintGroupRails();
+  recalc();
+  toast('Складники лишились у калькуляції окремими рядками');
+}
+
+function deleteGroup(gtr) {
+  var ib = $('#ing-body');
+  ask({
+    title: 'Прибрати напівфабрикат?',
+    sub: '«' + (gtr.getAttribute('data-name') || 'Напівфабрикат') + '» і всі його складники зникнуть із цієї калькуляції. ' +
+         'Сам напівфабрикат у базі залишиться.',
+    input: false, ok: 'Прибрати', danger: true
+  }, function () {
+    closeAsk();
+    groupChildren(gtr).forEach(function (tr) { tr.remove(); });
+    gtr.remove();
+    if (!ib.children.length) ib.appendChild(ingRow(null));
+    paintGroupRails();
+    recalc();
+    toast('Напівфабрикат прибрано');
+  });
+}
+
+/* ── Модалка вставки ────────────────────────────────────────── */
+
+function pickedPrep() { return prepById($('#prep-pick').value); }
+
+function syncPrepPickMeta(resetTake) {
+  var p = pickedPrep(); if (!p) return;
+  var y = num(p['yield']);
+  $('#prep-pick-meta').textContent = 'Заміс ' + qtyFmt(y) + ' ' + p.unit + ' · ' + money(prepCost(p)) +
+    ' · ' + p.ing.length + ' ' + plural(p.ing.length, 'складник', 'складники', 'складників');
+  $('#prep-take-unit').textContent = p.unit;
+  if (resetTake) $('#prep-take').value = qtyFmt(y);
+  syncPrepTakeHint();
+}
+
+function syncPrepTakeHint() {
+  var p = pickedPrep();
+  var hint = $('#prep-take-hint');
+  if (!p) { hint.textContent = ''; return; }
+  var y = num(p['yield']), take = num($('#prep-take').value);
+  if (!(y > 0) || !(take > 0)) { hint.textContent = ''; return; }
+  var k = take / y;
+  // «1 заміс», «2 заміси», але «0,25 замісу» — дробова частка вимагає родового
+  var whole = Math.abs(k - Math.round(k)) < 0.0005;
+  var word = whole ? plural(Math.round(k), 'заміс', 'заміси', 'замісів') : 'замісу';
+  hint.textContent = qtyFmt(k) + ' ' + word + ' · ' + money(prepCost(p) * k);
+}
+
+function openPrepPick() {
+  var ready = S.preps.filter(function (p) { return p.ing.length && num(p['yield']) > 0; });
+  if (!ready.length) {
+    toast(S.preps.length
+      ? 'У напівфабрикатів бракує складу або виходу — заповніть їх у розділі «Напівфабрикати»'
+      : 'Спершу створіть напівфабрикат у розділі «Напівфабрикати»');
+    return;
+  }
+  $('#prep-pick').innerHTML = ready.map(function (p) {
+    return '<option value="' + esc(p.id) + '">' + esc(p.name || 'Без назви') + '</option>';
+  }).join('');
+  syncPrepPickMeta(true);
+  $('#prep-overlay').classList.add('is-on');
+  $('#prep-take').focus();
+  $('#prep-take').select();
+}
+
+function closePrepPick() { $('#prep-overlay').classList.remove('is-on'); }
+
+/** Чи порожній рядок інгредієнта — щоб не лишати діру перед вставленою групою. */
+function isEmptyIngRow(tr) {
+  return !$('[data-f=name]', tr).value.trim() &&
+         !num($('[data-f=price]', tr).value) &&
+         !num($('[data-f=pack]', tr).value) &&
+         !num($('[data-f=qty]', tr).value);
+}
+
+function insertPrepGroup(p, take) {
+  var y = num(p['yield']);
+  if (!(y > 0) || !(take > 0)) return;
+
+  var ib = $('#ing-body');
+  var k = take / y;
+  var gid = uid('g');
+
+  // Стартові порожні рядки в кінці таблиці прибираємо — інакше група
+  // повисне під смугою пустоти
+  var tail = ib.lastElementChild;
+  while (tail && !tail.classList.contains('ing-group') && !tail.getAttribute('data-g') && isEmptyIngRow(tail)) {
+    var prev = tail.previousElementSibling;
+    tail.remove();
+    tail = prev;
+  }
+
+  ib.appendChild(groupRow({ id: gid, prepId: p.id, name: p.name, take: take, of: y, unit: p.unit }));
+  p.ing.forEach(function (i) {
+    ib.appendChild(ingRow({
+      name: i.name, price: i.price, pack: i.pack, unit: i.unit,
+      qty: num(qtyFmt(i.qty * k)), g: gid
+    }));
+  });
+  ib.appendChild(ingRow(null));   // куди друкувати далі
+
+  paintGroupRails();
+  recalc();
+
+  var gtr = $('#ing-body tr.ing-group[data-group="' + gid + '"]');
+  if (gtr) gtr.scrollIntoView({ block: 'center' });
+}
+
+function bindPrepPick() {
+  $('#prep-pick').addEventListener('change', function () { syncPrepPickMeta(true); });
+  $('#prep-take').addEventListener('input', syncPrepTakeHint);
+  $('#prep-take').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
+
+  $('#prep-pick-cancel').addEventListener('click', closePrepPick);
+  $('#prep-overlay').addEventListener('click', function (e) { if (e.target === this) closePrepPick(); });
+
+  function confirmPick() {
+    var p = pickedPrep();
+    if (!p) { closePrepPick(); return; }
+    var take = num($('#prep-take').value);
+    if (!(take > 0)) { toast('Вкажіть, скільки потрібно'); $('#prep-take').focus(); return; }
+    insertPrepGroup(p, take);
+    closePrepPick();
+    toast('«' + (p.name || 'Напівфабрикат') + '» додано — ' + p.ing.length + ' ' +
+          plural(p.ing.length, 'складник', 'складники', 'складників'));
+  }
+  $('#prep-pick-ok').addEventListener('click', confirmPick);
+  $('#prep-take').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmPick(); }
   });
 }
 
@@ -1348,7 +2169,8 @@ function bindSave() {
       var old = folderById(ed.folderId);
       var idx = old ? old.recipes.map(function (r) { return r.id; }).indexOf(ed.recipeId) : -1;
       var rec = (idx > -1) ? old.recipes[idx] : { id: ed.recipeId };
-      rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin; rec.ing = d.ing; rec.exp = d.exp;
+      rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin;
+      rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups;
       if (old && old.id !== target.id && idx > -1) {   // перенесли в іншу папку
         old.recipes.splice(idx, 1);
         target.recipes.push(rec);
@@ -1358,7 +2180,7 @@ function bindSave() {
       S.ui.editing = { folderId: target.id, recipeId: rec.id };
       toast('Оновлено — папка «' + target.title + '»');
     } else {
-      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp };
+      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups };
       target.recipes.push(fresh);
       S.ui.editing = { folderId: target.id, recipeId: fresh.id };
       toast('Збережено в папку «' + target.title + '»');
@@ -1379,19 +2201,57 @@ function bindSave() {
 
 /* ═════════════════ 14. Експорт PDF (А4) ═════════════════ */
 
+/**
+ * Тіло таблиці інгредієнтів: кожна група — окремий <tbody>, суцільні
+ * рядки поза групами теж збираються в свій. Це не косметика: html2pdf уміє
+ * не розривати сторінкою цілий елемент, і саме tbody дає йому те, за що
+ * триматися — інакше склад тіста роз'їхався б на дві сторінки.
+ */
+function pdfIngBody(d) {
+  var groups = d.groups || [];
+  var out = [], cur = null;
+
+  function flush() {
+    if (!cur) return;
+    out.push('<tbody' + (cur.g ? ' class="pdf-grp-body"' : '') + '>' + cur.rows.join('') + '</tbody>');
+    cur = null;
+  }
+
+  d.ing.forEach(function (i) {
+    var gid = i.g || null;
+    if (!cur || cur.gid !== gid) {
+      flush();
+      cur = { gid: gid, g: gid ? byId(groups, gid) : null, rows: [] };
+      if (cur.g) {
+        var g = cur.g, sum = 0;
+        d.ing.forEach(function (x) { if (x.g === g.id) sum += ingCost(x); });
+        cur.rows.push(
+          '<tr class="pdf-grp">' +
+            '<td colspan="3">' + esc(g.name || 'Напівфабрикат') + '</td>' +
+            '<td class="r">' + qtyFmt(g.take) + ' ' + esc(g.unit) + ' із ' + qtyFmt(g.of) + ' ' + esc(g.unit) + '</td>' +
+            '<td class="r b">' + fmt(sum) + '</td>' +
+          '</tr>');
+      }
+    }
+    cur.rows.push(
+      '<tr' + (gid ? ' class="pdf-sub"' : '') + '>' +
+        '<td>' + esc(i.name || '—') + '</td>' +
+        '<td class="r">' + fmt(i.price) + '</td>' +
+        '<td class="r">' + qtyFmt(i.pack) + ' ' + i.unit + '</td>' +
+        '<td class="r">' + qtyFmt(i.qty) + ' ' + i.unit + '</td>' +
+        '<td class="r b">' + fmt(ingCost(i)) + '</td>' +
+      '</tr>');
+  });
+
+  flush();
+  return out.join('');
+}
+
 function buildPdfDoc(d, t) {
   var wrap = document.createElement('div');
   wrap.className = 'pdf-doc';
 
-  var rows = d.ing.map(function (i) {
-    return '<tr>' +
-      '<td>' + esc(i.name || '—') + '</td>' +
-      '<td class="r">' + fmt(i.price) + '</td>' +
-      '<td class="r">' + qtyFmt(i.pack) + ' ' + i.unit + '</td>' +
-      '<td class="r">' + qtyFmt(i.qty) + ' ' + i.unit + '</td>' +
-      '<td class="r b">' + fmt(ingCost(i)) + '</td>' +
-      '</tr>';
-  }).join('');
+  var rows = pdfIngBody(d);
 
   var expRows = d.exp.map(function (e) {
     var label = e.mode === 'pct' ? (e.name || '—') + ' (' + qtyFmt(e.value) + '% від собівартості)' : (e.name || '—');
@@ -1409,7 +2269,7 @@ function buildPdfDoc(d, t) {
       '<table class="pdf-tbl"><thead><tr>' +
         '<th>Назва</th><th class="r">Ціна упаковки</th>' +
         '<th class="r">В упаковці</th><th class="r">У страві</th><th class="r">Вартість</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '</tr></thead>' + rows + '</table>' +
       '<div class="pdf-subtotal"><span>Собівартість</span><b>' + money(t.cost) + '</b></div>' +
     '</section>' +
 
@@ -1445,14 +2305,19 @@ var PDF_STEPS = [12, 11.2, 10.4, 9.6, 9, 8.4, 7.8];
 /**
  * Підганяє документ під одну сторінку, зменшуючи базовий кегль.
  * Усі розміри всередині .pdf-doc — в em, тож міняється лише одне число.
- * Повертає false, якщо не влізло навіть найдрібнішим (дуже довгий рецепт).
+ * Повертає кількість сторінок.
+ *
+ * Рецепт із напівфабрикатами на аркуш уже не тиснемо: дві читабельні
+ * сторінки кращі за одну, набрану кеглем 7,8 — тому щойно стало ясно,
+ * що в одну не влазить, повертаємо найбільший кегль і рахуємо сторінки.
  */
 function fitToPage(doc) {
   for (var i = 0; i < PDF_STEPS.length; i++) {
     doc.style.fontSize = PDF_STEPS[i] + 'px';
-    if (doc.scrollHeight <= PDF_PAGE_H) return true;
+    if (doc.scrollHeight <= PDF_PAGE_H) return 1;
   }
-  return false;
+  doc.style.fontSize = PDF_STEPS[0] + 'px';
+  return Math.max(2, Math.ceil(doc.scrollHeight / PDF_PAGE_H));
 }
 
 var pdfName = 'калькуляція';
@@ -1470,8 +2335,8 @@ function openPdfPreview() {
   $('#pdf-modal-body').scrollTop = 0;
   $('#pdf-overlay').classList.add('is-on');   //міряти висоту можна лише на видимому
 
-  var fits = fitToPage(doc);
-  $('#pdf-sub').textContent = 'Формат А4 · ' + (fits ? 'одна сторінка' : 'не вміщається на одну сторінку');
+  var pages = fitToPage(doc);
+  $('#pdf-sub').textContent = 'Формат А4 · ' + pages + ' ' + plural(pages, 'сторінка', 'сторінки', 'сторінок');
 }
 
 function closePdfPreview() {
@@ -1510,7 +2375,9 @@ function downloadPdf() {
     // scale 3 ≈ 290 dpi — на 2 дрібний текст у растрі помітно милився
     html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak: { mode: ['css', 'legacy'] }
+    // tbody — це цілий напівфабрикат: розрив сторінки посеред складу тіста
+    // перетворює техкарту на ребус, тому такі блоки переносимо цілком
+    pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block'] }
   }).from(doc).save().then(function () {
     done('PDF збережено');
   })['catch'](function (err) {
@@ -1574,11 +2441,13 @@ function importData(file) {
     }
 
     var n = recipeCount(parsed);
+    var k = (parsed.preps && parsed.preps.length) || 0;
     ask({
       title: 'Відновити з файла?',
       sub: 'З файла прийде ' + parsed.products.length + ' ' +
-           plural(parsed.products.length, 'продукт', 'продукти', 'продуктів') + ' і ' +
-           n + ' ' + plural(n, 'калькуляція', 'калькуляції', 'калькуляцій') +
+           plural(parsed.products.length, 'продукт', 'продукти', 'продуктів') +
+           (k ? ', ' + k + ' ' + plural(k, 'напівфабрикат', 'напівфабрикати', 'напівфабрикатів') : '') +
+           ' і ' + n + ' ' + plural(n, 'калькуляція', 'калькуляції', 'калькуляцій') +
            '. Поточні дані буде замінено — якщо вони потрібні, спершу збережіть їх у файл.',
       input: false, ok: 'Відновити', danger: true
     }, function () {
@@ -1611,6 +2480,8 @@ function repaintMoney() {
   applyCurrency();
   renderDatalist();
   renderExpDatalist();
+  renderPreps();
+  if (S.ui.screen === 'prep-edit' && editingPrep()) prepRecalc();
   if (S.ui.folderId) renderFolder();
   if (S.ui.screen === 'calc' || $('#ing-body').children.length) {
     // recalc() завжди позначає чернетку як змінену — але зміна валюти чи
@@ -1676,6 +2547,7 @@ function bindGlobal() {
       var id = sc.getAttribute('data-screen');
       if (id === 'base') renderBase();
       if (id === 'expbase') renderExpBase();
+      if (id === 'prep') renderPreps();
       show(id);
       return;
     }
@@ -1696,6 +2568,7 @@ function bindGlobal() {
     if (e.key === 'Escape') {
       closeAsk();
       closePdfPreview();
+      closePrepPick();
       $('#save-overlay').classList.remove('is-on');
     }
   });
@@ -1718,10 +2591,16 @@ function boot(fresh) {
   renderSidebar();
   renderBase();
   renderExpBase();
+  renderPreps();
 
   if (fresh) { show('home'); return; }
 
   var ui = S.ui || {};
+  if (ui.screen === 'prep-edit') {
+    // Редактор без відкритого напівфабрикату показувати нема сенсу
+    if (prepById(ui.prepId)) openPrep(ui.prepId); else show('prep');
+    return;
+  }
   if (ui.screen === 'calc') {
     // відновлюємо незбережену чернетку
     var crumb = 'Нова калькуляція';
@@ -1744,6 +2623,9 @@ function init() {
   bindGlobal();
   bindBase();
   bindExpBase();
+  bindPreps();
+  bindPrepEdit();
+  bindPrepPick();
   bindFolder();
   bindCalc();
   bindPhoto();
