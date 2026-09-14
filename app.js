@@ -9,6 +9,16 @@
 
 var STORE_KEY = 'fc:state:v1';
 var UNITS = ['г', 'мл', 'шт'];
+
+/* Обовʼязковий перелік із 14 алергенів — такий самий, як у ЄС.
+   Порядок не абетковий: спершу те, що трапляється в кондитерці щодня. */
+var ALLERGENS = [
+  ['gluten', 'Глютен'], ['eggs', 'Яйця'], ['milk', 'Молоко'], ['nuts', 'Горіхи'],
+  ['peanuts', 'Арахіс'], ['soy', 'Соя'], ['sesame', 'Кунжут'], ['sulphites', 'Сульфіти'],
+  ['mustard', 'Гірчиця'], ['celery', 'Селера'], ['lupin', 'Люпин'], ['fish', 'Риба'],
+  ['crustaceans', 'Ракоподібні'], ['molluscs', 'Молюски']
+];
+var NUT_KEYS = [['kcal', 'Ккал'], ['prot', 'Білки'], ['fat', 'Жири'], ['carb', 'Вуглеводи']];
 var PHOTO_MAX = 720;     // px — до цього розміру стискаємо фото
 var PHOTO_Q = 0.72;      // якість jpeg
 
@@ -72,13 +82,21 @@ var draftDirty = false;
 
 /**
  * Модель:
- *   product = { id, name, price, pack, unit }
+ *   product = { id, name, price, pack, unit, nutrition, allergens, pieceWeight }
+ *     nutrition = null | { kcal, prot, fat, carb }      ← на 100 г; поле null — не вписане, у сумі 0
+ *     allergens = null (не вказано) | [] (немає) | ['gluten', …]
+ *     pieceWeight = вага 1 шт у грамах, потрібна лише штучним продуктам
  *   ingredient = { name, price, pack, unit, qty, g? }   ← копія даних, не посилання
  *   expense = { name, mode, value }   mode: 'sum' (валюта) | 'pct' (% від собівартості)
  *   prep = { id, name, ing[], yield, unit }            ← напівфабрикат (тісто, крем)
  *   group = { id, prepId, name, take, of, unit }       ← напівфабрикат у рецепті
- *   recipe = { id, name, photo, margin, ing[], exp[], groups[] }
+ *   recipe = { id, name, photo, margin, ing[], exp[], groups[], outWeight }
  *   folder = { id, title, recipes[] }
+ *
+ * Ціна в рецепті — копія, а КБЖУ й алергени — ні: їх беремо з бази за назвою
+ * в момент показу. Ціна — це знімок, за яким рахували клієнту, і вона має
+ * право застаріти. А глютен у борошні заднім числом не змінюється, тож
+ * копія тут дала б лише ще одне джерело розбіжностей.
  *
  * Напівфабрикат у рецепті не згортається в один рядок: його складники лежать
  * у тому ж r.ing плоским списком і позначені міткою i.g = group.id. Завдяки
@@ -90,6 +108,7 @@ function emptyState() {
     currency: '₴',
     round: 5,
     theme: 'light',
+    showNutrition: false,                          // КБЖУ й алергени потрібні не всім
     products: [],
     expenseBase: [],
     preps: [],
@@ -105,6 +124,15 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', S.theme === 'dark' ? 'dark' : 'light');
   $$('#seg-theme button').forEach(function (b) {
     b.setAttribute('aria-pressed', b.getAttribute('data-theme-val') === S.theme ? 'true' : 'false');
+  });
+}
+
+/* Один клас на <html> ховає або показує всі харчові блоки разом —
+   без перемальовування екранів і без втрати вже внесених даних. */
+function applyNutrition() {
+  document.documentElement.classList.toggle('nut-on', !!S.showNutrition);
+  $$('#seg-nut button').forEach(function (b) {
+    b.setAttribute('aria-pressed', (b.getAttribute('data-nut-val') === 'on') === !!S.showNutrition ? 'true' : 'false');
   });
 }
 
@@ -136,12 +164,14 @@ function normalize(s) {
   if (!s.currency) s.currency = '₴';
   if (!s.round) s.round = 5;
   if (!s.theme) s.theme = 'light';
+  if (typeof s.showNutrition !== 'boolean') s.showNutrition = false;
   if (!s.ui.folderSort) s.ui.folderSort = 'name';
   if (s.ui.folderQuery == null) s.ui.folderQuery = '';
   if (!s.products) s.products = [];
   if (!s.expenseBase) s.expenseBase = [];   // до появи бази витрат поля не було
   if (!s.preps) s.preps = [];               // до появи напівфабрикатів поля не було
   if (!s.folders) s.folders = [];
+  s.products.forEach(normalizeProduct);
   s.preps.forEach(function (p) {
     if (!p.ing) p.ing = [];
     if (!p.unit) p.unit = 'г';
@@ -153,14 +183,33 @@ function normalize(s) {
       if (!r.ing) r.ing = [];
       if (!r.exp) r.exp = [];
       if (!r.groups) r.groups = [];
+      r.outWeight = num(r.outWeight);
       migrateExpenseList(r.exp);
     });
   });
   if (s.draft) {
     migrateExpenseList(s.draft.exp);
     if (!s.draft.groups) s.draft.groups = [];
+    s.draft.outWeight = num(s.draft.outWeight);
   }
   return s;
+}
+
+/**
+ * Харчові поля продукту. Файл резервної копії могли відредагувати руками,
+ * тож перевіряємо типи, а не лише наявність: сміття в алергенах тут
+ * небезпечніше за сміття в ціні — воно тихо зникає зі списку.
+ */
+function normalizeProduct(p) {
+  var n = p.nutrition, clean = null;
+  if (n && typeof n === 'object') {
+    clean = {};
+    NUT_KEYS.forEach(function (k) { clean[k[0]] = nutValue(n[k[0]]); });
+    if (NUT_KEYS.every(function (k) { return clean[k[0]] == null; })) clean = null;
+  }
+  p.nutrition = clean;
+  p.allergens = Array.isArray(p.allergens) ? orderAllergens(p.allergens) : null;
+  p.pieceWeight = num(p.pieceWeight);
 }
 
 function readStore() {
@@ -227,8 +276,38 @@ function seed() {
     ['Імбир мелений', 68, 50, 'г'],
     ['Кориця мелена', 54, 50, 'г']
   ];
+  // Харчова цінність на 100 г: [ккал, білки, жири, вуглеводи, алергени, вага 1 шт]
+  // «Барвник гелевий» тут навмисно відсутній: на таких упаковках складу часто
+  // немає, і демо одразу показує, як виглядає попередження «не вказано».
+  var N = {
+    'Борошно вищий ґатунок': [334, 10.3, 1.1, 70.6, ['gluten']],
+    'Мигдальне борошно': [579, 21.2, 49.9, 21.6, ['nuts']],
+    'Цукор білий': [399, 0, 0, 99.8, []],
+    'Цукрова пудра': [399, 0, 0, 99.8, []],
+    'Масло вершкове 82%': [748, 0.5, 82.5, 0.8, ['milk']],
+    'Олія соняшникова': [899, 0, 99.9, 0, []],
+    'Яйця С1': [157, 12.7, 11.5, 0.7, ['eggs'], 52],
+    'Молоко 2,5%': [52, 2.8, 2.5, 4.7, ['milk']],
+    'Вершки 33%': [322, 2.2, 33, 3.3, ['milk']],
+    'Згущене молоко': [320, 7.2, 8.5, 56, ['milk']],
+    'Сир вершковий': [342, 6, 34, 4, ['milk']],
+    'Мед натуральний': [329, 0.8, 0, 81.5, []],
+    'Шоколад чорний 70%': [580, 8, 42, 33, ['soy']],
+    'Ванільний екстракт': [288, 0.1, 0.1, 12.7, []],
+    'Полуниця заморожена': [32, 0.7, 0.3, 7.7, []],
+    'Морква': [41, 0.9, 0.2, 9.6, []],
+    'Волоські горіхи': [654, 15.2, 65.2, 13.7, ['nuts']],
+    'Імбир мелений': [335, 9, 4.2, 71.6, []],
+    'Кориця мелена': [247, 4, 1.2, 80.6, []]
+  };
   s.products = P.map(function (p) {
-    return { id: uid('p'), name: p[0], price: p[1], pack: p[2], unit: p[3] };
+    var n = N[p[0]];
+    return {
+      id: uid('p'), name: p[0], price: p[1], pack: p[2], unit: p[3],
+      nutrition: n ? { kcal: n[0], prot: n[1], fat: n[2], carb: n[3] } : null,
+      allergens: n ? n[4] : null,
+      pieceWeight: n && n[5] ? n[5] : 0
+    };
   });
 
   // Ті самі назви, що трапляються в демо-рецептах нижче — щоб автопідстановка спрацювала одразу.
@@ -551,6 +630,423 @@ function staleLabel(c) {
   return parts.join(' і ');
 }
 
+/* ═════════════════ 5b. Харчова цінність і алергени ═════════════════
+   Вмикається в налаштуваннях. Дані живуть у продуктах бази, а калькуляція
+   й напівфабрикат лише складають їх за грамовками своїх рядків. */
+
+var NUT_ROWS = [['kcal', 'Калорійність', ' ккал', 0], ['prot', 'Білки', ' г', 1],
+                ['fat', 'Жири', ' г', 1], ['carb', 'Вуглеводи', ' г', 1]];
+
+/** Порядок як в ALLERGENS, без дублікатів і невідомих ключів. */
+function orderAllergens(list) {
+  return ALLERGENS.map(function (a) { return a[0]; }).filter(function (k) { return list.indexOf(k) !== -1; });
+}
+
+/**
+ * Скільки грамів дає рядок. Мілілітри рахуємо за грами: у вершків і молока
+ * похибка до 3%, для кондитерської калькуляції це нічого не міняє. Штуки —
+ * через вагу 1 шт продукту. null — вагу визначити не можна.
+ */
+function rowGrams(i, p) {
+  var qty = num(i.qty);
+  if (i.unit !== 'шт') return qty;
+  return p && num(p.pieceWeight) > 0 ? qty * num(p.pieceWeight) : null;
+}
+
+/**
+ * Складає КБЖУ й алергени рядків калькуляції чи напівфабрикату.
+ * noNut / noAl — чого бракує, поіменно і з id продукту в базі (null, якщо
+ * рядка в базі немає): «для 2 продуктів не вказано» без імен змушувало б шукати.
+ */
+function nutritionOf(rows) {
+  var idx = baseIndex();
+  var t = { kcal: 0, prot: 0, fat: 0, carb: 0, mass: 0, rows: 0, counted: 0,
+            allergens: [], alKnown: 0, noNut: [], noAl: [] };
+  var alSet = {}, seenNut = {}, seenAl = {};
+
+  rows.forEach(function (i) {
+    var name = String(i.name || '').trim();
+    if (!name && !num(i.qty)) return;
+    t.rows++;
+    var p = name ? idx.p[nameKey(name)] : null;
+    var miss = { label: name || 'рядок без назви', id: p ? p.id : null };
+
+    // Продукт у кількох рядках (у групі й поза нею) згадуємо один раз.
+    // Безіменні рядки не зливаємо: це різні невідомі складники
+    var report = function (list, seen) {
+      var key = name ? nameKey(name) : null;
+      if (key && seen[key]) return;
+      if (key) seen[key] = 1;
+      list.push(miss);
+    };
+
+    var grams = rowGrams(i, p);
+    if (grams != null) t.mass += grams;
+
+    if (p && p.nutrition && grams != null) {
+      NUT_KEYS.forEach(function (n) { t[n[0]] += num(p.nutrition[n[0]]) * grams / 100; });
+      t.counted++;
+    } else {
+      report(t.noNut, seenNut);
+    }
+
+    // «Не вказано» і «немає» — різні речі: порожній список у продукту без
+    // даних читався б як «алергенів немає», а в тому борошні глютен
+    if (p && Array.isArray(p.allergens)) {
+      t.alKnown++;
+      p.allergens.forEach(function (a) { alSet[a] = 1; });
+    } else {
+      report(t.noAl, seenAl);
+    }
+  });
+
+  t.allergens = ALLERGENS.filter(function (a) { return alSet[a[0]]; });
+  return t;
+}
+
+/** Для кнопки в базі: 'full' — є все, що потрібно калькуляції; 'part' — щось є; 'none' — нічого. */
+function nutState(p) {
+  var nutOk = !!p.nutrition && (p.unit !== 'шт' || num(p.pieceWeight) > 0);
+  var alOk = Array.isArray(p.allergens);
+  if (nutOk && alOk) return 'full';
+  return (p.nutrition || alOk || num(p.pieceWeight) > 0) ? 'part' : 'none';
+}
+
+/** Поле КБЖУ: null — не вписане, 0 — вписаний нуль (у цукру справді 0 білків). */
+function nutValue(v) { return v == null || v === '' ? null : num(v); }
+
+/** Текст у полі: вписаний нуль показуємо як «0», невписане лишаємо порожнім. */
+function nutFieldText(p, key) {
+  var v = p.nutrition ? p.nutrition[key] : null;
+  return v == null ? '' : String(Math.round(num(v) * 10) / 10).replace('.', ',');
+}
+
+function nutNum(v, dec) {
+  var r = dec ? Math.round(v * 10) / 10 : Math.round(v);
+  var parts = String(r).split('.');
+  return parts[0].replace(/\B(?=(\d{3})+$)/g, ' ') + (parts[1] ? ',' + parts[1] : '');
+}
+
+/* ── Редактор харчових даних продукту ─────────────────────────────
+   Той самий блок живе у двох місцях: під рядком бази продуктів і в модалці,
+   що відкривається прямо з калькуляції. Модалка — не зручність, а потреба:
+   перехід у базу з незбереженої калькуляції прибирає її з екрана. */
+
+function nutEditorHtml() {
+  return '<div class="nut-fields">' +
+      '<span class="nut-cap">На 100 г</span>' +
+      NUT_KEYS.map(function (n) {
+        return '<label class="nut-f"><span>' + n[1] + '</span>' +
+          '<input class="inp is-num" data-n="' + n[0] + '" inputmode="decimal" placeholder="—"></label>';
+      }).join('') +
+      '<label class="nut-f" data-pw-wrap><span>Вага 1 шт</span><span class="qty-wrap">' +
+        '<input class="inp is-num" data-pw inputmode="decimal" placeholder="—"><span class="unit-tag">г</span></span></label>' +
+    '</div>' +
+    '<div class="nut-al">' +
+      '<span class="nut-cap">Алергени</span>' +
+      '<span class="chips">' +
+        ALLERGENS.map(function (a) {
+          return '<button type="button" class="chip" data-al="' + a[0] + '" aria-pressed="false">' + a[1] + '</button>';
+        }).join('') +
+        '<button type="button" class="chip is-none" data-al-none aria-pressed="false">Без алергенів</button>' +
+      '</span>' +
+    '</div>' +
+    '<div class="nut-hints">' +
+      '<span class="nut-hint is-warn" data-al-unset>Алергени не вказані</span>' +
+      '<span class="nut-hint" data-ml-note>1 мл рахуємо як 1 г</span>' +
+    '</div>';
+}
+
+function syncNutHints(box) {
+  var wrap = $('.nut-hints', box);
+  wrap.hidden = !$$('.nut-hint', wrap).some(function (h) { return !h.hidden; });
+}
+
+function syncNutUnit(box, p) {
+  $('[data-pw-wrap]', box).hidden = p.unit !== 'шт';
+  $('[data-ml-note]', box).hidden = p.unit !== 'мл';
+  syncNutHints(box);
+}
+
+function paintAllergens(box, p) {
+  var list = Array.isArray(p.allergens) ? p.allergens : null;
+  $$('[data-al]', box).forEach(function (c) {
+    c.setAttribute('aria-pressed', list && list.indexOf(c.getAttribute('data-al')) !== -1 ? 'true' : 'false');
+  });
+  $('[data-al-none]', box).setAttribute('aria-pressed', list && !list.length ? 'true' : 'false');
+  $('[data-al-unset]', box).hidden = !!list;
+  syncNutHints(box);
+}
+
+function fillNutEditor(box, p) {
+  $$('[data-n]', box).forEach(function (inp) {
+    inp.value = nutFieldText(p, inp.getAttribute('data-n'));
+  });
+  $('[data-pw]', box).value = qtyFmt(num(p.pieceWeight));
+  syncNutUnit(box, p);
+  paintAllergens(box, p);
+}
+
+function readNutFields(box, p) {
+  var inputs = $$('[data-n]', box);
+  // Усі чотири порожні — «не вказано». Порожнє поле поруч із заповненими
+  // зберігаємо як null, а не 0: у сумі воно однаково дає нуль, зате нуль ніколи
+  // не зʼявляється в полі сам. Інакше витерте значення лишало б по собі «0»
+  // в сусідніх полях — і продукт тихо вважався б заповненим нулями.
+  if (inputs.every(function (i) { return !i.value.trim(); })) { p.nutrition = null; return; }
+  var n = {};
+  inputs.forEach(function (i) { n[i.getAttribute('data-n')] = nutValue(i.value.trim()); });
+  p.nutrition = n;
+}
+
+function toggleAllergen(p, key) {
+  var list = Array.isArray(p.allergens) ? p.allergens.slice() : [];
+  var at = list.indexOf(key);
+  if (at === -1) list.push(key); else list.splice(at, 1);
+  // Зняли останній — назад у «не вказано», а не в «немає»: випадковий клік
+  // не повинен тихо оголосити продукт безпечним
+  p.allergens = list.length ? orderAllergens(list) : null;
+}
+
+function toggleNoAllergens(p) {
+  p.allergens = Array.isArray(p.allergens) && !p.allergens.length ? null : [];
+}
+
+/** Делегування на контейнер: resolve(box) знаходить продукт, onChange — хто має перемалюватись. */
+function bindNutEditor(root, resolve, onChange) {
+  function ctx(e) {
+    var box = e.target.closest && e.target.closest('[data-nut-edit]');
+    var p = box && resolve(box);
+    return p ? { box: box, p: p } : null;
+  }
+
+  root.addEventListener('input', function (e) {
+    var c = ctx(e); if (!c) return;
+    if (e.target.hasAttribute('data-n')) readNutFields(c.box, c.p);
+    else if (e.target.hasAttribute('data-pw')) c.p.pieceWeight = num(e.target.value);
+    else return;
+    persist(); onChange(c.p, c.box);
+  });
+
+  root.addEventListener('click', function (e) {
+    var c = ctx(e); if (!c) return;
+    var chip = e.target.closest('[data-al]');
+    if (chip) toggleAllergen(c.p, chip.getAttribute('data-al'));
+    else if (e.target.closest('[data-al-none]')) toggleNoAllergens(c.p);
+    else return;
+    paintAllergens(c.box, c.p); persist(); onChange(c.p, c.box);
+  });
+
+  root.addEventListener('blur', function (e) {
+    var c = ctx(e); if (!c) return;
+    if (e.target.hasAttribute('data-n')) {
+      e.target.value = nutFieldText(c.p, e.target.getAttribute('data-n'));
+    } else if (e.target.hasAttribute('data-pw')) {
+      e.target.value = qtyFmt(num(c.p.pieceWeight));
+    }
+  }, true);
+}
+
+/* ── Рядок бази продуктів ─────────────────────────────────────── */
+
+var nutOpen = {};   // розгорнуті рядки — переживають перемальовування таблиці при пошуку
+
+function paintNutBtn(tr, p) {
+  var b = $('[data-nut-toggle]', tr); if (!b) return;
+  var st = nutState(p);
+  b.className = 'nut-btn' + (st === 'full' ? ' is-full' : st === 'part' ? ' is-part' : '');
+  b.title = st === 'full' ? 'КБЖУ та алергени вказані'
+          : st === 'part' ? 'КБЖУ та алергени заповнені частково'
+          : 'КБЖУ та алергени не вказані';
+  var open = !!nutOpen[p.id];
+  b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  tr.classList.toggle('is-open', open);
+}
+
+function nutRow(p) {
+  var tr = document.createElement('tr');
+  tr.className = 'nut-row nut-only';
+  tr.setAttribute('data-id', p.id);
+  tr.innerHTML = '<td colspan="6"><div class="nut-edit" data-nut-edit>' + nutEditorHtml() + '</div></td>';
+  fillNutEditor($('[data-nut-edit]', tr), p);
+  return tr;
+}
+
+function toggleNutRow(tr) {
+  var p = productById(tr.getAttribute('data-id')); if (!p) return;
+  var next = tr.nextElementSibling;
+  if (nutOpen[p.id]) {
+    delete nutOpen[p.id];
+    if (next && next.classList.contains('nut-row')) next.remove();
+  } else {
+    nutOpen[p.id] = true;
+    tr.parentNode.insertBefore(nutRow(p), next);
+  }
+  paintNutBtn(tr, p);
+}
+
+/* ── Панель у калькуляції та напівфабрикаті ───────────────────── */
+
+function nutCells(nu, factor) {
+  var known = nu.counted > 0;
+  return NUT_ROWS.map(function (r) {
+    return {
+      key: r[0], label: r[1],
+      one: known && factor ? nutNum(nu[r[0]] * factor, r[3]) + r[2] : '—',
+      whole: known ? nutNum(nu[r[0]], r[3]) + r[2] : '—'
+    };
+  });
+}
+
+/** Імена, яким бракує даних. Продукти з бази — кнопки, що відкривають модалку. */
+function missList(list) {
+  var MAX = 6;
+  var html = list.slice(0, MAX).map(function (m) {
+    return m.id
+      ? '<button type="button" class="link-btn nut-fix" data-nut-fix="' + esc(m.id) + '">' + esc(m.label) + '</button>'
+      : '<span class="nut-orphan" title="Цього продукту немає в базі">' + esc(m.label) + '</span>';
+  }).join(', ');
+  if (list.length > MAX) html += ' та ще ' + (list.length - MAX);
+  return html;
+}
+
+/** per = { label, factor, approx }: factor — множник від «весь виріб» до «на одиницю», 0 — нема з чого. */
+function nutPanelHtml(nu, per, opts) {
+  if (!nu.rows) return '<div class="nut-empty">' + esc(opts.empty) + '</div>';
+
+  var body = nutCells(nu, per.factor).map(function (c) {
+    return '<tr' + (c.key === 'kcal' ? ' class="is-kcal"' : '') + '><td>' + c.label + '</td>' +
+      '<td class="r">' + c.one + '</td><td class="r">' + c.whole + '</td></tr>';
+  }).join('');
+
+  var al = nu.allergens.length
+    ? nu.allergens.map(function (a) { return '<span class="chip is-static">' + a[1] + '</span>'; }).join('')
+    : '<span class="nut-none">' + (nu.noAl.length ? '—' : 'Немає') + '</span>';
+
+  return '<div class="nut-body">' +
+    '<table class="nut-tbl"><thead><tr><th></th>' +
+      '<th class="r">' + (per.approx ? '≈ ' : '') + esc(per.label) + '</th>' +
+      '<th class="r">' + esc(opts.whole) + '</th></tr></thead>' +
+      '<tbody>' + body + '</tbody></table>' +
+    '<div class="nut-side">' +
+      '<div class="nut-al-view"><span class="nut-cap">Алергени</span><span class="chips">' + al + '</span></div>' +
+      (nu.noAl.length ? '<div class="nut-warn">Алергени не вказані: ' + missList(nu.noAl) + '</div>' : '') +
+      (nu.noNut.length ? '<div class="nut-miss">Без КБЖУ: ' + missList(nu.noNut) + '</div>' : '') +
+      (per.approx && nu.counted ? '<div class="nut-note">' + esc(opts.approx) + '</div>' : '') +
+      '<div class="nut-note">Розрахункові значення за даними бази продуктів</div>' +
+    '</div>' +
+  '</div>';
+}
+
+/**
+ * «На 100 г» для калькуляції. Точно — лише від ваги готового виробу: у
+ * духовці йде вода, і сира маса торта більша за готову. Без неї рахуємо
+ * на сиру масу й чесно позначаємо це як наближення.
+ */
+function calcNutPer(d, nu) {
+  var ow = num(d.outWeight);
+  if (ow > 0) return { label: 'На 100 г', factor: 100 / ow, approx: false };
+  return { label: 'На 100 г', factor: nu.mass > 0 ? 100 / nu.mass : 0, approx: nu.mass > 0 };
+}
+
+function paintCalcNut(d) {
+  if (!S.showNutrition) return;
+  var nu = nutritionOf(d.ing);
+  $('#calc-nut-body').innerHTML = nutPanelHtml(nu, calcNutPer(d, nu), {
+    whole: 'Весь виріб',
+    empty: 'Додайте інгредієнти — тут зʼявиться харчова цінність і алергени.',
+    approx: 'Рахуємо на сиру масу, без урахування упікання. Вкажіть вагу готового виробу — буде точно.'
+  });
+}
+
+/* У напівфабрикату вага готового вже є — це вихід, тож тут наближення лише доти, доки його не вказали. */
+function paintPrepNut(p) {
+  if (!S.showNutrition) return;
+  var nu = nutritionOf(p.ing);
+  var y = num(p['yield']);
+  var per = y > 0
+    ? { label: p.unit === 'шт' ? 'На 1 шт' : 'На 100 ' + p.unit, factor: p.unit === 'шт' ? 1 / y : 100 / y, approx: false }
+    : { label: 'На 100 г', factor: nu.mass > 0 ? 100 / nu.mass : 0, approx: nu.mass > 0 };
+  $('#prep-nut-body').innerHTML = nutPanelHtml(nu, per, {
+    whole: 'Весь заміс',
+    empty: 'Додайте складники — тут зʼявиться харчова цінність і алергени.',
+    approx: 'Рахуємо на сиру масу. Вкажіть вихід — буде точно.'
+  });
+}
+
+/** Панелі перемальовуємо й тоді, коли вони приховані: наступний показ має бути вже свіжим. */
+function repaintNutPanels() {
+  if (!S.showNutrition) return;
+  if ($('#ing-body').children.length) paintCalcNut(readCalc());
+  var p = editingPrep();
+  if (p) paintPrepNut(p);
+}
+
+function pdfNutBlock(d) {
+  if (!S.showNutrition) return '';
+  var nu = nutritionOf(d.ing);
+  if (!nu.counted && !nu.alKnown) return '';
+  var per = calcNutPer(d, nu);
+
+  var rows = nutCells(nu, per.factor).map(function (c) {
+    return '<tr><td>' + c.label + '</td><td class="r">' + c.one + '</td><td class="r b">' + c.whole + '</td></tr>';
+  }).join('');
+
+  var al = nu.allergens.length
+    ? nu.allergens.map(function (a) { return a[1]; }).join(', ')
+    : (nu.noAl.length ? '—' : 'Немає');
+
+  var notes = [];
+  if (nu.noAl.length) notes.push('Алергени не вказані: ' + nu.noAl.map(function (m) { return m.label; }).join(', '));
+  if (nu.noNut.length) notes.push('Без КБЖУ: ' + nu.noNut.map(function (m) { return m.label; }).join(', '));
+  if (per.approx && nu.counted) notes.push('На 100 г — на сиру масу, без урахування упікання.');
+  notes.push('Розрахункові значення.');
+
+  return '<section class="pdf-block">' +
+    '<h2 class="pdf-sec">Харчова цінність</h2>' +
+    '<table class="pdf-tbl"><thead><tr><th>Показник</th>' +
+      '<th class="r">' + (per.approx ? '≈ ' : '') + 'На 100 г</th><th class="r">Весь виріб</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>' +
+    '<div class="pdf-line"><span>Алергени</span><span class="t">' + esc(al) + '</span></div>' +
+    '<div class="pdf-note">' + notes.map(esc).join('<br>') + '</div>' +
+  '</section>';
+}
+
+/* ── Модалка ──────────────────────────────────────────────────── */
+
+function openNutModal(id) {
+  var p = productById(id); if (!p) return;
+  var box = $('#nut-modal-edit');
+  box.setAttribute('data-id', id);
+  box.innerHTML = nutEditorHtml();
+  fillNutEditor(box, p);
+  $('#nut-title').textContent = p.name || 'Продукт';
+  $('#nut-overlay').classList.add('is-on');
+}
+
+function closeNutModal() {
+  var ov = $('#nut-overlay');
+  if (!ov.classList.contains('is-on')) return;
+  ov.classList.remove('is-on');
+  persist(true);
+}
+
+function bindNutrition() {
+  // Правки з модалки йдуть одразу в продукт, панель під нею оновлюється наживо
+  bindNutEditor($('#nut-overlay'), function (box) {
+    return productById(box.getAttribute('data-id'));
+  }, repaintNutPanels);
+  $('#nut-done').addEventListener('click', closeNutModal);
+  $('#nut-overlay').addEventListener('click', function (e) { if (e.target === this) closeNutModal(); });
+
+  ['#calc-nut', '#prep-nut'].forEach(function (sel) {
+    $(sel).addEventListener('click', function (e) {
+      var b = e.target.closest('[data-nut-fix]');
+      if (b) openNutModal(b.getAttribute('data-nut-fix'));
+    });
+  });
+}
+
 /* ═════════════════ 6. Тост і модалки ═════════════════ */
 
 var toastEl, toastTimer;
@@ -674,13 +1170,16 @@ function renderBase() {
 
   if (!list.length) {
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="5" class="tbl-empty"><b style="display:block;margin-bottom:6px;font-size:16px;color:var(--fg)">' +
+    tr.innerHTML = '<td colspan="6" class="tbl-empty"><b style="display:block;margin-bottom:6px;font-size:16px;color:var(--fg)">' +
       (q ? 'Нічого не знайшли за запитом «' + esc(q) + '»' : 'База порожня — додайте перший продукт') + '</b>' +
       (q ? 'Спробуйте коротший запит або додайте новий продукт.'
          : 'Назва, ціна упаковки, вага — і продукт почне підтягуватися в калькуляції.') + '</td>';
     body.appendChild(tr);
   } else {
-    list.forEach(function (p) { body.appendChild(baseRow(p)); });
+    list.forEach(function (p) {
+      body.appendChild(baseRow(p));
+      if (nutOpen[p.id]) body.appendChild(nutRow(p));
+    });
   }
 
   $('#base-tip').textContent = S.products.length
@@ -766,17 +1265,28 @@ function baseRow(p) {
     '<td><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
     '<td><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0"></td>' +
     '<td style="text-align:center">' + unitSelect(p.unit) + '</td>' +
+    '<td class="nut-only" style="text-align:center"><button type="button" class="nut-btn" data-nut-toggle aria-expanded="false">КБЖУ</button></td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-product aria-label="Видалити продукт">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = p.name;
   $('[data-f=price]', tr).value = p.price ? fmt(p.price) : '';
   $('[data-f=pack]', tr).value = qtyFmt(p.pack);
+  paintNutBtn(tr, p);
   return tr;
 }
 
 function bindBase() {
   var body = $('#base-body');
 
+  // Харчові поля обробляє редактор нижче — ціну й автопідказку вони не зачіпають
+  bindNutEditor(body, function (box) {
+    return productById(box.closest('tr').getAttribute('data-id'));
+  }, function (p, box) {
+    var main = box.closest('tr').previousElementSibling;
+    if (main) paintNutBtn(main, p);
+  });
+
   body.addEventListener('input', function (e) {
+    if (e.target.closest('[data-nut-edit]')) return;
     var tr = e.target.closest('tr'); if (!tr) return;
     var p = productById(tr.getAttribute('data-id')); if (!p) return;
     var f = e.target.getAttribute('data-f');
@@ -793,7 +1303,13 @@ function bindBase() {
     if (e.target.getAttribute('data-f') !== 'unit') return;
     var tr = e.target.closest('tr');
     var p = productById(tr.getAttribute('data-id'));
-    if (p) { p.unit = e.target.value; persist(); renderDatalist(); updateBaseStale(); }
+    if (!p) return;
+    p.unit = e.target.value;
+    persist(); renderDatalist(); updateBaseStale();
+    // Вага 1 шт потрібна лише штучним продуктам — поле зʼявляється й зникає разом з одиницею
+    var nr = tr.nextElementSibling;
+    if (nr && nr.classList.contains('nut-row')) syncNutUnit($('[data-nut-edit]', nr), p);
+    paintNutBtn(tr, p);
   });
 
   // Акуратне форматування чисел після виходу з поля
@@ -804,6 +1320,8 @@ function bindBase() {
   }, true);
 
   body.addEventListener('click', function (e) {
+    var tog = e.target.closest('[data-nut-toggle]');
+    if (tog) { toggleNutRow(tog.closest('tr')); return; }
     var btn = e.target.closest('[data-del-product]'); if (!btn) return;
     var tr = btn.closest('tr');
     var p = productById(tr.getAttribute('data-id')); if (!p) return;
@@ -822,7 +1340,7 @@ function bindBase() {
 
   /** toTop: кнопка над таблицею кладе рядок зверху, кнопка під таблицею — знизу. */
   function addProduct(toTop) {
-    var p = { id: uid('p'), name: '', price: 0, pack: 0, unit: 'г' };
+    var p = { id: uid('p'), name: '', price: 0, pack: 0, unit: 'г', nutrition: null, allergens: null, pieceWeight: 0 };
     if (toTop) S.products.unshift(p); else S.products.push(p);
     $('#base-search').value = '';
     renderBase(); renderSidebar(); persist();
@@ -1161,6 +1679,7 @@ function prepRecalc() {
   btn.hidden = !showAuto;
   if (showAuto) btn.textContent = 'Сума складників — ' + qtyFmt(auto) + ' ' + p.unit + '. Підставити';
 
+  paintPrepNut(p);
   persist();
 }
 
@@ -1474,6 +1993,7 @@ function readCalc() {
     name: $('#calc-name').value.trim(),
     photo: calcPhoto,
     margin: num($('#margin-inp').value),
+    outWeight: num($('#calc-outw').value),
     ing: ingRows().map(function (tr) {
       var g = tr.getAttribute('data-g');
       var o = {
@@ -1513,6 +2033,7 @@ function cleanRecipe(d) {
     name: d.name,
     photo: d.photo,
     margin: d.margin,
+    outWeight: num(d.outWeight),
     ing: ing,
     // Група без жодного складника не має сенсу: рядки могли прибрати вручну
     groups: (d.groups || []).filter(function (g) {
@@ -1608,6 +2129,7 @@ function recalc() {
   });
 
   paintReceipt(t, d.margin);
+  paintCalcNut(d);
 
   S.draft = cleanRecipe(d);
   draftDirty = true;
@@ -1644,6 +2166,7 @@ function loadCalc(rec, crumb) {
   $('#calc-name').value = rec.name || '';
   $('#calc-crumb').textContent = crumb;
   $('#margin-inp').value = qtyFmt(rec.margin != null ? rec.margin : 50) || '0';
+  $('#calc-outw').value = qtyFmt(num(rec.outWeight));
 
   setPhoto(rec.photo || null);
 
@@ -1828,6 +2351,8 @@ function bindCalc() {
   $('#margin-inp').addEventListener('blur', function () {
     this.value = qtyFmt(num(this.value)) || '0';
   });
+  $('#calc-outw').addEventListener('input', recalc);
+  $('#calc-outw').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
   $('#margin-quick').addEventListener('click', function (e) {
     var b = e.target.closest('[data-m]'); if (!b) return;
     $('#margin-inp').value = b.getAttribute('data-m');
@@ -2170,7 +2695,7 @@ function bindSave() {
       var idx = old ? old.recipes.map(function (r) { return r.id; }).indexOf(ed.recipeId) : -1;
       var rec = (idx > -1) ? old.recipes[idx] : { id: ed.recipeId };
       rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin;
-      rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups;
+      rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups; rec.outWeight = d.outWeight;
       if (old && old.id !== target.id && idx > -1) {   // перенесли в іншу папку
         old.recipes.splice(idx, 1);
         target.recipes.push(rec);
@@ -2180,7 +2705,7 @@ function bindSave() {
       S.ui.editing = { folderId: target.id, recipeId: rec.id };
       toast('Оновлено — папка «' + target.title + '»');
     } else {
-      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups };
+      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight };
       target.recipes.push(fresh);
       S.ui.editing = { folderId: target.id, recipeId: fresh.id };
       toast('Збережено в папку «' + target.title + '»');
@@ -2292,7 +2817,10 @@ function buildPdfDoc(d, t) {
       ((S.round || 1) > 1
         ? '<div class="pdf-note">До прайсу зручно округлити вгору до ' + moneyShort(t.round) + '</div>'
         : '') +
-    '</section>';
+    '</section>' +
+
+    // Додаток після ціни: собівартість і ціна лишаються головним у техкарті
+    pdfNutBlock(d);
 
   return wrap;
 }
@@ -2513,6 +3041,19 @@ function bindSettings() {
     applyTheme(); persist(true);
   });
 
+  $('#seg-nut').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-nut-val]'); if (!b) return;
+    var on = b.getAttribute('data-nut-val') === 'on';
+    if (on === S.showNutrition) return;
+    S.showNutrition = on;
+    applyNutrition();
+    persist(true);
+    if (on) {
+      repaintNutPanels();
+      toast('Увімкнено. КБЖУ й алергени вносяться в базі продуктів — кнопка «КБЖУ» в рядку');
+    }
+  });
+
   $('#btn-export').addEventListener('click', exportData);
   $('#btn-import').addEventListener('click', function () { $('#import-input').click(); });
   $('#import-input').addEventListener('change', function () {
@@ -2569,6 +3110,7 @@ function bindGlobal() {
       closeAsk();
       closePdfPreview();
       closePrepPick();
+      closeNutModal();
       $('#save-overlay').classList.remove('is-on');
     }
   });
@@ -2587,6 +3129,7 @@ function bindGlobal() {
 
 function boot(fresh) {
   applyTheme();
+  applyNutrition();
   applyCurrency();
   renderSidebar();
   renderBase();
@@ -2626,6 +3169,7 @@ function init() {
   bindPreps();
   bindPrepEdit();
   bindPrepPick();
+  bindNutrition();
   bindFolder();
   bindCalc();
   bindPhoto();

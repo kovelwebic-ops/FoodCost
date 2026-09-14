@@ -105,6 +105,7 @@
             <th class="h-num w-price">Ціна упаковки</th>
             <th class="h-num w-pack">К-сть в уп.</th>
             <th class="h-mid w-unit">Одиниця</th>
+            <th class="w-nut nut-only"></th>
             <th class="t-act"></th>
           </tr>
         </thead>
@@ -251,6 +252,11 @@
           <button class="link-btn" id="prep-yield-auto" hidden></button>
         </div>
       </div>
+    </div>
+
+    <div class="panel panel-nut nut-only" id="prep-nut">
+      <div class="panel-head"><h2 class="h2">Харчова цінність</h2></div>
+      <div id="prep-nut-body"></div>
     </div>
 
     <div class="panel panel-total">
@@ -401,6 +407,20 @@
       </div>
     </div>
 
+    <div class="panel panel-nut nut-only" id="calc-nut">
+      <div class="panel-head">
+        <h2 class="h2">Харчова цінність</h2>
+        <label class="nut-out">
+          <span>Вага готового виробу</span>
+          <span class="qty-wrap">
+            <input class="inp is-num" id="calc-outw" inputmode="decimal" placeholder="—">
+            <span class="unit-tag">г</span>
+          </span>
+        </label>
+      </div>
+      <div id="calc-nut-body"></div>
+    </div>
+
     <div class="panel panel-total">
       <div class="panel-head"><h2 class="h2">Підсумок</h2></div>
       <div class="receipt">
@@ -452,6 +472,16 @@
           <button data-round="1" aria-pressed="false">Без</button>
           <button data-round="5" aria-pressed="true">До 5</button>
           <button data-round="10" aria-pressed="false">До 10</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <span class="h2">КБЖУ та алергени</span>
+          <span class="set-row-desc">Харчова цінність і алергени продуктів — калькуляції рахують їх самі</span>
+        </div>
+        <div class="seg" id="seg-nut">
+          <button data-nut-val="off" aria-pressed="true">Вимк.</button>
+          <button data-nut-val="on" aria-pressed="false">Увімк.</button>
         </div>
       </div>
       <div class="set-row">
@@ -534,6 +564,18 @@
     <div class="modal-foot">
       <button class="btn" id="ask-cancel">Скасувати</button>
       <button class="btn btn-primary" id="ask-ok">Готово</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: КБЖУ й алергени продукту просто з калькуляції, без переходу в базу -->
+<div class="overlay" id="nut-overlay">
+  <div class="modal modal-nut" role="dialog" aria-modal="true" aria-labelledby="nut-title">
+    <div class="modal-title" id="nut-title">Продукт</div>
+    <div class="modal-sub">Зберігається в базі продуктів і підхопиться в усіх калькуляціях.</div>
+    <div class="nut-edit" id="nut-modal-edit" data-nut-edit></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="nut-done">Готово</button>
     </div>
   </div>
 </div>

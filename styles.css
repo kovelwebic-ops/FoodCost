@@ -500,6 +500,87 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .total-acts { display: flex; align-items: center; gap: 10px; }
 .total-acts .btn { height: 40px; }
 
+/* ═════════════════ Харчова цінність ═════════════════ */
+
+/* Вимкнено в налаштуваннях — ховаємо все одним правилом, дані лишаються */
+html:not(.nut-on) .nut-only { display: none !important; }
+
+.w-nut { width: 80px; }
+.nut-btn {
+  height: 28px; padding: 0 9px; border: 1px dashed var(--dash); border-radius: 7px; background: transparent;
+  font-family: var(--num); font-size: 11.5px; letter-spacing: .04em; color: var(--muted); cursor: pointer;
+}
+.nut-btn:hover { border-color: var(--edge-2); color: var(--fg); }
+.nut-btn.is-part { border-style: solid; border-color: var(--edge); color: var(--fg-2); }
+.nut-btn.is-full { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
+.nut-btn[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--focus); }
+
+.tbl tbody tr.is-open > td { border-bottom-color: transparent; }
+.tbl tbody tr.nut-row, .tbl tbody tr.nut-row:hover { background: var(--panel-2); }
+.tbl tbody tr.nut-row > td { padding: 6px 20px 16px; }
+
+.nut-edit { display: flex; flex-direction: column; gap: 12px; }
+.nut-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.nut-cap {
+  flex: 0 0 auto; min-width: 76px; font-family: var(--num); font-size: 10.5px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2);
+}
+.nut-f { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg-3); }
+.nut-f .inp { width: 72px; height: 32px; padding: 0 8px; border-color: var(--edge); background: var(--field); }
+.nut-f .qty-wrap .inp { width: 86px; padding-right: 24px; }
+.nut-f .unit-tag { right: 9px; }
+.nut-al { display: flex; align-items: flex-start; gap: 16px; }
+.nut-al .nut-cap { padding-top: 7px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  height: 28px; padding: 0 11px; border: 1px solid var(--line-2); border-radius: 999px;
+  background: var(--panel); font-size: 12.5px; color: var(--fg-2); cursor: pointer;
+}
+.chip:hover { border-color: var(--edge-2); color: var(--fg); }
+/* Позначений алерген — нейтральний темний, а не зелений: зелене читалося б як «добре» */
+.chip[aria-pressed="true"] { border-color: var(--fg); background: var(--fg); color: var(--panel); }
+.chip.is-none[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
+.chip.is-static { display: inline-flex; align-items: center; border-color: var(--edge-2); color: var(--fg); cursor: default; }
+.nut-hints { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.nut-hint { font-size: 12.5px; color: var(--muted); }
+.nut-hint.is-warn { color: var(--danger); }
+
+.panel-nut { margin-bottom: 20px; }
+.panel-nut .panel-head { align-items: center; min-height: 54px; padding-top: 8px; padding-bottom: 8px; }
+.nut-out { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg-3); }
+.nut-out .qty-wrap { width: 116px; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field); }
+.nut-out .inp { height: 34px; padding: 0 28px 0 10px; }
+.nut-out .inp:focus { border-color: transparent; box-shadow: none; }
+.nut-body {
+  display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 18px 40px;
+  align-items: start; padding: 14px 20px 18px;
+}
+.nut-tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.nut-tbl th {
+  padding: 0 0 8px; font-family: var(--num); font-size: 10.5px; font-weight: 400; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted-2); text-align: left; white-space: nowrap;
+}
+.nut-tbl th.r, .nut-tbl td.r { text-align: right; }
+.nut-tbl td { padding: 8px 0; border-top: 1px solid var(--line-faint); color: var(--fg-2); }
+.nut-tbl td.r { padding-left: 18px; font-family: var(--num); font-variant-numeric: tabular-nums; color: var(--fg); white-space: nowrap; }
+.nut-tbl tr.is-kcal td { font-weight: 600; color: var(--fg); }
+.nut-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; font-size: 13.5px; line-height: 1.55; }
+.nut-al-view { display: flex; align-items: flex-start; gap: 12px; }
+.nut-al-view .nut-cap { min-width: 0; padding-top: 7px; }
+.nut-none { padding-top: 3px; color: var(--fg-2); }
+.nut-warn { color: var(--danger); }
+.nut-miss { color: var(--fg-3); }
+.nut-fix {
+  padding: 0 1px; font-size: inherit; color: inherit; white-space: normal; text-align: left;
+  text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
+}
+.nut-orphan { color: var(--fg-3); }
+.nut-note { font-size: 12.5px; color: var(--muted); }
+.nut-empty { padding: 18px 20px 20px; font-size: 14px; color: var(--fg-3); }
+/* Подвійний клас навмисно: .modal нижче у файлі й інакше перебиває ширину — 14 чипів у 420px стають стовпчиком */
+.modal.modal-nut { max-width: 620px; }
+.modal-nut .nut-edit { margin-top: 18px; }
+
 /* ═════════════════ Налаштування ═════════════════ */
 
 .set-row {
@@ -623,6 +704,7 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .pdf-price .l { font-size: 1.04em; font-weight: 700; letter-spacing: .02em; }
 .pdf-price .v { font-family: var(--num); font-size: 2.16em; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pdf-note { padding: 0 1em .83em; font-size: .92em; color: #55524b; }
+.pdf-line .t { font-weight: 600; text-align: right; }
 
 /* ═════════════════ Адаптив ═════════════════ */
 
@@ -654,6 +736,13 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
   /* Поруч із кнопкою тексту лишається смужка на три рядки — краще в стовпчик */
   .stale-bar { flex-direction: column; align-items: stretch; gap: 12px; }
   .stale-bar .btn { width: 100%; }
+  .nut-body { grid-template-columns: 1fr; }
+  .panel-nut .panel-head { flex-wrap: wrap; }
+  .nut-al { flex-direction: column; gap: 8px; }
+  .nut-al .nut-cap { padding-top: 0; }
+  /* Таблиця бази на телефоні скролиться вбік у своїх 660px — редактор
+     тримаємо у видимій смузі, інакше половина алергенів ховається за краєм */
+  .tbl tbody tr.nut-row .nut-edit { position: sticky; left: 0; width: calc(100vw - 82px); }
   .panel-foot { flex-wrap: wrap; }
   .total-bar { flex-direction: column; align-items: stretch; }
   .total-acts { flex-wrap: wrap; }
