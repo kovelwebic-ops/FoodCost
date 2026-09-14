@@ -880,6 +880,10 @@ function toggleNutRow(tr) {
     if (next && next.classList.contains('nut-row')) next.remove();
   } else {
     nutOpen[p.id] = true;
+    // Редактор КБЖУ живе всередині картки продукту — згорнута картка з
+    // відкритим редактором під нею виглядала б як поля нізвідки
+    rowOpen[p.id] = true;
+    tr.classList.add('is-edit');
     tr.parentNode.insertBefore(nutRow(p), next);
   }
   paintNutBtn(tr, p);
@@ -1101,6 +1105,8 @@ function setNav(key) {
 
 function show(id, navKey) {
   $$('.screen').forEach(function (s) { s.classList.toggle('is-active', s.id === 's-' + id); });
+  // Липка смуга калькуляції займає низ екрана — тост має піднятися над нею
+  document.documentElement.classList.toggle('on-calc', id === 'calc');
   setNav(navKey === undefined ? id : navKey);
   S.ui.screen = id;
   window.scrollTo(0, 0);
@@ -1127,6 +1133,33 @@ function renderSidebar() {
   $('#nav-base-count').textContent = S.products.length || '';
   $('#nav-expbase-count').textContent = S.expenseBase.length || '';
   $('#nav-prep-count').textContent = S.preps.length || '';
+}
+
+/* ── Меню на телефоні ──────────────────────────────────────────
+   Та сама панель, що й на компʼютері: на вузькому екрані вона просто
+   виїжджає збоку по бургеру, а не з'їдає перший екран. */
+
+function menuOpen() { return $('#sidebar').classList.contains('is-open'); }
+
+function setMenu(open) {
+  $('#sidebar').classList.toggle('is-open', open);
+  $('#nav-scrim').hidden = !open;
+  $('#btn-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+  // Фон не має їхати під відкритим меню
+  document.documentElement.classList.toggle('nav-open', open);
+}
+
+function closeMenu() { if (menuOpen()) setMenu(false); }
+
+function bindMenu() {
+  $('#btn-menu').addEventListener('click', function () { setMenu(!menuOpen()); });
+  $('#nav-scrim').addEventListener('click', closeMenu);
+  // Перехід кудись — меню своє відпрацювало
+  $('#sidebar').addEventListener('click', function (e) {
+    if (e.target.closest('.nav-item')) closeMenu();
+  });
+  // Екран став широким — сайдбар знову на місці, стан «відкрито» лише заважає
+  window.addEventListener('resize', function () { if (window.innerWidth > 900) closeMenu(); });
 }
 
 /* ═════════════════ 9. База продуктів ═════════════════ */
@@ -1157,6 +1190,59 @@ function syncExpSuffix(tr) {
 function paintExpValue(tr, x) {
   var el = $('[data-f=value]', tr);
   el.value = x.mode === 'pct' ? (x.value ? qtyFmt(x.value) : '') : (x.value ? fmt(x.value) : '');
+}
+
+/* ── Згорнута картка рядка (тільки телефон) ─────────────────────
+   Повний рядок бази на вузькому екрані — це шість полів, які лягають
+   у три-чотири лінії, і список перетворюється на суцільну кашу. Тому
+   там рядок згорнутий до назви з коротким підсумком, а поля
+   відкриваються тапом. На компʼютері обидві кнопки сховані CSS —
+   розмітка одна, поведінка різна. */
+
+var rowOpen = {};   // розгорнуті картки — переживають перемальовування при пошуку
+
+function peekHtml() {
+  return '<button type="button" class="row-peek" data-row-toggle aria-expanded="false">' +
+           '<span class="peek-name"></span><span class="peek-sum"></span>' +
+           '<span class="peek-caret">' + ICON_CHEV + '</span>' +
+         '</button>' +
+         '<button type="button" class="row-fold" data-row-toggle aria-label="Згорнути">' + ICON_CHEV + '</button>';
+}
+
+function paintPeek(tr, name, sum) {
+  var b = $('.row-peek', tr); if (!b) return;
+  var nm = String(name || '').trim();
+  var el = $('.peek-name', b);
+  el.textContent = nm || 'Без назви';
+  el.classList.toggle('is-empty', !nm);
+  $('.peek-sum', b).textContent = sum;
+  b.setAttribute('aria-expanded', tr.classList.contains('is-edit') ? 'true' : 'false');
+}
+
+function productSum(p) {
+  if (!p.price && !p.pack) return 'Порожній';
+  return fmt(p.price) + ' ' + S.currency + ' · ' + qtyFmt(p.pack) + ' ' + p.unit;
+}
+
+function expenseSum(x) {
+  if (!x.value) return 'Порожня';
+  return x.mode === 'pct' ? qtyFmt(x.value) + ' %' : fmt(x.value) + ' ' + S.currency;
+}
+
+/** Розгортає/згортає картку. Разом із карткою ховається і редактор КБЖУ:
+    лишити його відкритим під згорнутим рядком — значить показати поля нізвідки. */
+function toggleRowCard(tr) {
+  var id = tr.getAttribute('data-id');
+  var open = !tr.classList.contains('is-edit');
+  if (open) rowOpen[id] = true; else delete rowOpen[id];
+  tr.classList.toggle('is-edit', open);
+  var b = $('.row-peek', tr);
+  if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (!open && nutOpen[id]) toggleNutRow(tr);
+  if (open) {
+    var n = $('[data-f=name]', tr);
+    if (n && !n.value) n.focus();
+  }
 }
 
 function renderBase() {
@@ -1260,16 +1346,18 @@ function refreshAllRecipes() {
 function baseRow(p) {
   var tr = document.createElement('tr');
   tr.setAttribute('data-id', p.id);
+  if (rowOpen[p.id]) tr.className = 'is-edit';
   tr.innerHTML =
-    '<td><input class="inp" data-f="name" placeholder="Назва продукту"></td>' +
-    '<td><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
-    '<td><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0"></td>' +
-    '<td style="text-align:center">' + unitSelect(p.unit) + '</td>' +
-    '<td class="nut-only" style="text-align:center"><button type="button" class="nut-btn" data-nut-toggle aria-expanded="false">КБЖУ</button></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва продукту"></td>' +
+    '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
+    '<td data-lbl="Уп."><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0"></td>' +
+    '<td class="t-mid" data-lbl="Одиниця">' + unitSelect(p.unit) + '</td>' +
+    '<td class="nut-only t-mid"><button type="button" class="nut-btn" data-nut-toggle aria-expanded="false">КБЖУ</button></td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-product aria-label="Видалити продукт">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = p.name;
   $('[data-f=price]', tr).value = p.price ? fmt(p.price) : '';
   $('[data-f=pack]', tr).value = qtyFmt(p.pack);
+  paintPeek(tr, p.name, productSum(p));
   paintNutBtn(tr, p);
   return tr;
 }
@@ -1293,6 +1381,7 @@ function bindBase() {
     if (f === 'name') p.name = e.target.value;
     else if (f === 'price') p.price = num(e.target.value);
     else if (f === 'pack') p.pack = num(e.target.value);
+    paintPeek(tr, p.name, productSum(p));
     persist();
     // підказка автопідстановки показує ціну й упаковку — оновлюємо за будь-якою правкою рядка, не тільки за назвою
     renderDatalist();
@@ -1305,6 +1394,7 @@ function bindBase() {
     var p = productById(tr.getAttribute('data-id'));
     if (!p) return;
     p.unit = e.target.value;
+    paintPeek(tr, p.name, productSum(p));
     persist(); renderDatalist(); updateBaseStale();
     // Вага 1 шт потрібна лише штучним продуктам — поле зʼявляється й зникає разом з одиницею
     var nr = tr.nextElementSibling;
@@ -1320,6 +1410,8 @@ function bindBase() {
   }, true);
 
   body.addEventListener('click', function (e) {
+    var card = e.target.closest('[data-row-toggle]');
+    if (card) { toggleRowCard(card.closest('tr')); return; }
     var tog = e.target.closest('[data-nut-toggle]');
     if (tog) { toggleNutRow(tog.closest('tr')); return; }
     var btn = e.target.closest('[data-del-product]'); if (!btn) return;
@@ -1342,6 +1434,7 @@ function bindBase() {
   function addProduct(toTop) {
     var p = { id: uid('p'), name: '', price: 0, pack: 0, unit: 'г', nutrition: null, allergens: null, pieceWeight: 0 };
     if (toTop) S.products.unshift(p); else S.products.push(p);
+    rowOpen[p.id] = true;   // новий продукт одразу з відкритими полями — його ж прийшли заповнювати
     $('#base-search').value = '';
     renderBase(); renderSidebar(); persist();
     var tr = $('#base-body tr[data-id="' + p.id + '"]');
@@ -1395,14 +1488,16 @@ function renderExpBase() {
 function expBaseRow(x) {
   var tr = document.createElement('tr');
   tr.setAttribute('data-id', x.id);
+  if (rowOpen[x.id]) tr.className = 'is-edit';
   tr.innerHTML =
-    '<td><input class="inp" data-f="name" placeholder="Назва витрати"></td>' +
-    '<td style="text-align:center">' + modeSelect(x.mode) + '</td>' +
-    '<td><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва витрати"></td>' +
+    '<td class="t-mid" data-lbl="Тип">' + modeSelect(x.mode) + '</td>' +
+    '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-expbase aria-label="Видалити витрату">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = x.name;
   paintExpValue(tr, x);
   syncExpSuffix(tr);
+  paintPeek(tr, x.name, expenseSum(x));
   return tr;
 }
 
@@ -1415,6 +1510,7 @@ function bindExpBase() {
     var f = e.target.getAttribute('data-f');
     if (f === 'name') x.name = e.target.value;
     else if (f === 'value') x.value = num(e.target.value);
+    paintPeek(tr, x.name, expenseSum(x));
     persist();
     renderExpDatalist();
     updateBaseStale();
@@ -1426,7 +1522,7 @@ function bindExpBase() {
     var x = expenseById(tr.getAttribute('data-id'));
     if (!x) return;
     x.mode = e.target.value === 'pct' ? 'pct' : 'sum';
-    syncExpSuffix(tr); paintExpValue(tr, x);
+    syncExpSuffix(tr); paintExpValue(tr, x); paintPeek(tr, x.name, expenseSum(x));
     persist(); renderExpDatalist(); updateBaseStale();
   });
 
@@ -1439,6 +1535,8 @@ function bindExpBase() {
   }, true);
 
   body.addEventListener('click', function (e) {
+    var card = e.target.closest('[data-row-toggle]');
+    if (card) { toggleRowCard(card.closest('tr')); return; }
     var btn = e.target.closest('[data-del-expbase]'); if (!btn) return;
     var tr = btn.closest('tr');
     var x = expenseById(tr.getAttribute('data-id')); if (!x) return;
@@ -1458,6 +1556,7 @@ function bindExpBase() {
   function addExpBase(toTop) {
     var x = { id: uid('e'), name: '', mode: 'sum', value: 0 };
     if (toTop) S.expenseBase.unshift(x); else S.expenseBase.push(x);
+    rowOpen[x.id] = true;
     $('#expbase-search').value = '';
     renderExpBase(); renderSidebar(); persist();
     var tr = $('#expbase-body tr[data-id="' + x.id + '"]');
@@ -1513,12 +1612,17 @@ function prepRow(p) {
   var n = p.ing.length;
   var ready = num(p['yield']) > 0;
   tr.setAttribute('data-id', p.id);
+  var sum = n + ' ' + plural(n, 'складник', 'складники', 'складників') +
+            (ready ? ' · ' + qtyFmt(p['yield']) + ' ' + p.unit : '') +
+            (n ? ' · ' + money(prepCost(p)) : '') +
+            (ready && n ? ' · ' + fmt(prepUnitValue(p)) + ' за 100' : '');
   tr.innerHTML =
-    '<td><button class="prep-name-btn" data-open-prep>' + esc(p.name || 'Без назви') + '</button></td>' +
-    '<td class="t-mono">' + n + '</td>' +
-    '<td class="t-mono' + (ready ? '' : ' t-empty') + '">' + (ready ? qtyFmt(p['yield']) + ' ' + p.unit : '—') + '</td>' +
-    '<td class="t-cost' + (n ? '' : ' t-empty') + '">' + (n ? fmt(prepCost(p)) : '—') + '</td>' +
-    '<td class="t-mono' + (ready ? '' : ' t-empty') + '">' + (ready ? fmt(prepUnitValue(p)) : '—') + '</td>' +
+    '<td><button class="prep-name-btn" data-open-prep>' + esc(p.name || 'Без назви') + '</button>' +
+      '<span class="m-sum">' + esc(sum) + '</span></td>' +
+    '<td class="t-mono" data-lbl="Складників">' + n + '</td>' +
+    '<td class="t-mono' + (ready ? '' : ' t-empty') + '" data-lbl="Вихід">' + (ready ? qtyFmt(p['yield']) + ' ' + p.unit : '—') + '</td>' +
+    '<td class="t-cost' + (n ? '' : ' t-empty') + '" data-lbl="Собівартість">' + (n ? fmt(prepCost(p)) : '—') + '</td>' +
+    '<td class="t-mono' + (ready ? '' : ' t-empty') + '" data-lbl="За 100">' + (ready ? fmt(prepUnitValue(p)) : '—') + '</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-prep aria-label="Видалити напівфабрикат">' + ICON_X + '</button></td>';
   return tr;
 }
@@ -1918,10 +2022,10 @@ function ingRow(data) {
   if (v.g) { tr.className = 'ing-child'; tr.setAttribute('data-g', v.g); }
   tr.innerHTML =
     '<td><input class="inp" data-f="name" list="dl-products" placeholder="Почніть вводити назву" autocomplete="off"></td>' +
-    '<td><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
-    '<td><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
-    '<td><span class="qty-wrap"><input class="inp is-num" data-f="qty" inputmode="decimal" placeholder="0"><span class="unit-tag">' + esc(v.unit) + '</span></span></td>' +
-    '<td class="t-cost t-empty">—</td>' +
+    '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
+    '<td data-lbl="Уп."><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
+    '<td data-lbl="Скільки"><span class="qty-wrap"><input class="inp is-num" data-f="qty" inputmode="decimal" placeholder="0"><span class="unit-tag">' + esc(v.unit) + '</span></span></td>' +
+    '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-row aria-label="Видалити рядок">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = v.name;
   $('[data-f=price]', tr).value = v.price ? fmt(v.price) : '';
@@ -1949,9 +2053,9 @@ function groupRow(g) {
       '<span class="grp-of">із ' + qtyFmt(g.of) + ' ' + esc(unit) + '</span>' +
       '<button class="link-btn grp-unlink" data-grp-unlink>розгрупувати</button>' +
     '</span></td>' +
-    '<td><span class="qty-wrap"><input class="inp is-num" data-grp-take inputmode="decimal" placeholder="0" aria-label="Скільки взяти">' +
+    '<td data-lbl="Взяти"><span class="qty-wrap"><input class="inp is-num" data-grp-take inputmode="decimal" placeholder="0" aria-label="Скільки взяти">' +
       '<span class="unit-tag">' + esc(unit) + '</span></span></td>' +
-    '<td class="t-cost t-empty">—</td>' +
+    '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-grp-del aria-label="Видалити напівфабрикат">' + ICON_X + '</button></td>';
   $('[data-grp-take]', tr).value = qtyFmt(g.take);
   return tr;
@@ -1977,9 +2081,9 @@ function expRow(data) {
   var tr = document.createElement('tr');
   tr.innerHTML =
     '<td><input class="inp" data-f="name" list="dl-expenses" placeholder="Наприклад, коробка" autocomplete="off"></td>' +
-    '<td style="text-align:center">' + modeSelect(v.mode) + '</td>' +
-    '<td><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
-    '<td class="t-cost t-empty">—</td>' +
+    '<td class="t-mid" data-lbl="Тип">' + modeSelect(v.mode) + '</td>' +
+    '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
+    '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-row aria-label="Видалити рядок">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = v.name;
   paintExpValue(tr, v);
@@ -2059,6 +2163,7 @@ function writeNumbers(v, t, m) {
   $('#r-mlbl').textContent = 'Маржа ' + qtyFmt(m) + '%';
   $('#r-margin').textContent = '+ ' + money(v.margin);
   $('#r-price').textContent = money(v.price);
+  $('#bar-price').textContent = money(v.price);
   $('#sum-ing').textContent = t.cost ? money(v.cost) : '—';
   $('#sum-exp').textContent = t.extra ? money(v.extra) : '—';
   $('#margin-sum').textContent = t.margin ? '= + ' + money(v.margin) : '—';
@@ -2249,6 +2354,7 @@ function openRecipe(folderId, recipeId) {
 
 function updateSaveBtn() {
   $('#btn-save').textContent = S.ui.editing ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';
+  $('#btn-save-bar').textContent = S.ui.editing ? 'Оновити' : 'Зберегти';
   var st = $('#save-state');
   // Поки запис на диск не проходить, писати «Збережено» — обман: показуємо це першим.
   if (storageFailed) {
@@ -2647,6 +2753,18 @@ function buildSaveList() {
 function bindSave() {
   var ov = $('#save-overlay');
 
+  // Липка смуга на телефоні — та сама дія, що й кнопка в підсумку
+  $('#btn-save-bar').addEventListener('click', function () { $('#btn-save').click(); });
+
+  // …і йде з дороги, щойно видно сам Підсумок: там уже є та сама ціна
+  // й та сама кнопка, дві копії поруч виглядають як помилка.
+  if (window.IntersectionObserver) {
+    var bar = $('#s-calc .calc-bar');
+    new IntersectionObserver(function (entries) {
+      bar.classList.toggle('is-off', entries[0].isIntersecting);
+    }, { threshold: 0 }).observe($('#s-calc .panel-total'));
+  }
+
   $('#btn-save').addEventListener('click', function () {
     var d = cleanRecipe(readCalc());
     if (!d.name) { toast('Спочатку вкажіть назву страви'); $('#calc-name').focus(); return; }
@@ -2865,6 +2983,25 @@ function openPdfPreview() {
 
   var pages = fitToPage(doc);
   $('#pdf-sub').textContent = 'Формат А4 · ' + pages + ' ' + plural(pages, 'сторінка', 'сторінки', 'сторінок');
+  fitPdfPreview();
+}
+
+/* Аркуш показуємо цілим, просто зменшеним: ширину самого документа чіпати
+   не можна — html2pdf знімає цей самий вузол, і 320-піксельний аркуш поїхав
+   би у файл. Тому масштабує лише прев'ю, і лише на телефоні.
+   Трансформ не змінює місця в потоці, тож зайву висоту знімаємо margin'ом. */
+function fitPdfPreview() {
+  var stage = $('#pdf-stage');
+  if (!stage.firstChild) return;
+  stage.style.transform = '';
+  stage.style.marginBottom = '';
+
+  var body = $('#pdf-modal-body');
+  var pad = parseFloat(getComputedStyle(body).paddingLeft) || 0;
+  var k = (body.clientWidth - pad * 2) / stage.offsetWidth;
+  if (k >= 1) return;
+  stage.style.transform = 'scale(' + k + ')';
+  stage.style.marginBottom = -Math.round(stage.offsetHeight * (1 - k)) + 'px';
 }
 
 function closePdfPreview() {
@@ -2882,15 +3019,20 @@ function downloadPdf() {
 
   var modal = $('.pdf-modal');
   var btn = $('#pdf-file');
+  var stage = $('#pdf-stage');
 
-  // Знімаємо прокрутку й обмеження висоти, щоб html2canvas побачив документ цілком
+  // Знімаємо прокрутку, обмеження висоти й масштаб прев'ю, щоб html2canvas
+  // побачив документ цілком і в справжньому розмірі
   modal.classList.add('is-exporting');
+  stage.style.transform = '';
+  stage.style.marginBottom = '';
   $('#pdf-modal-body').scrollTop = 0;
   btn.disabled = true;
   btn.textContent = 'Готуємо…';
 
   function done(msg) {
     modal.classList.remove('is-exporting');
+    fitPdfPreview();
     btn.disabled = false;
     btn.textContent = 'Завантажити';
     toast(msg);
@@ -2920,6 +3062,7 @@ function bindPdf() {
   $('#pdf-overlay').addEventListener('click', function (e) {
     if (e.target === this) closePdfPreview();
   });
+  window.addEventListener('resize', fitPdfPreview);
 }
 
 /* ═════════════════ 15. Резервна копія ═════════════════
@@ -3107,6 +3250,7 @@ function bindGlobal() {
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+      closeMenu();
       closeAsk();
       closePdfPreview();
       closePrepPick();
@@ -3164,6 +3308,7 @@ function init() {
   S = normalize(readStore() || seed());
 
   bindGlobal();
+  bindMenu();
   bindBase();
   bindExpBase();
   bindPreps();

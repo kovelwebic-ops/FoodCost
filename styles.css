@@ -113,6 +113,20 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 
 .nav-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 18px; }
 
+/* ═════════════════ Шапка телефона ═════════════════
+   На великому екрані її просто немає: сайдбар там видно завжди.
+   Нижче 900px сайдбар стає шухлядою, а керує нею цей бургер. */
+
+.topbar { display: none; }
+.burger {
+  display: grid; place-items: center; width: 44px; height: 44px; border: 0;
+  border-radius: var(--r-m); background: transparent; color: var(--fg); cursor: pointer;
+}
+.burger:hover { background: var(--side-hov); }
+.burger svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+.burger .i-close { display: none; }
+.nav-scrim { display: none; }
+
 /* ═════════════════ Каркас екранів ═════════════════ */
 
 .work { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -127,6 +141,8 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .lede { margin: 0; font-size: 15px; line-height: 1.55; color: var(--fg-2); }
 
 .screen-head { margin-bottom: 26px; }
+/* Обгортка пошуку: на телефоні саме вона липне до шапки */
+.tools-bar { margin-bottom: 16px; }
 .screen-head.with-action { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
 .head-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 
@@ -230,12 +246,16 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .tbl tbody td:first-child { padding-left: 20px; }
 .tbl tbody td:last-child { padding-right: 20px; }
 .t-act { width: 44px; text-align: center; }
+.t-mid { text-align: center; }
 .t-cost {
   text-align: right; font-family: var(--num); font-size: 14px; font-weight: 600;
   font-variant-numeric: tabular-nums; padding: 10px 8px;
 }
 .t-cost.t-empty { color: var(--dim); font-weight: 400; }
 .tbl-empty { padding: 44px 20px; text-align: center; color: var(--fg-3); font-size: 14px; }
+
+/* Згорнута картка рядка — тільки телефон, розгортається в адаптиві наприкінці файла */
+.row-peek, .row-fold, .m-sum { display: none; }
 
 /* ширини колонок */
 .w-price { width: 122px; }   /* вміщає заголовок «Ціна упаковки» без переносу */
@@ -500,6 +520,9 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .total-acts { display: flex; align-items: center; gap: 10px; }
 .total-acts .btn { height: 40px; }
 
+/* Липка смуга внизу — тільки телефон (див. адаптив наприкінці файла) */
+.calc-bar { display: none; }
+
 /* ═════════════════ Харчова цінність ═════════════════ */
 
 /* Вимкнено в налаштуваннях — ховаємо все одним правилом, дані лишаються */
@@ -596,8 +619,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
 
 /* ═════════════════ Оверлеї ═════════════════ */
 
+/* Вище за шапку телефона (60), інакше логотип із бургером світиться поверх модалки */
 .overlay {
-  position: fixed; inset: 0; z-index: 40; display: none; place-items: center; padding: 24px;
+  position: fixed; inset: 0; z-index: 70; display: none; place-items: center; padding: 24px;
   background: var(--overlay);
 }
 .overlay.is-on { display: grid; animation: fc-fade .14s ease; }
@@ -628,7 +652,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .folder-opt.is-new:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
 
 .toast {
-  position: fixed; bottom: 28px; left: 50%; z-index: 60; transform: translateX(-50%);
+  position: fixed; bottom: 28px; left: 50%; z-index: 80; transform: translateX(-50%);
   display: none; padding: 12px 18px; border-radius: 11px; background: var(--ink); color: var(--ink-fg);
   font-size: 14px; box-shadow: 0 18px 34px -18px var(--modal-shadow);
 }
@@ -711,14 +735,49 @@ html:not(.nut-on) .nut-only { display: none !important; }
 @media (max-width: 1080px) {
   .screen { padding: 48px 32px 64px; }
 }
+
+/* ── Планшет і телефон: навігація їде в шухляду ──────────────────
+   Панель зліва з'їдала перший екран телефона, тому нижче 900px
+   лишається лише смужка з логотипом і бургером, а сама панель
+   виїжджає поверх контенту. Розмітка та сама — інакше довелось би
+   тримати два меню й синхронізувати їх. */
+
 @media (max-width: 900px) {
-  body { flex-direction: column; }
-  .sidebar {
-    width: 100%; flex: none; height: auto; position: static;
-    border-right: 0; border-bottom: 1px solid var(--line-2); padding: 16px 14px;
+  html { -webkit-text-size-adjust: 100%; }
+  body { flex-direction: column; padding-top: 56px; }
+
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px; padding: 0 8px 0 18px;
+    background: var(--side); border-bottom: 1px solid var(--line-2);
   }
-  .nav-foot { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-2); }
-  .screen { padding: 32px 20px 56px; }
+  .topbar .brand-name { font-size: 20px; }
+  .burger[aria-expanded="true"] .i-open { display: none; }
+  .burger[aria-expanded="true"] .i-close { display: block; }
+
+  .sidebar {
+    position: fixed; top: 56px; right: 0; bottom: 0; z-index: 50;
+    /* align-self лишається від флекс-розкладки й підрізає шухляду по вмісту */
+    width: min(320px, 84vw); flex: none; height: auto; align-self: stretch;
+    border-right: 0; border-left: 1px solid var(--line-2);
+    padding: 16px 14px 28px;
+    transform: translateX(100%); transition: transform .22s ease;
+  }
+  .sidebar.is-open { transform: none; box-shadow: -26px 0 50px -28px var(--modal-shadow); }
+  /* Логотип уже є в шапці — другий у шухляді лише забирав би висоту */
+  .sidebar .brand { display: none; }
+  .nav-scrim { display: block; position: fixed; top: 56px; left: 0; right: 0; bottom: 0; z-index: 45; background: var(--overlay); }
+  html.nav-open, html.nav-open body { overflow: hidden; }
+
+  /* Пошук лишається під рукою на будь-якій глибині списку */
+  .tools-bar, .folder-tools {
+    position: sticky; top: 56px; z-index: 12;
+    margin: 0 -20px 14px; padding: 10px 20px;
+    background: var(--bg); border-bottom: 1px solid var(--line-soft);
+  }
+
+  .screen { padding: 24px 20px 56px; }
   #s-home.is-active { padding-top: 40px; }
   .home .h1 { font-size: 36px; }
   .home-cards { grid-template-columns: 1fr; }
@@ -740,13 +799,223 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .panel-nut .panel-head { flex-wrap: wrap; }
   .nut-al { flex-direction: column; gap: 8px; }
   .nut-al .nut-cap { padding-top: 0; }
-  /* Таблиця бази на телефоні скролиться вбік у своїх 660px — редактор
-     тримаємо у видимій смузі, інакше половина алергенів ховається за краєм */
-  .tbl tbody tr.nut-row .nut-edit { position: sticky; left: 0; width: calc(100vw - 82px); }
   .panel-foot { flex-wrap: wrap; }
   .total-bar { flex-direction: column; align-items: stretch; }
   .total-acts { flex-wrap: wrap; }
   .total-acts .btn { flex: 1; }
-  .pdf-stage { width: 100%; padding: 20px; }
-  .pdf-doc { width: 100%; }
+  /* Аркуш лишається А4-ширини навмисно: html2pdf знімає той самий вузол,
+     що й на екрані, тож «підігнати» його під телефон означало б віддати
+     користувачу PDF, зверстаний під 320px. Прев'ю натомість зменшує
+     аркуш цілком — масштаб рахує fitPdfPreview() і знімає перед експортом. */
+  .pdf-modal-body { padding: 18px; }
+  .pdf-stage { margin: 0; padding: 24px 26px 30px; transform-origin: top left; }
+}
+
+/* ── Телефон: таблиця стає списком карток ───────────────────────
+   Рядок на шість колонок у 390px не живе: або текст завбільшки з
+   крихту, або скрол убік. Тому нижче 760px кожен рядок — картка:
+   зверху назва й видалення, під ними поля з дрібними підписами.
+   Підписи беруться з data-lbl, який проставляє app.js — на компʼютері
+   їх не видно, там за це відповідає шапка таблиці. */
+
+@media (max-width: 760px) {
+  .screen { padding: 20px 16px 48px; }
+  #s-home.is-active { padding-top: 28px; }
+  .tools-bar, .folder-tools { margin: 0 -16px 14px; padding: 10px 16px; }
+
+  .h1 { font-size: 26px; }
+  .home .h1 { font-size: 31px; }
+  .home .lede { margin-bottom: 30px; }
+  .title-inp { font-size: 26px; }
+  /* Менші за 16px поля iOS зустрічає зумом сторінки на кожному тапі */
+  .inp, .inp.is-num, .unit-sel, .search-wrap .inp { font-size: 16px; }
+
+  /* ── Таблиці ──
+     Сітка у дві рівні колонки, а не вільний перенос: при переносі поля
+     лягають у кожному рядку по-своєму, і список читається як купа. */
+  .panel-scroll { overflow-x: visible; }
+  .panel-scroll .tbl, .calc-mid .panel:first-child .tbl, .tbl { min-width: 0; display: block; }
+  .tbl thead { display: none; }
+  .tbl tbody { display: block; }
+  .tbl tbody tr {
+    position: relative; display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 12px; padding: 12px 14px;
+    border-bottom: 1px solid var(--line-faint);
+  }
+  .tbl tbody td, .tbl tbody td:first-child, .tbl tbody td:last-child {
+    display: block; padding: 0; border: 0; min-width: 0;
+  }
+  /* Назва — завжди на всю ширину, з полем під хрестик праворуч */
+  .tbl tbody td:first-child { grid-column: 1 / -1; padding-right: 40px; }
+  .tbl tbody td.t-act { position: absolute; top: 10px; right: 10px; width: auto; }
+  .tbl tbody td[data-lbl] { display: flex; align-items: center; gap: 7px; }
+  .tbl tbody td[data-lbl]::before {
+    content: attr(data-lbl); flex: 0 0 auto; white-space: nowrap;
+    font-family: var(--num); font-size: 10px; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--muted-2);
+  }
+  .tbl tbody td[data-lbl] .qty-wrap,
+  .tbl tbody td[data-lbl] .cell-pair { flex: 1 1 auto; min-width: 0; }
+  .tbl tbody td.t-cost { font-size: 15px; }
+  /* Вартість витрати — під «Значенням», а не сама в лівій колонці */
+  #exp-body td.t-cost { grid-column: 2; }
+
+  /* Наведення на дотику немає — поле має саме показувати, що воно поле */
+  .tbl tbody .inp { border-color: var(--line-2); background: var(--field); padding: 8px 10px; }
+  .tbl tbody .inp.is-num { flex: 1 1 auto; width: auto; min-width: 0; padding: 8px 9px; }
+  .tbl tbody .cell-pair { gap: 4px; justify-content: flex-start; }
+  .tbl tbody .qty-wrap .inp { width: 100%; padding-right: 26px; }
+  .tbl tbody .unit-tag { font-size: 12px; }
+  /* Свій шеврон: без нього рамка на дотику читається як заблоковане поле.
+     Колір лінії однаковий у світлій і темній темі, тому задано літерально. */
+  .tbl tbody .unit-sel {
+    border: 1px solid var(--line-2); padding: 8px 21px 8px 9px; color: var(--fg);
+    background-color: var(--panel-2);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c877e' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 5px center; background-size: 11px;
+  }
+
+  /* ── Згорнута картка бази ──
+     Список пробігають очима по назвах; поля відкриваються тапом. */
+  /* Назва окремим рядком, підсумок під нею: в один рядок довга назва
+     обрізається саме там, де продукти й відрізняються один від одного */
+  .row-peek {
+    display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center;
+    gap: 3px 10px; width: 100%; padding: 3px 0;
+    border: 0; background: transparent; text-align: left; cursor: pointer;
+  }
+  .peek-name {
+    grid-column: 1; min-width: 0; font-size: 15.5px; font-weight: 500; color: var(--fg);
+  }
+  .peek-name.is-empty { color: var(--dim); font-weight: 400; }
+  .peek-sum { grid-column: 1; font-family: var(--num); font-size: 12.5px; color: var(--muted); }
+  .peek-caret { grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 16px; height: 16px; }
+  .peek-caret svg { width: 15px; height: 15px; fill: none; stroke: var(--dim); stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .row-fold {
+    flex: 0 0 32px; place-items: center; height: 32px;
+    border: 0; border-radius: var(--r-s); background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .row-fold svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; transform: rotate(180deg); }
+
+  #base-body tr:not(.is-edit) > td:not(:first-child),
+  #expbase-body tr:not(.is-edit) > td:not(:first-child) { display: none; }
+  #base-body tr:not(.is-edit) [data-f="name"],
+  #expbase-body tr:not(.is-edit) [data-f="name"] { display: none; }
+  #base-body tr:not(.is-edit) > td:first-child,
+  #expbase-body tr:not(.is-edit) > td:first-child { padding-right: 0; }
+  .tbl tbody td.t-mid { text-align: left; }
+  #base-body tr.is-edit > td:first-child,
+  #expbase-body tr.is-edit > td:first-child { display: flex; align-items: center; gap: 6px; }
+  /* Шеврон лишається праворуч, як і в згорнутому стані — інакше він стрибає */
+  #base-body tr.is-edit [data-f="name"],
+  #expbase-body tr.is-edit [data-f="name"] { order: 1; }
+  #base-body tr.is-edit .row-fold,
+  #expbase-body tr.is-edit .row-fold { order: 2; }
+  #base-body tr.is-edit .row-peek,
+  #expbase-body tr.is-edit .row-peek { display: none; }
+  #base-body tr.is-edit .row-fold,
+  #expbase-body tr.is-edit .row-fold { display: grid; }
+  /* Розгорнута картка трохи світліша — видно, що працюєш саме з нею */
+  #base-body tr.is-edit, #expbase-body tr.is-edit { background: var(--panel-2); }
+
+  /* Напівфабрикати відкриваються власним екраном — тут потрібен лише підсумок */
+  #prep-body td[data-lbl] { display: none; }
+  #prep-body .m-sum {
+    display: block; margin-top: 2px;
+    font-family: var(--num); font-size: 12.5px; line-height: 1.6; color: var(--muted);
+  }
+  .prep-name-btn { padding: 3px 0; }
+
+  /* Службові рядки — на всю ширину картки */
+  .tbl tbody td.tbl-empty { grid-column: 1 / -1; padding: 30px 4px; }
+  .tbl tbody tr.nut-row { padding-top: 0; }
+  .tbl tbody tr.nut-row > td { grid-column: 1 / -1; padding: 0 0 12px; }
+
+  /* Група напівфабрикату: рейку складників замінює рамка зліва на картці */
+  .tbl tbody tr.ing-group { background: var(--side); border-bottom-color: var(--edge); }
+  .tbl tbody tr.ing-group > td { background: transparent; }
+  .tbl tbody tr.ing-group > td:first-child { padding: 0 40px 0 0; }
+  .grp-head { flex-wrap: wrap; gap: 6px 8px; }
+  .grp-name { white-space: normal; }
+  .tbl tbody tr.ing-child { padding-left: 24px; border-left: 2px solid var(--edge); }
+  .tbl tbody tr.ing-child > td:first-child { position: static; padding: 0 40px 0 0; }
+  .tbl tbody tr.ing-child > td:first-child::before { display: none; }
+
+  /* ── Липка смуга калькуляції ──
+     Головне число застосунку не має ховатися за екраном, поки вписуєш грамовки. */
+  #s-calc.is-active { padding-bottom: 104px; }
+  #s-calc.is-active .calc-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--line);
+    box-shadow: 0 -10px 24px -16px var(--card-shadow);
+  }
+  .calc-bar-box { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .calc-bar-lbl { font-family: var(--num); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
+  .calc-bar-val { font-size: 21px; font-weight: 600; letter-spacing: -.02em; }
+  .calc-bar .btn { flex: 0 0 auto; height: 42px; padding: 0 20px; }
+  .calc-bar { transition: transform .18s ease; }
+  /* Видно Підсумок — смуга йде з дороги: там уже є та сама ціна й та сама кнопка */
+  #s-calc.is-active .calc-bar.is-off { transform: translateY(105%); }
+  html.on-calc .toast { bottom: calc(86px + env(safe-area-inset-bottom)); }
+  /* Головна кнопка — першою під пальцем */
+  .total-acts { flex-direction: column-reverse; }
+  .total-acts .btn { width: 100%; }
+  /* «Собівартість 335,10 ₴» не влазить поруч із заголовком панелі */
+  .panel-head { flex-wrap: wrap; row-gap: 2px; padding: 14px 16px 12px; }
+  .panel-foot { padding: 12px 16px; }
+  .tbl tbody tr { padding-left: 16px; padding-right: 16px; }
+
+  /* ── Папка ── */
+  .folder-tools { flex-direction: column; align-items: stretch; }
+  /* Лічильник окремим рядком: інакше «Видалити» зривається вниз із роздільником */
+  .folder-meta { flex-wrap: wrap; gap: 4px 10px; }
+  .folder-meta .num { flex: 1 1 100%; }
+  .folder-meta .num + .sep { display: none; }
+  .head-actions .btn { flex: 1 1 100%; }
+  .empty { padding: 32px 22px 34px; }
+
+  /* ── Налаштування ── */
+  .set-row { flex-direction: column; align-items: stretch; gap: 14px; padding: 16px 18px; }
+  .set-row-txt { max-width: none; }
+  .set-row .btn-row { flex-wrap: wrap; }
+  .set-row .btn-row .btn { flex: 1 1 150px; }
+  #btn-reset { width: 100%; }
+  /* Перемикачі на всю ширину: чотири валюти інакше тиснуться в кут */
+  .seg { justify-content: stretch; }
+  .seg button { flex: 1; padding: 9px 10px; }
+
+  /* ── Модалка стає шторкою знизу: так до кнопок дістає палець ── */
+  .overlay { place-items: end center; padding: 0; }
+  .modal, .modal.modal-nut {
+    max-width: none; max-height: 92vh; overflow-y: auto;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  .modal-foot .btn { flex: 1; }
+  .pdf-modal { max-height: 94vh; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+  .pdf-modal-head { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
+  .pdf-modal-head .btn-row { width: 100%; }
+  .pdf-modal-head .btn-row .btn { flex: 1; }
+  .pdf-modal-body { padding: 12px; }
+  .prep-take-row { flex-wrap: wrap; }
+
+  /* ── Розміри під палець ── */
+  .icon-btn { width: 36px; height: 36px; }
+  .link-btn { padding: 6px; }
+  .chip { height: 32px; }
+  .btn-dash { height: 38px; }
+  /* Ті самі дві колонки, що й у решті картки — вільний перенос на 320px
+     виштовхував останнє поле за край екрана */
+  .nut-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; align-items: center; }
+  .nut-fields .nut-cap { grid-column: 1 / -1; }
+  .nut-f { min-width: 0; }
+  .nut-f > span:first-child { flex: 0 0 auto; }
+  .nut-f .inp, .nut-f .qty-wrap { flex: 1 1 auto; width: auto; min-width: 0; }
+  .nut-f .inp { height: 38px; }
+  /* «Вуглеводи» з полем у 137px уже не вміщаються — на найвужчих екранах в один стовпчик */
+  @media (max-width: 360px) { .nut-fields { grid-template-columns: 1fr; } }
+  .panel-tip { flex: 1 1 100%; }
 }
