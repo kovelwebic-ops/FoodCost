@@ -1105,8 +1105,6 @@ function setNav(key) {
 
 function show(id, navKey) {
   $$('.screen').forEach(function (s) { s.classList.toggle('is-active', s.id === 's-' + id); });
-  // Липка смуга калькуляції займає низ екрана — тост має піднятися над нею
-  document.documentElement.classList.toggle('on-calc', id === 'calc');
   setNav(navKey === undefined ? id : navKey);
   S.ui.screen = id;
   window.scrollTo(0, 0);
@@ -1350,7 +1348,7 @@ function baseRow(p) {
   tr.innerHTML =
     '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва продукту"></td>' +
     '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
-    '<td data-lbl="Уп."><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0"></td>' +
+    '<td data-lbl="Упаковка"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0"></td>' +
     '<td class="t-mid" data-lbl="Одиниця">' + unitSelect(p.unit) + '</td>' +
     '<td class="nut-only t-mid"><button type="button" class="nut-btn" data-nut-toggle aria-expanded="false">КБЖУ</button></td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-product aria-label="Видалити продукт">' + ICON_X + '</button></td>';
@@ -2023,7 +2021,7 @@ function ingRow(data) {
   tr.innerHTML =
     '<td><input class="inp" data-f="name" list="dl-products" placeholder="Почніть вводити назву" autocomplete="off"></td>' +
     '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
-    '<td data-lbl="Уп."><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
+    '<td data-lbl="Упаковка"><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
     '<td data-lbl="Скільки"><span class="qty-wrap"><input class="inp is-num" data-f="qty" inputmode="decimal" placeholder="0"><span class="unit-tag">' + esc(v.unit) + '</span></span></td>' +
     '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-row aria-label="Видалити рядок">' + ICON_X + '</button></td>';
@@ -2163,7 +2161,6 @@ function writeNumbers(v, t, m) {
   $('#r-mlbl').textContent = 'Маржа ' + qtyFmt(m) + '%';
   $('#r-margin').textContent = '+ ' + money(v.margin);
   $('#r-price').textContent = money(v.price);
-  $('#bar-price').textContent = money(v.price);
   $('#sum-ing').textContent = t.cost ? money(v.cost) : '—';
   $('#sum-exp').textContent = t.extra ? money(v.extra) : '—';
   $('#margin-sum').textContent = t.margin ? '= + ' + money(v.margin) : '—';
@@ -2353,9 +2350,7 @@ function openRecipe(folderId, recipeId) {
 }
 
 function updateSaveBtn() {
-  $('#btn-save').textContent = S.ui.editing ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';
-  $('#btn-save-bar').textContent = S.ui.editing ? 'Оновити' : 'Зберегти';
-  var st = $('#save-state');
+  $('#btn-save').textContent = S.ui.editing ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';  var st = $('#save-state');
   // Поки запис на диск не проходить, писати «Збережено» — обман: показуємо це першим.
   if (storageFailed) {
     st.className = 'save-state is-warn';
@@ -2752,18 +2747,6 @@ function buildSaveList() {
 
 function bindSave() {
   var ov = $('#save-overlay');
-
-  // Липка смуга на телефоні — та сама дія, що й кнопка в підсумку
-  $('#btn-save-bar').addEventListener('click', function () { $('#btn-save').click(); });
-
-  // …і йде з дороги, щойно видно сам Підсумок: там уже є та сама ціна
-  // й та сама кнопка, дві копії поруч виглядають як помилка.
-  if (window.IntersectionObserver) {
-    var bar = $('#s-calc .calc-bar');
-    new IntersectionObserver(function (entries) {
-      bar.classList.toggle('is-off', entries[0].isIntersecting);
-    }, { threshold: 0 }).observe($('#s-calc .panel-total'));
-  }
 
   $('#btn-save').addEventListener('click', function () {
     var d = cleanRecipe(readCalc());
