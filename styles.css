@@ -963,15 +963,14 @@ html:not(.nut-on) .nut-only { display: none !important; }
   #prep-ing-body tr:not(.is-edit) [data-f="name"],
   #ing-body tr:not(.ing-group):not(.is-edit) > td:not(:first-child):not(.t-cost),
   #prep-ing-body tr:not(.is-edit) > td:not(:first-child):not(.t-cost) { display: none; }
-  /* Вартість — рамкою праворуч на рівні назви; назва лишає під неї місце */
+  /* Вартість — просто числом праворуч на рівні назви, без рамки: рамка
+     робила її схожою на поле, а редагувати тут нічого. Назва лишає місце. */
   #ing-body tr:not(.ing-group):not(.is-edit) .peek-name,
-  #prep-ing-body tr:not(.is-edit) .peek-name { padding-right: 104px; }
+  #prep-ing-body tr:not(.is-edit) .peek-name { padding-right: 84px; }
   #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost,
   #prep-ing-body tr:not(.is-edit) > td.t-cost {
-    position: absolute; top: 10px; right: 14px; display: block;
-    min-width: 84px; height: 34px; padding: 0 10px; line-height: 32px;
-    border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--panel-2);
-    text-align: right; font-size: 14.5px;
+    position: absolute; top: 15px; right: 14px; display: block;
+    text-align: right; font-size: 15px;
   }
   #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost::before,
   #prep-ing-body tr:not(.is-edit) > td.t-cost::before { display: none; }
