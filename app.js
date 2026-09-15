@@ -1131,8 +1131,91 @@ function show(id, navKey) {
   $$('.screen').forEach(function (s) { s.classList.toggle('is-active', s.id === 's-' + id); });
   setNav(navKey === undefined ? id : navKey);
   S.ui.screen = id;
+  recordNav(id);
   window.scrollTo(0, 0);
   persist();
+}
+
+/* ── Історія браузера ──────────────────────────────────────────
+   Для браузера весь застосунок — одна сторінка, тож «Назад» (кнопка чи
+   жест на телефоні) викидав із сайту. Тепер кожен перехід між екранами —
+   окремий крок історії, а popstate відкриває той екран, що в кроці. */
+
+var fromHistory = false;   // екран відкривається з історії — новий крок не пишемо
+var navReplace = false;    // перехід замість поточного кроку (напр. після видалення)
+var curNav = null;         // крок, на якому стоїмо: «Назад» при відкритому вікні повертає саме його
+
+function navState(id) {
+  var st = { fc: 1, screen: id };
+  if (id === 'folder') st.folderId = S.ui.folderId;
+  if (id === 'prep-edit') st.prepId = editingPrepId;
+  if (id === 'calc') st.editing = S.ui.editing ? { folderId: S.ui.editing.folderId, recipeId: S.ui.editing.recipeId } : null;
+  return st;
+}
+
+function sameNav(a, b) {
+  return !!a && !!b && a.screen === b.screen && a.folderId === b.folderId && a.prepId === b.prepId &&
+    JSON.stringify(a.editing || null) === JSON.stringify(b.editing || null);
+}
+
+function recordNav(id) {
+  if (fromHistory || !window.history || !history.pushState) return;
+  var st = navState(id);
+  // Той самий екран ще раз (перемалювали папку, клікнули пункт меню двічі) — не плодимо кроки
+  if (navReplace || sameNav(history.state, st)) history.replaceState(st, '');
+  else history.pushState(st, '');
+  curNav = st;
+}
+
+/** Оновити поточний крок без переходу — коли в екрана змінилось, що саме в ньому відкрито. */
+function replaceNav() {
+  if (!window.history || !history.replaceState) return;
+  curNav = navState(S.ui.screen);
+  history.replaceState(curNav, '');
+}
+
+function closeOverlays() {
+  closeMenu();
+  closeAsk();
+  closePdfPreview();
+  closePrepPick();
+  closeNutModal();
+  $('#save-overlay').classList.remove('is-on');
+}
+
+function restoreNav(st) {
+  fromHistory = true;
+  try {
+    var id = st && st.fc ? st.screen : 'home';
+    if (id === 'folder' && folderById(st.folderId)) {
+      openFolder(st.folderId);
+    } else if (id === 'prep-edit' && prepById(st.prepId)) {
+      openPrep(st.prepId);
+    } else if (id === 'calc') {
+      var ed = st.editing, f = ed && folderById(ed.folderId);
+      var r = f && f.recipes.filter(function (x) { return x.id === ed.recipeId; })[0];
+      if (r) {
+        openRecipe(f.id, r.id);
+      } else {
+        // Чернетка в стані одна. Якщо відтоді відкривали збережений рецепт, S.draft
+        // уже його — показати її як нову означало б дублікат при збереженні.
+        var draft = S.ui.editing ? null : S.draft;
+        S.ui.editing = null;
+        loadCalc(draft || { name: '', margin: 50, ing: [], exp: [] }, 'Нова калькуляція');
+        show('calc', null);
+      }
+    } else if (id !== 'folder' && id !== 'prep-edit' && $('#s-' + id)) {
+      if (id === 'base') renderBase();
+      if (id === 'expbase') renderExpBase();
+      if (id === 'prep') renderPreps();
+      show(id);
+    } else {
+      show('home');   // папку чи напівфабрикат з кроку вже видалили
+    }
+  } finally {
+    fromHistory = false;
+  }
+  replaceNav();   // крок міг вказувати на вже видалене — фіксуємо, що відкрили насправді
 }
 
 /* ═════════════════ 8. Сайдбар ═════════════════ */
@@ -2572,11 +2655,12 @@ function bindCalc() {
         S.ui.editing = null;
         renderSidebar();
         persist(true);
-        openFolder(f.id);
+        // Замість кроку калькуляції, а не поверх: «Назад» не має вести у видалене
+        navReplace = true; openFolder(f.id); navReplace = false;
         toast('Калькуляцію «' + r.name + '» видалено');
       } else {
         persist(true);
-        backFromCalc();
+        navReplace = true; backFromCalc(); navReplace = false;
         toast('Чернетку видалено');
       }
     });
@@ -2929,6 +3013,7 @@ function bindSave() {
     }
 
     $('#calc-crumb').textContent = target.title;
+    replaceNav();         // крок історії тепер про збережений рецепт, а не про чернетку
     draftDirty = false;   // збережено — попереджати про втрату вже нема про що
     updateSaveBtn();
     ov.classList.remove('is-on');
@@ -3348,14 +3433,18 @@ function bindGlobal() {
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') {
-      closeMenu();
-      closeAsk();
-      closePdfPreview();
-      closePrepPick();
-      closeNutModal();
-      $('#save-overlay').classList.remove('is-on');
+    if (e.key === 'Escape') closeOverlays();
+  });
+
+  // «Назад» при відкритому меню чи вікні лише закриває його: браузер уже
+  // зробив крок назад, тож повертаємо поточний — екран під вікном не міняється
+  window.addEventListener('popstate', function (e) {
+    if (menuOpen() || $('.overlay.is-on')) {
+      closeOverlays();
+      if (curNav && history.pushState) history.pushState(curNav, '');
+      return;
     }
+    restoreNav(e.state);
   });
 
   // Не даємо зайвий раз втратити незбережену роботу
@@ -3421,7 +3510,12 @@ function init() {
   bindPdf();
   bindSettings();
 
+  // Відновлення екрана на старті — не новий крок: інакше перше «Назад»
+  // вело б на той самий екран, а друге вже з сайту
+  fromHistory = true;
   boot(false);
+  fromHistory = false;
+  replaceNav();
   persist(true);
 }
 
