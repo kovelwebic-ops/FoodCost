@@ -830,7 +830,6 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .h1 { font-size: 26px; }
   .home .h1 { font-size: 31px; }
   .home .lede { margin-bottom: 30px; }
-  .title-inp { font-size: 26px; }
   /* Менші за 16px поля iOS зустрічає зумом сторінки на кожному тапі */
   .inp, .inp.is-num, .unit-sel, .search-wrap .inp { font-size: 16px; }
 
@@ -1009,6 +1008,21 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .tbl tbody tr.ing-child { padding-left: 24px; border-left: 2px solid var(--edge); }
   .tbl tbody tr.ing-child > td:first-child { position: static; padding: 0; }
   .tbl tbody tr.ing-child > td:first-child::before { display: none; }
+
+  /* ── Шапка калькуляції й напівфабрикату ──
+     Було: 40px зверху (компʼютерний відступ перебивав мобільний), назва
+     окремо, «Додати фото» ще одним рядком і 34px до панелі — пів екрана
+     повітря до першого інгредієнта. Тепер назва й фото в одному рядку. */
+  #s-calc.is-active, #s-prep-edit.is-active { padding-top: 12px; }
+  .calc-top { margin-bottom: 2px; }
+  .calc-titlebar { flex-direction: row; align-items: center; gap: 10px; margin-bottom: 14px; }
+  /* .inp.title-inp, а не .title-inp: правило «поля 16px» вище в цьому ж
+     блоці має ту саму вагу й робило назву страви дрібнішою за підписи */
+  .inp.title-inp { font-size: 24px; padding: 4px 10px; }
+  .photo-btn { width: 42px; height: 42px; margin-top: 0; padding: 0; justify-content: center; gap: 0; font-size: 0; }
+  .photo-btn svg { width: 20px; height: 20px; }
+  .photo-box { margin-top: 0; gap: 8px; }
+  .photo-box img { width: 48px; height: 42px; }
 
   /* ── Підсумок ──
      Головна кнопка першою. flex: 1 з блоку вище в стовпчику ставав
