@@ -838,6 +838,12 @@ html:not(.nut-on) .nut-only { display: none !important; }
      Рядок стає карткою на сітці. Підпис стоїть НАД полем, а не збоку:
      збоку він забирав половину колонки, і в полі лишалось місце на «10(»
      замість «1000». Висота всіх полів однакова — лінії сітки не пливуть. */
+  /* Блоки на фоні — з тінню. Панель і фон на телефоні майже одного тону,
+     і одна тонка рамка вже не відділяла «Інгредієнти» від сторінки.
+     Кольори тіні з токенів теми — у темній вона сама стає глибшою. */
+  .panel, .home-card, .rcard {
+    box-shadow: 0 1px 2px var(--nav-shadow), 0 8px 22px -14px var(--card-shadow);
+  }
   .panel-scroll { overflow-x: visible; }
   .panel-scroll .tbl, .calc-mid .panel:first-child .tbl, .tbl { min-width: 0; display: block; }
   .tbl thead { display: none; }
