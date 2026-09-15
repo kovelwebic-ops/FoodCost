@@ -70,6 +70,9 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 @keyframes fc-toast { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes fc-fade  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fc-pop   { from { opacity: 0; transform: scale(.975) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes fc-rise  { from { opacity: 0; transform: scale(.94) translateY(24px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes fc-sheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fc-item  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
 /* ═════════════════ Сайдбар ═════════════════ */
@@ -668,8 +671,17 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .modal-foot .btn { height: 40px; }
 
-/* Запрошення: головна дія зверху на всю ширину, відмова — тихо під нею */
-.modal.modal-invite { max-width: 440px; }
+/* Запрошення: головна дія зверху на всю ширину, відмова — тихо під нею.
+   Анімація помітніша, ніж у робочих модалок: вікно зʼявляється само, а не
+   у відповідь на дію, тож затримка дає сторінці спершу намалюватись, і
+   поява читається як запрошення, а не як збій. */
+#invite-overlay.is-on { animation: fc-fade .35s ease .25s both; }
+.modal.modal-invite { max-width: 440px; animation: fc-rise .5s cubic-bezier(.2,.8,.25,1) .3s both; }
+.modal-invite .invite-list li, .modal-invite .invite-acts { animation: fc-item .4s ease both; }
+.modal-invite .invite-list li:nth-child(1) { animation-delay: .5s; }
+.modal-invite .invite-list li:nth-child(2) { animation-delay: .58s; }
+.modal-invite .invite-list li:nth-child(3) { animation-delay: .66s; }
+.modal-invite .invite-acts { animation-delay: .76s; }
 .invite-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
 .invite-list li { position: relative; padding-left: 26px; font-size: 14.5px; line-height: 1.5; color: var(--fg-2); }
 .invite-list li::before {
@@ -678,7 +690,17 @@ html:not(.nut-on) .nut-only { display: none !important; }
 }
 .invite-list b { font-weight: 600; color: var(--fg); }
 .invite-acts { display: flex; flex-direction: column; gap: 6px; margin-top: 22px; }
-.invite-acts .btn { width: 100%; height: 44px; text-decoration: none; }
+.invite-acts .btn {
+  width: 100%; height: 44px; text-decoration: none;
+  transition: filter .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease, color .18s ease;
+}
+/* Яскравіше через filter, а не темніший --accent-2: так кнопка світлішає в обох темах */
+.invite-acts .btn-primary:hover, .invite-acts .btn-primary:focus-visible {
+  background: var(--accent); filter: brightness(1.15) saturate(1.1);
+  box-shadow: 0 10px 24px -10px var(--accent); transform: translateY(-1px);
+}
+.invite-acts .btn-primary:active { filter: brightness(1.05); box-shadow: none; transform: none; }
+.invite-acts .btn-ghost:hover, .invite-acts .btn-ghost:focus-visible { background: var(--danger-soft); color: var(--danger); }
 
 .folder-list { display: flex; flex-direction: column; gap: 8px; margin: 18px 0 0; }
 .folder-opt {
@@ -1154,6 +1176,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
     padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
   }
   .modal-foot .btn { flex: 1; }
+  /* На телефоні вікно — шторка, тож і виїжджає знизу, а не збільшується */
+  .modal.modal-invite { animation: fc-sheet .5s cubic-bezier(.2,.8,.25,1) .3s both; }
   .pdf-modal { max-height: 94vh; border-radius: var(--r-xl) var(--r-xl) 0 0; }
   .pdf-modal-head { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
   .pdf-modal-head .btn-row { width: 100%; }
