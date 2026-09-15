@@ -8,6 +8,8 @@
 /* ═════════════════ 1. Константи ═════════════════ */
 
 var STORE_KEY = 'fc:state:v1';
+/* Окремо від стану: «Скинути дані» чи відновлення з файла не мають повертати запрошення */
+var INVITE_KEY = 'fc:invite:v1';
 var UNITS = ['г', 'мл', 'шт'];
 
 /* Базові алергени — лише ті, що в кондитерці трапляються щодня. Решту
@@ -1216,6 +1218,27 @@ function ask(opts, cb) {
   else setTimeout(function () { okBtn.focus(); }, 30);
 }
 function closeAsk() { $('#ask-overlay').classList.remove('is-on'); askCb = null; }
+
+/* ── Запрошення в групу тестувальників ──────────────────────────
+   Один раз на пристрій. Хрестика, закриття по фону й Escape немає
+   навмисно: вікно закривається лише кнопкою — щоб його прочитали. */
+
+function maybeShowInvite() {
+  // Сховище недоступне (приватний режим) — не показуємо, інакше вікно було б на кожному вході
+  try { if (localStorage.getItem(INVITE_KEY)) return; } catch (e) { return; }
+  $('#invite-overlay').classList.add('is-on');
+}
+
+function closeInvite() {
+  try { localStorage.setItem(INVITE_KEY, '1'); } catch (e) { /* не записалось — покажемо ще раз, не страшно */ }
+  $('#invite-overlay').classList.remove('is-on');
+}
+
+function bindInvite() {
+  // «Приєднатись» — звичайне посилання в нову вкладку, тут лише закриваємо вікно
+  $('#invite-join').addEventListener('click', closeInvite);
+  $('#invite-skip').addEventListener('click', closeInvite);
+}
 
 /* ═════════════════ 7. Навігація ═════════════════ */
 
@@ -3619,6 +3642,7 @@ function init() {
   bindSave();
   bindPdf();
   bindSettings();
+  bindInvite();
 
   // Відновлення екрана на старті — не новий крок: інакше перше «Назад»
   // вело б на той самий екран, а друге вже з сайту
@@ -3627,6 +3651,7 @@ function init() {
   fromHistory = false;
   replaceNav();
   persist(true);
+  maybeShowInvite();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

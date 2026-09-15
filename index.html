@@ -708,6 +708,23 @@
   </div>
 </div>
 
+<!-- Запрошення в групу тестувальників: один раз на пристрій, закривається лише кнопкою -->
+<div class="overlay" id="invite-overlay">
+  <div class="modal modal-invite" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div class="modal-title" id="invite-title">Запрошуємо в групу тестувальників</div>
+    <div class="modal-sub">FoodCost зараз у відкритому тесті. Приєднуйтесь до нашої групи в Telegram:</div>
+    <ul class="invite-list">
+      <li>впливайте на розвиток програми;</li>
+      <li>пропонуйте свої ідеї й побажання;</li>
+      <li><b>за активність після релізу FoodCost буде для вас безкоштовним назавжди.</b></li>
+    </ul>
+    <div class="invite-acts">
+      <a class="btn btn-primary" id="invite-join" href="https://t.me/+kQRJb6MP9jc3Nzky" target="_blank" rel="noopener">Приєднатись</a>
+      <button class="btn btn-ghost" id="invite-skip">Відмовитись</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- Прев'ю перед експортом: документ має бути реально видимим, інакше html2canvas знімає порожнечу -->
