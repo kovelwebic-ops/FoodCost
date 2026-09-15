@@ -262,8 +262,8 @@
         </div>
         <div class="yield-ctl">
           <span class="cell-pair">
-            <input class="inp is-num" id="prep-yield" inputmode="decimal" placeholder="0" aria-label="Вихід">
-            <select class="unit-sel" id="prep-unit" aria-label="Одиниця виходу"></select>
+            <input class="inp is-num" id="prep-yield" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Вихід">
+            <select class="unit-sel" id="prep-unit" autocomplete="off" aria-label="Одиниця виходу"></select>
           </span>
           <button class="link-btn" id="prep-yield-auto" hidden></button>
         </div>
@@ -302,9 +302,9 @@
         <div class="folder-meta">
           <span class="num" id="folder-count"></span>
           <span class="sep"></span>
-          <button class="link-btn" id="folder-rename">Перейменувати</button>
+          <button class="link-btn" id="folder-rename" aria-label="Перейменувати папку"><svg class="i-ico" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg><span>Перейменувати</span></button>
           <span class="sep"></span>
-          <button class="link-btn is-danger" id="folder-delete">Видалити</button>
+          <button class="link-btn is-danger" id="folder-delete" aria-label="Видалити папку"><svg class="i-ico" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 12.5h9l1-12.5"/></svg><span>Видалити</span></button>
         </div>
       </div>
       <div class="head-actions">
@@ -409,7 +409,7 @@
         <h2 class="h2">Маржа</h2>
         <div class="margin-row">
           <span class="margin-field">
-            <input class="inp is-num" id="margin-inp" value="50" inputmode="decimal" aria-label="Маржа у відсотках">
+            <input class="inp is-num" id="margin-inp" value="50" inputmode="decimal" autocomplete="off" aria-label="Маржа у відсотках">
             <span class="suffix">%</span>
           </span>
           <span id="margin-sum">—</span>
@@ -429,7 +429,7 @@
         <label class="nut-out">
           <span>Вага готового виробу</span>
           <span class="qty-wrap">
-            <input class="inp is-num" id="calc-outw" inputmode="decimal" placeholder="—">
+            <input class="inp is-num" id="calc-outw" inputmode="decimal" autocomplete="off" placeholder="—">
             <span class="unit-tag">г</span>
           </span>
         </label>
@@ -552,13 +552,13 @@
     <div class="modal-title" id="prep-pick-title">Додати напівфабрикат</div>
     <div class="modal-sub">Складники стануть окремими рядками, перерахованими під вашу кількість.</div>
 
-    <select class="inp" id="prep-pick" aria-label="Напівфабрикат"></select>
+    <select class="inp" id="prep-pick" autocomplete="off" aria-label="Напівфабрикат"></select>
     <div class="prep-pick-meta" id="prep-pick-meta"></div>
 
     <label class="prep-take-lbl" for="prep-take">Скільки потрібно?</label>
     <div class="prep-take-row">
       <span class="qty-wrap">
-        <input class="inp is-num" id="prep-take" inputmode="decimal" placeholder="0">
+        <input class="inp is-num" id="prep-take" inputmode="decimal" autocomplete="off" placeholder="0">
         <span class="unit-tag" id="prep-take-unit">г</span>
       </span>
       <span class="prep-take-hint" id="prep-take-hint"></span>

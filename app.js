@@ -737,10 +737,10 @@ function nutEditorHtml() {
       '<span class="nut-cap">На 100 г</span>' +
       NUT_KEYS.map(function (n) {
         return '<label class="nut-f"><span>' + n[1] + '</span>' +
-          '<input class="inp is-num" data-n="' + n[0] + '" inputmode="decimal" placeholder="—"></label>';
+          '<input class="inp is-num" data-n="' + n[0] + '" inputmode="decimal" autocomplete="off" placeholder="—"></label>';
       }).join('') +
       '<label class="nut-f" data-pw-wrap><span>Вага 1 шт</span><span class="qty-wrap">' +
-        '<input class="inp is-num" data-pw inputmode="decimal" placeholder="—"><span class="unit-tag">г</span></span></label>' +
+        '<input class="inp is-num" data-pw inputmode="decimal" autocomplete="off" placeholder="—"><span class="unit-tag">г</span></span></label>' +
     '</div>' +
     '<div class="nut-al">' +
       '<span class="nut-cap">Алергени</span>' +
@@ -1162,8 +1162,12 @@ function bindMenu() {
 
 /* ═════════════════ 9. База продуктів ═════════════════ */
 
+/* autocomplete="off" на кожному полі й селекті таблиць — не косметика. Мобільний
+   браузер, перезавантажуючи вивантажену вкладку, відновлює значення полів без
+   імені за їхнім порядком у DOM. Рядки ж будує скрипт, тож цифри розʼїжджались
+   по чужих рядках, а «Зберегти» записувало цю кашу в рецепт. */
 function unitSelect(value) {
-  return '<select class="unit-sel" data-f="unit" aria-label="Одиниця">' +
+  return '<select class="unit-sel" autocomplete="off" data-f="unit" aria-label="Одиниця">' +
     UNITS.map(function (u) {
       return '<option value="' + u + '"' + (u === value ? ' selected' : '') + '>' + u + '</option>';
     }).join('') + '</select>';
@@ -1171,7 +1175,7 @@ function unitSelect(value) {
 
 /** Перемикач типу витрати: фіксована сума в валюті або відсоток від собівартості. */
 function modeSelect(value) {
-  return '<select class="unit-sel" data-f="mode" aria-label="Тип витрати">' +
+  return '<select class="unit-sel" autocomplete="off" data-f="mode" aria-label="Тип витрати">' +
     '<option value="sum"' + (value === 'pct' ? '' : ' selected') + '>' + esc(S.currency) + '</option>' +
     '<option value="pct"' + (value === 'pct' ? ' selected' : '') + '>%</option>' +
     '</select>';
@@ -1346,9 +1350,9 @@ function baseRow(p) {
   tr.setAttribute('data-id', p.id);
   if (rowOpen[p.id]) tr.className = 'is-edit';
   tr.innerHTML =
-    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва продукту"></td>' +
-    '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
-    '<td data-lbl="Упаковка"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0"></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва продукту" autocomplete="off"></td>' +
+    '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" autocomplete="off" placeholder="0,00"></td>' +
+    '<td data-lbl="Упаковка"><input class="inp is-num" data-f="pack" inputmode="decimal" autocomplete="off" placeholder="0"></td>' +
     '<td class="t-mid" data-lbl="Одиниця">' + unitSelect(p.unit) + '</td>' +
     '<td class="nut-only t-mid"><button type="button" class="nut-btn" data-nut-toggle aria-expanded="false">КБЖУ</button></td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-product aria-label="Видалити продукт">' + ICON_X + '</button></td>';
@@ -1488,9 +1492,9 @@ function expBaseRow(x) {
   tr.setAttribute('data-id', x.id);
   if (rowOpen[x.id]) tr.className = 'is-edit';
   tr.innerHTML =
-    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва витрати"></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва витрати" autocomplete="off"></td>' +
     '<td class="t-mid" data-lbl="Тип">' + modeSelect(x.mode) + '</td>' +
-    '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
+    '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" autocomplete="off" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-expbase aria-label="Видалити витрату">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = x.name;
   paintExpValue(tr, x);
@@ -2020,9 +2024,9 @@ function ingRow(data) {
   if (v.g) { tr.className = 'ing-child'; tr.setAttribute('data-g', v.g); }
   tr.innerHTML =
     '<td><input class="inp" data-f="name" list="dl-products" placeholder="Почніть вводити назву" autocomplete="off"></td>' +
-    '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" placeholder="0,00"></td>' +
-    '<td data-lbl="Упаковка"><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
-    '<td data-lbl="Скільки"><span class="qty-wrap"><input class="inp is-num" data-f="qty" inputmode="decimal" placeholder="0"><span class="unit-tag">' + esc(v.unit) + '</span></span></td>' +
+    '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" autocomplete="off" placeholder="0,00"></td>' +
+    '<td data-lbl="Упаковка"><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" autocomplete="off" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
+    '<td data-lbl="Скільки"><span class="qty-wrap"><input class="inp is-num" data-f="qty" inputmode="decimal" autocomplete="off" placeholder="0"><span class="unit-tag">' + esc(v.unit) + '</span></span></td>' +
     '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-row aria-label="Видалити рядок">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = v.name;
@@ -2051,7 +2055,7 @@ function groupRow(g) {
       '<span class="grp-of">із ' + qtyFmt(g.of) + ' ' + esc(unit) + '</span>' +
       '<button class="link-btn grp-unlink" data-grp-unlink>розгрупувати</button>' +
     '</span></td>' +
-    '<td data-lbl="Взяти"><span class="qty-wrap"><input class="inp is-num" data-grp-take inputmode="decimal" placeholder="0" aria-label="Скільки взяти">' +
+    '<td data-lbl="Взяти"><span class="qty-wrap"><input class="inp is-num" data-grp-take inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Скільки взяти">' +
       '<span class="unit-tag">' + esc(unit) + '</span></span></td>' +
     '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-grp-del aria-label="Видалити напівфабрикат">' + ICON_X + '</button></td>';
@@ -2080,7 +2084,7 @@ function expRow(data) {
   tr.innerHTML =
     '<td><input class="inp" data-f="name" list="dl-expenses" placeholder="Наприклад, коробка" autocomplete="off"></td>' +
     '<td class="t-mid" data-lbl="Тип">' + modeSelect(v.mode) + '</td>' +
-    '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
+    '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" autocomplete="off" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
     '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-row aria-label="Видалити рядок">' + ICON_X + '</button></td>';
   $('[data-f=name]', tr).value = v.name;

@@ -376,6 +376,8 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .link-btn { padding: 3px 4px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; color: var(--fg-3); cursor: pointer; }
 .link-btn:hover { color: var(--accent-2); text-decoration: underline; }
 .link-btn.is-danger:hover { color: var(--danger); }
+/* Іконки дій папки — тільки телефон, там вони замінюють текст */
+.link-btn .i-ico { display: none; }
 
 .folder-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
 
@@ -645,6 +647,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .folder-opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .folder-opt .tick { width: 14px; height: 14px; fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
 .folder-opt[aria-pressed="true"] .tick { opacity: 1; }
+/* Назва забирає вільне місце — лічильник притискається до галочки, а не висить посередині */
+.folder-opt > span:first-child { flex: 1; min-width: 0; }
 .folder-opt.is-new { border-style: dashed; color: var(--fg-2); justify-content: flex-start; }
 .folder-opt.is-new:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
 
@@ -839,14 +843,15 @@ html:not(.nut-on) .nut-only { display: none !important; }
     position: relative; display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px 12px; padding: 12px 14px;
-    border-bottom: 1px solid var(--line-faint);
+    border-bottom: 1px solid var(--line);
   }
   .tbl tbody td, .tbl tbody td:first-child, .tbl tbody td:last-child {
     display: block; padding: 0; border: 0; min-width: 0;
   }
-  /* Назва — завжди на всю ширину, праворуч місце під хрестик */
-  .tbl tbody td:first-child { grid-column: 1 / -1; padding-right: 42px; }
-  .tbl tbody td.t-act { position: absolute; top: 14px; right: 8px; width: auto; }
+  /* Назва — на всю ширину. Хрестик переїхав у нижній правий кут, на лінію
+     вартості: у шапці він обрізав назву («Борошно вищий ґатуно»). */
+  .tbl tbody td:first-child { grid-column: 1 / -1; padding-right: 0; }
+  .tbl tbody td.t-act { position: absolute; top: auto; bottom: 14px; right: 8px; width: auto; }
   .tbl tbody td[data-lbl] { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; row-gap: 5px; }
   .tbl tbody td[data-lbl]::before {
     content: attr(data-lbl); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -856,8 +861,6 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* Вартість — не поле, але стоїть на тій самій лінії, що й поле поруч */
   .tbl tbody td.t-cost { grid-template-rows: auto 40px; align-items: center; text-align: left; font-size: 15px; }
   .tbl tbody td.t-mid { text-align: left; }
-  /* Витрата в калькуляції: тип вузький, значення й вартість — порівну */
-  #exp-body tr { grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 
   /* Наведення на дотику немає — поле має саме показувати, що воно поле */
   .tbl tbody .inp { height: 40px; padding: 0 10px; border-color: var(--line-2); background: var(--field); }
@@ -940,6 +943,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
     font-family: var(--num); font-size: 12.5px; line-height: 1.6; color: var(--muted);
   }
   .prep-name-btn { padding: 3px 0; }
+  /* Тут під назвою йде підсумок на всю ширину — хрестик лишається збоку по центру */
+  #prep-body td:first-child { padding-right: 42px; }
+  #prep-body td.t-act { top: 50%; bottom: auto; transform: translateY(-50%); }
 
   /* Службові рядки — на всю ширину картки */
   .tbl tbody td.tbl-empty { grid-column: 1 / -1; padding: 30px 4px; }
@@ -949,11 +955,11 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* Група напівфабрикату: рейку складників замінює рамка зліва на картці */
   .tbl tbody tr.ing-group { background: var(--side); border-bottom-color: var(--edge); }
   .tbl tbody tr.ing-group > td { background: transparent; }
-  .tbl tbody tr.ing-group > td:first-child { padding: 0 40px 0 0; }
+  .tbl tbody tr.ing-group > td:first-child { padding: 0; }
   .grp-head { flex-wrap: wrap; gap: 6px 8px; }
   .grp-name { white-space: normal; }
   .tbl tbody tr.ing-child { padding-left: 24px; border-left: 2px solid var(--edge); }
-  .tbl tbody tr.ing-child > td:first-child { position: static; padding: 0 40px 0 0; }
+  .tbl tbody tr.ing-child > td:first-child { position: static; padding: 0; }
   .tbl tbody tr.ing-child > td:first-child::before { display: none; }
 
   /* ── Підсумок ──
@@ -971,11 +977,20 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* ── Папка ── */
   .folder-tools { flex-direction: column; align-items: stretch; }
   /* Лічильник окремим рядком: інакше «Видалити» зривається вниз із роздільником */
-  .folder-meta { flex-wrap: wrap; gap: 2px 10px; margin-top: 8px; }
-  /* Лічильник звичайним шрифтом і рівно по лівому краю з посиланнями під ним */
-  .folder-meta .num { flex: 1 1 100%; font-family: var(--ui); font-size: 14px; color: var(--fg-3); }
-  .folder-meta .num + .sep { display: none; }
-  .folder-meta .num + .sep + .link-btn { margin-left: -6px; }
+  /* Шапка папки: дії — іконками в рядку з назвою, під нею лише лічильник.
+     Текстом «Перейменувати | Видалити» того ж кольору, що й лічильник, вони
+     читались як три однакові пункти й займали два рядки. */
+  #s-folder .screen-head > div:first-child {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 2px;
+  }
+  #s-folder .folder-meta { display: contents; }
+  #folder-title { grid-column: 1; grid-row: 1; margin: 0; overflow-wrap: anywhere; }
+  #s-folder .folder-meta .num { grid-column: 1 / -1; grid-row: 2; margin-top: 2px; font-family: var(--ui); font-size: 14px; color: var(--muted); }
+  #s-folder .folder-meta .sep, .folder-meta .link-btn > span { display: none; }
+  #folder-rename { grid-column: 2; grid-row: 1; }
+  #folder-delete { grid-column: 3; grid-row: 1; }
+  .folder-meta .link-btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--fg-3); }
+  .folder-meta .link-btn .i-ico { display: block; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .head-actions .btn { flex: 1 1 100%; }
   .empty { padding: 32px 22px 34px; }
 
@@ -1019,5 +1034,14 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .nut-f .inp { height: 38px; }
   /* «Вуглеводи» з полем у 137px уже не вміщаються — на найвужчих екранах в один стовпчик */
   @media (max-width: 360px) { .nut-fields { grid-template-columns: 1fr; } }
+  /* Панель «Харчова цінність»: три колонки таблиці не влазили —
+     «6 674 ккал» і «Весь виріб» обрізались, «Молоко» падало за край */
+  .nut-body { padding: 12px 14px 16px; }
+  .nut-tbl { font-size: 13px; }
+  .nut-tbl th { white-space: normal; }
+  .nut-tbl td.r { padding-left: 10px; }
+  .nut-al-view { flex-direction: column; gap: 8px; }
+  .nut-al-view .nut-cap { padding-top: 0; }
+  .nut-al-view .chips { min-width: 0; }
   .panel-tip { flex: 1 1 100%; }
 }
