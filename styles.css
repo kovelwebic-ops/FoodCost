@@ -987,6 +987,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* margin-right від'ємний: сама стрілка всередині іконки має поля, без
      зсуву її видимий край стояв на 3,6px лівіше за край вартості над нею */
   #ing-body .peek-caret, #prep-ing-body .peek-caret, #exp-body .peek-caret { order: 3; margin-top: 8px; margin-left: auto; margin-right: -3.6px; }
+  /* Фіксована витрата без опису — один рядок «Коробка 15,00»; шеврону
+     без рядка опису нема де стояти, а тап по рядку й так відкриває його */
+  #exp-body .peek-sum:empty, #exp-body .peek-sum:empty + .peek-caret { display: none; }
   /* Відкритий інгредієнт — та сама картка, що й раніше, плюс «згорнути» біля назви */
   #ing-body tr.is-edit .row-peek, #prep-ing-body tr.is-edit .row-peek, #exp-body tr.is-edit .row-peek { display: none; }
   #ing-body tr.is-edit > td:first-child,
