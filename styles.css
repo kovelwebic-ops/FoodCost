@@ -750,7 +750,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .topbar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 60;
     display: flex; align-items: center; justify-content: space-between;
-    height: 56px; padding: 0 8px 0 18px;
+    /* Логотип і видима іконка бургера — рівно по краях контенту (20px).
+       Праворуч менше, бо сама іконка сидить у 44-піксельній кнопці з полями. */
+    height: 56px; padding: 0 6px 0 20px;
     background: var(--side); border-bottom: 1px solid var(--line-2);
   }
   .topbar .brand-name { font-size: 20px; }
@@ -821,6 +823,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 
 @media (max-width: 760px) {
   .screen { padding: 20px 16px 48px; }
+  .topbar { padding: 0 2px 0 16px; }   /* та сама лінія, що й у контенту — 16px */
   #s-home.is-active { padding-top: 28px; }
   .tools-bar, .folder-tools { margin: 0 -16px 14px; padding: 10px 16px; }
 
@@ -951,33 +954,27 @@ html:not(.nut-on) .nut-only { display: none !important; }
   #prep-body td.t-act { top: 50%; bottom: auto; transform: translateY(-50%); }
 
   /* ── Інгредієнт калькуляції: згорнутий рядок ──
-     Ціну й упаковку тут майже не чіпають — вони приходять із бази.
-     Щодня вписують лише кількість, тож на виду назва з джерелом ціни,
-     поле «скільки» й вартість. Решта полів — під тапом по назві. */
+     Згорнутий рядок лише читають: зверху назва й вартість, під ними звідки
+     ціна і скільки взято («45,00 ₴ за 1000 г / 400 г»). Полів тут немає,
+     тож тап будь-де по рядку відкриває його (rowTapTarget в app.js). */
   #ing-body tr:not(.ing-group):not(.is-edit),
-  #prep-ing-body tr:not(.is-edit) {
-    grid-template-columns: minmax(0, 1fr) 104px; gap: 4px 12px; align-items: center;
-  }
-  #ing-body tr:not(.ing-group):not(.is-edit) > td:first-child,
-  #prep-ing-body tr:not(.is-edit) > td:first-child { grid-column: 1; grid-row: 1 / span 2; }
+  #prep-ing-body tr:not(.is-edit) { grid-template-columns: minmax(0, 1fr); cursor: pointer; }
   #ing-body tr:not(.ing-group):not(.is-edit) [data-f="name"],
   #prep-ing-body tr:not(.is-edit) [data-f="name"],
-  #ing-body tr:not(.ing-group):not(.is-edit) > td:nth-child(2),
-  #prep-ing-body tr:not(.is-edit) > td:nth-child(2),
-  #ing-body tr:not(.ing-group):not(.is-edit) > td:nth-child(3),
-  #prep-ing-body tr:not(.is-edit) > td:nth-child(3),
-  #ing-body tr:not(.ing-group):not(.is-edit) > td.t-act,
-  #prep-ing-body tr:not(.is-edit) > td.t-act { display: none; }
-  #ing-body tr:not(.ing-group):not(.is-edit) > td:nth-child(4),
-  #prep-ing-body tr:not(.is-edit) > td:nth-child(4) { grid-column: 2; grid-row: 1; display: block; }
-  #ing-body tr:not(.ing-group):not(.is-edit) > td:nth-child(4)::before,
-  #prep-ing-body tr:not(.is-edit) > td:nth-child(4)::before,
+  #ing-body tr:not(.ing-group):not(.is-edit) > td:not(:first-child):not(.t-cost),
+  #prep-ing-body tr:not(.is-edit) > td:not(:first-child):not(.t-cost) { display: none; }
+  /* Вартість — рамкою праворуч на рівні назви; назва лишає під неї місце */
+  #ing-body tr:not(.ing-group):not(.is-edit) .peek-name,
+  #prep-ing-body tr:not(.is-edit) .peek-name { padding-right: 104px; }
+  #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost,
+  #prep-ing-body tr:not(.is-edit) > td.t-cost {
+    position: absolute; top: 10px; right: 14px; display: block;
+    min-width: 84px; height: 34px; padding: 0 10px; line-height: 32px;
+    border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--panel-2);
+    text-align: right; font-size: 14.5px;
+  }
   #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost::before,
   #prep-ing-body tr:not(.is-edit) > td.t-cost::before { display: none; }
-  #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost,
-  #prep-ing-body tr:not(.is-edit) > td.t-cost { grid-column: 2; grid-row: 2; display: block; text-align: right; font-size: 14px; }
-  #ing-body tr:not(.ing-group):not(.is-edit) .qty-wrap .inp,
-  #prep-ing-body tr:not(.is-edit) .qty-wrap .inp { height: 38px; }
   /* Шеврон — за рядком ціни, а не за назвою. Той рядок завжди короткий,
      тож шеврон стоїть на одному місці; за назвою він «плавав», а довга
      назва виштовхувала його окремим рядком. Ціна на найвужчих екранах
@@ -989,13 +986,6 @@ html:not(.nut-on) .nut-only { display: none !important; }
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   #ing-body .peek-caret, #prep-ing-body .peek-caret { order: 3; margin-top: 3px; }
-  /* Найвужчі екрани: поле кількості на 12px вужче. «1000 г» у ньому ще вміщається,
-     а рядок ціни перестає обрізатись трикрапкою майже в кожному інгредієнті. */
-  @media (max-width: 359px) {
-    #ing-body tr:not(.ing-group):not(.is-edit),
-    #prep-ing-body tr:not(.is-edit) { grid-template-columns: minmax(0, 1fr) 92px; }
-  }
-
   /* Відкритий інгредієнт — та сама картка, що й раніше, плюс «згорнути» біля назви */
   #ing-body tr.is-edit .row-peek, #prep-ing-body tr.is-edit .row-peek { display: none; }
   #ing-body tr.is-edit > td:first-child,

@@ -1231,10 +1231,12 @@ function expenseSum(x) {
   return x.mode === 'pct' ? qtyFmt(x.value) + ' %' : fmt(x.value) + ' ' + S.currency;
 }
 
-/** Звідки взялась ціна інгредієнта — щоб згорнутий рядок не був чорною скринькою. */
+/** Звідки ціна інгредієнта й скільки його взято — у згорнутому рядку це єдиний опис. */
 function ingSum(i) {
-  if (!(i.price > 0) || !(i.pack > 0)) return 'Ціна не вказана';
-  return fmt(i.price) + ' ' + S.currency + ' за ' + qtyFmt(i.pack) + ' ' + i.unit;
+  var src = i.price > 0 && i.pack > 0
+    ? fmt(i.price) + ' ' + S.currency + ' за ' + qtyFmt(i.pack) + ' ' + i.unit
+    : 'Ціна не вказана';
+  return i.qty > 0 ? src + ' / ' + qtyFmt(i.qty) + ' ' + i.unit : src;
 }
 
 /** Розгортає/згортає картку. Разом із карткою ховається і редактор КБЖУ:
@@ -1253,6 +1255,17 @@ function toggleRowCard(tr) {
     var n = $('[data-f=name]', tr);
     if (n && !n.value) n.focus();
   }
+}
+
+/** Рядок, який треба розгорнути цим тапом. Згорнутий інгредієнт на телефоні
+    не має жодного поля, тож відкривається тапом будь-де, а не лише по назві. */
+function rowTapTarget(e) {
+  var t = e.target.closest('[data-row-toggle]');
+  if (t) return t.closest('tr');
+  var tr = e.target.closest('tr');
+  if (tr && $('.row-peek', tr) && !tr.classList.contains('is-edit') &&
+      window.matchMedia('(max-width: 760px)').matches) return tr;
+  return null;
 }
 
 function renderBase() {
@@ -1826,8 +1839,8 @@ function bindPrepEdit() {
   }, true);
 
   ib.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-row-toggle]');
-    if (t) { toggleRowCard(t.closest('tr')); return; }
+    var rt = rowTapTarget(e);
+    if (rt) { toggleRowCard(rt); return; }
     if (!e.target.closest('[data-del-row]')) return;
     e.target.closest('tr').remove();
     if (!ib.children.length) ib.appendChild(ingRow(null));
@@ -2408,10 +2421,10 @@ function bindCalc() {
     if (f === 'pack' || f === 'qty') e.target.value = qtyFmt(num(e.target.value));
   }, true);
 
-  // Згорнутий інгредієнт на телефоні: тап по назві відкриває ціну й упаковку
+  // Згорнутий інгредієнт на телефоні: тап по рядку відкриває його поля
   ib.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-row-toggle]');
-    if (t) toggleRowCard(t.closest('tr'));
+    var tr = rowTapTarget(e);
+    if (tr) toggleRowCard(tr);
   });
 
   // Дії на шапці групи
