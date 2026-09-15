@@ -626,7 +626,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .set-row-txt { max-width: 420px; }
 .set-row-txt .h2 { font-size: 15px; }
 .set-row-desc { display: block; margin-top: 4px; font-size: 13.5px; line-height: 1.5; color: var(--fg-3); }
-#btn-reset { height: 38px; }
+#btn-reset, #btn-wipe { height: 38px; }
 
 /* ═════════════════ Інструкція ═════════════════ */
 
@@ -648,7 +648,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .help-sec > :last-child { margin-bottom: 0; }
 /* Відʼємний відступ — текст посилання на одній лінії з абзацами над ним */
 .help-go { margin: 4px 0 0 -4px; font-size: 14px; font-weight: 500; color: var(--accent); }
-#btn-reset:hover { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+#btn-reset:hover, #btn-wipe:hover { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
 
 /* ═════════════════ Оверлеї ═════════════════ */
 
@@ -1163,7 +1163,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .set-row-txt { max-width: none; }
   .set-row .btn-row { flex-wrap: wrap; }
   .set-row .btn-row .btn { flex: 1 1 150px; }
-  #btn-reset { width: 100%; }
+  #btn-reset, #btn-wipe { width: 100%; }
   /* Перемикачі на всю ширину: чотири валюти інакше тиснуться в кут */
   .seg { justify-content: stretch; }
   .seg button { flex: 1; padding: 9px 10px; }

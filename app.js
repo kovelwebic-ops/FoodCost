@@ -3538,6 +3538,26 @@ function bindSettings() {
       toast('Дані скинуто до демо-набору');
     });
   });
+
+  $('#btn-wipe').addEventListener('click', function () {
+    ask({
+      title: 'Очистити все?',
+      sub: 'Буде видалено всі продукти, витрати, напівфабрикати, папки й калькуляції — застосунок стане порожнім. ' +
+           'Налаштування залишаться. Це незворотно — якщо дані потрібні, спершу збережіть їх у файл.',
+      input: false, ok: 'Очистити', danger: true
+    }, function () {
+      closeAsk();
+      // Налаштування — не дані: людина чистить базу, а не хоче, щоб тема
+      // й валюта раптом повернулись до початкових
+      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition };
+      S = normalize(emptyState());
+      Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
+      draftDirty = false;
+      persist(true);
+      boot(true);
+      toast('Усі дані видалено');
+    });
+  });
 }
 
 /* ═════════════════ 16. Глобальні звʼязки ═════════════════ */
