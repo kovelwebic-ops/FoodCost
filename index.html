@@ -426,13 +426,17 @@
     <div class="panel panel-nut nut-only" id="calc-nut">
       <div class="panel-head">
         <h2 class="h2">Харчова цінність</h2>
-        <label class="nut-out">
-          <span>Вага готового виробу</span>
-          <span class="qty-wrap">
-            <input class="inp is-num" id="calc-outw" inputmode="decimal" autocomplete="off" placeholder="—">
-            <span class="unit-tag">г</span>
-          </span>
-        </label>
+        <span class="nut-out-wrap">
+          <label class="nut-out">
+            <span>Вага готового виробу</span>
+            <span class="qty-wrap">
+              <input class="inp is-num" id="calc-outw" inputmode="decimal" autocomplete="off" placeholder="—">
+              <span class="unit-tag">г</span>
+            </span>
+          </label>
+          <!-- Поза label: кнопка всередині нього фокусувала б поле замість скидання -->
+          <button type="button" class="link-btn nut-out-reset" id="calc-outw-reset" hidden></button>
+        </span>
       </div>
       <div id="calc-nut-body"></div>
     </div>
@@ -452,7 +456,7 @@
           <span class="total-note" id="r-note">До прайсу зручно округлити вгору до <b id="r-round">0 ₴</b></span>
         </div>
         <div class="total-acts">
-          <button class="btn btn-ghost" id="btn-clear-calc">Очистити</button>
+          <button class="btn btn-ghost is-danger" id="btn-del-calc">Видалити</button>
           <button class="btn" id="btn-pdf">Експортувати PDF</button>
           <button class="btn btn-primary" id="btn-save">Зберегти калькуляцію</button>
         </div>

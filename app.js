@@ -953,13 +953,37 @@ function calcNutPer(d, nu) {
   return { label: 'На 100 г', factor: nu.mass > 0 ? 100 / nu.mass : 0, approx: nu.mass > 0 };
 }
 
+/**
+ * Поле «Вага готового виробу». Поки людина не вписала своє число, воно само
+ * показує суму інгредієнтів — сірим, щоб було видно, що це підставлене.
+ * Своє число вже не перезаписується; кнопка під полем повертає суму.
+ * Ручне значення позначає data-manual: саме його, а не текст поля, читає readCalc().
+ */
+function paintOutWeight(mass, force) {
+  var ow = $('#calc-outw'), reset = $('#calc-outw-reset');
+  var auto = mass > 0 ? Math.round(mass) : 0;
+  if (!ow.dataset.manual) {
+    // Під час набору не підміняємо текст під пальцем. force — з blur: там
+    // activeElement ще може вказувати на саме поле, і суму б не підставило
+    if (force || document.activeElement !== ow) ow.value = auto ? qtyFmt(auto) : '';
+    ow.classList.add('is-auto');
+    reset.hidden = true;
+    return;
+  }
+  ow.classList.remove('is-auto');
+  var differs = auto > 0 && Math.abs(num(ow.value) - auto) >= 1;
+  reset.hidden = !differs;
+  if (differs) reset.textContent = 'Сума інгредієнтів — ' + qtyFmt(auto) + ' г';
+}
+
 function paintCalcNut(d) {
   if (!S.showNutrition) return;
   var nu = nutritionOf(d.ing);
+  paintOutWeight(nu.mass);
   $('#calc-nut-body').innerHTML = nutPanelHtml(nu, calcNutPer(d, nu), {
     whole: 'Весь виріб',
     empty: 'Додайте інгредієнти — тут зʼявиться харчова цінність і алергени.',
-    approx: 'Рахуємо на сиру масу, без урахування упікання. Вкажіть вагу готового виробу — буде точно.'
+    approx: 'Вага виробу — сума інгредієнтів, без урахування упікання. Впишіть вагу після випікання — буде точно.'
   });
 }
 
@@ -1954,7 +1978,6 @@ function renderFolder() {
     card.className = 'rcard';
     card.setAttribute('data-open', r.id);
     card.innerHTML =
-      '<span class="rcard-del" data-del-recipe="' + r.id + '" aria-label="Видалити калькуляцію">' + ICON_X + '</span>' +
       '<span class="rcard-thumb' + (r.photo ? ' has-img' : '') + '">' +
         (r.photo ? '<img src="' + r.photo + '" alt="">' : esc(r.name.trim().charAt(0).toUpperCase())) +
       '</span>' +
@@ -1968,22 +1991,9 @@ function renderFolder() {
 }
 
 function bindFolder() {
+  // Видаляють калькуляцію з неї самої (кнопка «Видалити» в підсумку):
+  // хрестик на картці ловив випадкові тапи, коли гортаєш папку пальцем
   $('#folder-grid').addEventListener('click', function (e) {
-    var del = e.target.closest('[data-del-recipe]');
-    if (del) {
-      e.stopPropagation();
-      var f = folderById(S.ui.folderId);
-      var id = del.getAttribute('data-del-recipe');
-      var r = f.recipes.filter(function (x) { return x.id === id; })[0];
-      if (!r) return;
-      ask({ title: 'Видалити калькуляцію?', sub: '«' + r.name + '» буде видалено безповоротно.', input: false, ok: 'Видалити', danger: true }, function () {
-        f.recipes = f.recipes.filter(function (x) { return x.id !== id; });
-        if (S.ui.editing && S.ui.editing.recipeId === id) S.ui.editing = null;
-        closeAsk(); renderFolder(); renderSidebar(); persist(true);
-        toast('Калькуляцію видалено');
-      });
-      return;
-    }
     var card = e.target.closest('[data-open]');
     if (card) openRecipe(S.ui.folderId, card.getAttribute('data-open'));
   });
@@ -2126,7 +2136,8 @@ function readCalc() {
     name: $('#calc-name').value.trim(),
     photo: calcPhoto,
     margin: num($('#margin-inp').value),
-    outWeight: num($('#calc-outw').value),
+    // Підставлена сума інгредієнтів — не значення рецепта: 0 означає «рахувати самим»
+    outWeight: $('#calc-outw').dataset.manual ? num($('#calc-outw').value) : 0,
     ing: ingRows().map(function (tr) {
       var g = tr.getAttribute('data-g');
       var o = {
@@ -2300,7 +2311,9 @@ function loadCalc(rec, crumb) {
   $('#calc-name').value = rec.name || '';
   $('#calc-crumb').textContent = crumb;
   $('#margin-inp').value = qtyFmt(rec.margin != null ? rec.margin : 50) || '0';
-  $('#calc-outw').value = qtyFmt(num(rec.outWeight));
+  var ow = $('#calc-outw');
+  if (num(rec.outWeight) > 0) { ow.dataset.manual = '1'; ow.value = qtyFmt(num(rec.outWeight)); }
+  else { delete ow.dataset.manual; ow.value = ''; }   // суму інгредієнтів підставить recalc()
 
   setPhoto(rec.photo || null);
 
@@ -2490,17 +2503,62 @@ function bindCalc() {
   $('#margin-inp').addEventListener('blur', function () {
     this.value = qtyFmt(num(this.value)) || '0';
   });
-  $('#calc-outw').addEventListener('input', recalc);
-  $('#calc-outw').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
+  // Вага готового виробу: своє число — ручне значення, порожнє поле — знову сума інгредієнтів
+  var ow = $('#calc-outw');
+  ow.addEventListener('focus', function () {
+    if (!ow.dataset.manual) ow.select();   // підставлене число замінюють, а не дописують
+  });
+  ow.addEventListener('input', function () {
+    if (num(ow.value) > 0) ow.dataset.manual = '1'; else delete ow.dataset.manual;
+    recalc();
+  });
+  ow.addEventListener('blur', function () {
+    if (ow.dataset.manual) ow.value = qtyFmt(num(ow.value));
+    // Стерли число — одразу повертаємо суму. Не recalc(): той позначив би «є зміни»
+    else paintOutWeight(nutritionOf(readCalc().ing).mass, true);
+  });
+  $('#calc-outw-reset').addEventListener('click', function () {
+    delete ow.dataset.manual;
+    ow.value = '';
+    recalc();
+  });
   $('#margin-quick').addEventListener('click', function (e) {
     var b = e.target.closest('[data-m]'); if (!b) return;
     $('#margin-inp').value = b.getAttribute('data-m');
     recalc();
   });
 
-  $('#btn-clear-calc').addEventListener('click', function () {
-    ask({ title: 'Очистити калькуляцію?', sub: 'Усі поля на цьому екрані будуть скинуті.', input: false, ok: 'Очистити', danger: true }, function () {
-      closeAsk(); newCalc(); toast('Форму очищено');
+  // «Видалити» замінило «Очистити» й хрестик на картці в папці. Збережену
+  // калькуляцію прибирає з папки; ще не збережену — просто відкидає.
+  $('#btn-del-calc').addEventListener('click', function () {
+    var ed = S.ui.editing;
+    var f = ed && folderById(ed.folderId);
+    var r = f && f.recipes.filter(function (x) { return x.id === ed.recipeId; })[0];
+
+    ask(r ? {
+      title: 'Видалити калькуляцію?',
+      sub: '«' + r.name + '» зникне з папки «' + f.title + '» безповоротно.',
+      input: false, ok: 'Видалити', danger: true
+    } : {
+      title: 'Видалити чернетку?',
+      sub: 'Калькуляцію ще не збережено в папку — усе, що на цьому екрані, буде втрачено.',
+      input: false, ok: 'Видалити', danger: true
+    }, function () {
+      closeAsk();
+      S.draft = null;
+      draftDirty = false;   // інакше beforeunload ще питав би про «незбережене»
+      if (r) {
+        f.recipes = f.recipes.filter(function (x) { return x.id !== r.id; });
+        S.ui.editing = null;
+        renderSidebar();
+        persist(true);
+        openFolder(f.id);
+        toast('Калькуляцію «' + r.name + '» видалено');
+      } else {
+        persist(true);
+        backFromCalc();
+        toast('Чернетку видалено');
+      }
     });
   });
 

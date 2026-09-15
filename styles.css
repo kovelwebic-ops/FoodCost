@@ -160,6 +160,10 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .btn-danger { border: 0; background: var(--danger); color: var(--on-danger); font-weight: 600; }
 .btn-ghost { border: 0; background: transparent; color: var(--fg-3); }
 .btn-ghost:hover { background: var(--side-hov); color: var(--fg); }
+/* «Видалити» в калькуляції й напівфабрикаті: без цього кольору кнопка
+   незворотної дії виглядала так само сіро, як «Скасувати» */
+.btn-ghost.is-danger { color: var(--danger); }
+.btn-ghost.is-danger:hover { background: var(--danger-soft); color: var(--danger); }
 .btn-soft { border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .btn-soft:hover { background: var(--accent-2); }
 .btn-dash {
@@ -409,13 +413,6 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
   font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--thumb-ink-2);
 }
 .rcard-thumb.has-img::after { display: none; }
-.rcard-del {
-  position: absolute; top: 8px; right: 8px; z-index: 2; display: grid; place-items: center;
-  width: 26px; height: 26px; border: 0; border-radius: var(--r-s);
-  background: var(--thumb-btn); color: var(--fg-3); cursor: pointer;
-}
-.rcard-del svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.rcard-del:hover { background: var(--panel); color: var(--danger); box-shadow: 0 2px 6px var(--card-shadow); }
 .rcard-body { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; }
 .rcard-title { font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; }
 .rcard-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--muted); }
@@ -569,7 +566,11 @@ html:not(.nut-on) .nut-only { display: none !important; }
 
 .panel-nut { margin-bottom: 20px; }
 .panel-nut .panel-head { align-items: center; min-height: 54px; padding-top: 8px; padding-bottom: 8px; }
+.nut-out-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .nut-out { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg-3); }
+/* Сума інгредієнтів, підставлена сама, — сірим: видно, що число не вписане руками */
+.nut-out .inp.is-auto { color: var(--muted); }
+.nut-out-reset { font-size: 12.5px; }
 .nut-out .qty-wrap { width: 116px; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field); }
 .nut-out .inp { height: 34px; padding: 0 28px 0 10px; }
 .nut-out .inp:focus { border-color: transparent; box-shadow: none; }
@@ -1031,9 +1032,14 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .total-acts .btn { flex: 0 0 auto; width: 100%; height: 44px; }
   /* Шапка панелі в один рядок: підпис «Собівартість» зайвий — число поруч
      з «Інгредієнтами» і так читається як їхня сума */
-  .panel-head { padding: 14px 14px 12px; }
+  /* Шапка панелі — заголовок розділу, а не ще один рядок списку: тонована
+     смуга й більший жирний шрифт. «Інгредієнти» 16px/600 поруч із назвами
+     продуктів 15.5px/500 читались як черговий інгредієнт. */
+  .panel-head { padding: 14px 14px 12px; background: var(--seg-bg); border-bottom-color: var(--line); }
+  .panel-head .h2, .panel-margin > .h2, .panel-yield .h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
   .panel-sum { font-size: 0; gap: 0; }
-  .panel-sum b { font-size: 15px; }
+  .panel-sum b { font-size: 16px; }
+  .nut-out-wrap { align-items: flex-start; }
   .panel-foot { padding: 12px 14px; }
 
   /* ── Папка ── */
