@@ -974,17 +974,19 @@ html:not(.nut-on) .nut-only { display: none !important; }
   }
   #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost::before,
   #prep-ing-body tr:not(.is-edit) > td.t-cost::before { display: none; }
-  /* Шеврон — за рядком ціни, а не за назвою. Той рядок завжди короткий,
-     тож шеврон стоїть на одному місці; за назвою він «плавав», а довга
-     назва виштовхувала його окремим рядком. Ціна на найвужчих екранах
-     обрізається трикрапкою, а не зсуває шеврон униз. */
-  #ing-body .row-peek, #prep-ing-body .row-peek { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; }
+  /* Два поверхи: назва з вартістю, під ними — з повітрям — опис (ціна,
+     упаковка, скільки взято), а шеврон у правому куті на лінії опису,
+     рівно під вартістю. Опис на найвужчих екранах обрізається трикрапкою,
+     а не зсуває шеврон униз. */
+  #ing-body .row-peek, #prep-ing-body .row-peek { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
   #ing-body .peek-name, #prep-ing-body .peek-name { order: 1; flex: 1 1 100%; min-width: 0; }
   #ing-body .peek-sum, #prep-ing-body .peek-sum {
-    order: 2; margin-top: 3px; max-width: calc(100% - 20px);
+    order: 2; margin-top: 8px; max-width: calc(100% - 24px);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  #ing-body .peek-caret, #prep-ing-body .peek-caret { order: 3; margin-top: 3px; }
+  /* margin-right від'ємний: сама стрілка всередині іконки має поля, без
+     зсуву її видимий край стояв на 3,6px лівіше за край вартості над нею */
+  #ing-body .peek-caret, #prep-ing-body .peek-caret { order: 3; margin-top: 8px; margin-left: auto; margin-right: -3.6px; }
   /* Відкритий інгредієнт — та сама картка, що й раніше, плюс «згорнути» біля назви */
   #ing-body tr.is-edit .row-peek, #prep-ing-body tr.is-edit .row-peek { display: none; }
   #ing-body tr.is-edit > td:first-child,
