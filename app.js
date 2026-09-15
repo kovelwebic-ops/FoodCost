@@ -1231,16 +1231,24 @@ function expenseSum(x) {
   return x.mode === 'pct' ? qtyFmt(x.value) + ' %' : fmt(x.value) + ' ' + S.currency;
 }
 
+/** Звідки взялась ціна інгредієнта — щоб згорнутий рядок не був чорною скринькою. */
+function ingSum(i) {
+  if (!(i.price > 0) || !(i.pack > 0)) return 'Ціна не вказана';
+  return fmt(i.price) + ' ' + S.currency + ' за ' + qtyFmt(i.pack) + ' ' + i.unit;
+}
+
 /** Розгортає/згортає картку. Разом із карткою ховається і редактор КБЖУ:
     лишити його відкритим під згорнутим рядком — значить показати поля нізвідки. */
 function toggleRowCard(tr) {
+  // Рядки калькуляції не мають id: їхній стан живе лише в класі й
+  // скидається разом із перемальовуванням рецепта — так і треба
   var id = tr.getAttribute('data-id');
   var open = !tr.classList.contains('is-edit');
-  if (open) rowOpen[id] = true; else delete rowOpen[id];
+  if (id) { if (open) rowOpen[id] = true; else delete rowOpen[id]; }
   tr.classList.toggle('is-edit', open);
   var b = $('.row-peek', tr);
   if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (!open && nutOpen[id]) toggleNutRow(tr);
+  if (!open && id && nutOpen[id]) toggleNutRow(tr);
   if (open) {
     var n = $('[data-f=name]', tr);
     if (n && !n.value) n.focus();
@@ -1757,6 +1765,7 @@ function prepRecalc() {
 
   $$('#prep-ing-body tr').forEach(function (tr, idx) {
     var i = rows[idx];
+    paintPeek(tr, i.name, ingSum(i));
     var cell = $('.t-cost', tr);
     var ok = i.price > 0 && i.pack > 0 && i.qty > 0;
     cell.textContent = ok ? fmt(ingCost(i)) : '—';
@@ -1817,6 +1826,8 @@ function bindPrepEdit() {
   }, true);
 
   ib.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-row-toggle]');
+    if (t) { toggleRowCard(t.closest('tr')); return; }
     if (!e.target.closest('[data-del-row]')) return;
     e.target.closest('tr').remove();
     if (!ib.children.length) ib.appendChild(ingRow(null));
@@ -2023,7 +2034,7 @@ function ingRow(data) {
   var tr = document.createElement('tr');
   if (v.g) { tr.className = 'ing-child'; tr.setAttribute('data-g', v.g); }
   tr.innerHTML =
-    '<td><input class="inp" data-f="name" list="dl-products" placeholder="Почніть вводити назву" autocomplete="off"></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" list="dl-products" placeholder="Почніть вводити назву" autocomplete="off"></td>' +
     '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" autocomplete="off" placeholder="0,00"></td>' +
     '<td data-lbl="Упаковка"><span class="cell-pair"><input class="inp is-num" data-f="pack" inputmode="decimal" autocomplete="off" placeholder="0">' + unitSelect(v.unit) + '</span></td>' +
     '<td data-lbl="Скільки"><span class="qty-wrap"><input class="inp is-num" data-f="qty" inputmode="decimal" autocomplete="off" placeholder="0"><span class="unit-tag">' + esc(v.unit) + '</span></span></td>' +
@@ -2033,6 +2044,9 @@ function ingRow(data) {
   $('[data-f=price]', tr).value = v.price ? fmt(v.price) : '';
   $('[data-f=pack]', tr).value = qtyFmt(v.pack);
   $('[data-f=qty]', tr).value = qtyFmt(v.qty);
+  // Рядок без назви відкритий одразу — його щойно додали, щоб заповнити
+  if (!v.name) tr.classList.add('is-edit');
+  paintPeek(tr, v.name, ingSum(v));
   return tr;
 }
 
@@ -2209,6 +2223,7 @@ function recalc() {
     var ok = i.price > 0 && i.pack > 0 && i.qty > 0;
     cell.textContent = ok ? fmt(ingCost(i)) : '—';
     cell.classList.toggle('t-empty', !ok);
+    paintPeek(tr, i.name, ingSum(i));
   });
 
   // Підсумок групи — сума її складників: у згорнутому вигляді це єдина видима цифра
@@ -2392,6 +2407,12 @@ function bindCalc() {
     if (f === 'price') e.target.value = num(e.target.value) ? fmt(num(e.target.value)) : '';
     if (f === 'pack' || f === 'qty') e.target.value = qtyFmt(num(e.target.value));
   }, true);
+
+  // Згорнутий інгредієнт на телефоні: тап по назві відкриває ціну й упаковку
+  ib.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-row-toggle]');
+    if (t) toggleRowCard(t.closest('tr'));
+  });
 
   // Дії на шапці групи
   ib.addEventListener('click', function (e) {
