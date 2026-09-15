@@ -119,7 +119,7 @@ function emptyState() {
     preps: [],
     folders: [],
     draft: null,                                   // незбережена калькуляція
-    ui: { screen: 'home', folderId: null, editing: null, folderQuery: '', folderSort: 'name' }
+    ui: { screen: 'home', folderId: null, editing: null, folderQuery: '', folderSort: 'name', folderCols: 1 }
   };
 }
 
@@ -172,6 +172,7 @@ function normalize(s) {
   if (typeof s.showNutrition !== 'boolean') s.showNutrition = false;
   if (!s.ui.folderSort) s.ui.folderSort = 'name';
   if (s.ui.folderQuery == null) s.ui.folderQuery = '';
+  if (s.ui.folderCols !== 2) s.ui.folderCols = 1;   // картки папки на телефоні: 1 або 2 колонки
   if (!s.products) s.products = [];
   if (!s.expenseBase) s.expenseBase = [];   // до появи бази витрат поля не було
   if (!s.preps) s.preps = [];               // до появи напівфабрикатів поля не було
@@ -2149,8 +2150,14 @@ function renderFolder() {
     b.setAttribute('aria-pressed', b.getAttribute('data-sort') === (S.ui.folderSort || 'name') ? 'true' : 'false');
   });
 
+  $$('#seg-view button').forEach(function (b) {
+    b.setAttribute('aria-pressed', +b.getAttribute('data-cols') === S.ui.folderCols ? 'true' : 'false');
+  });
+
   var grid = $('#folder-grid');
   var list = visibleRecipes(f);
+  // Клас діє лише в мобільному CSS — на компʼютері вибір нічого не міняє
+  grid.classList.toggle('is-2col', S.ui.folderCols === 2);
   grid.innerHTML = '';
 
   if (!list.length) {
@@ -2221,6 +2228,12 @@ function bindFolder() {
   $('#seg-sort').addEventListener('click', function (e) {
     var b = e.target.closest('[data-sort]'); if (!b) return;
     S.ui.folderSort = b.getAttribute('data-sort');
+    renderFolder(); persist();
+  });
+
+  $('#seg-view').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-cols]'); if (!b) return;
+    S.ui.folderCols = +b.getAttribute('data-cols');
     renderFolder(); persist();
   });
 
@@ -3518,9 +3531,7 @@ function bindGlobal() {
       show(id);
       return;
     }
-    if (e.target.closest('[data-recipe="new"]')) { newCalc(); return; }
-    var td = e.target.closest('[data-todo]');
-    if (td) toast(td.getAttribute('data-todo'));
+    if (e.target.closest('[data-recipe="new"]')) newCalc();
   });
 
   // Модалка-запит

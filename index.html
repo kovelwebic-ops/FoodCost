@@ -56,7 +56,7 @@
     <button class="nav-item" data-screen="settings">
       <span class="nav-name">Налаштування</span>
     </button>
-    <button class="nav-item is-muted" data-todo="Інструкція зʼявиться пізніше">
+    <button class="nav-item" data-screen="help">
       <span class="nav-name">Інструкція</span>
     </button>
   </div>
@@ -317,10 +317,17 @@
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input class="inp" id="folder-search" placeholder="Пошук у папці" autocomplete="off">
       </div>
-      <div class="seg" id="seg-sort">
-        <button data-sort="name" aria-pressed="true">А–Я</button>
-        <button data-sort="price" aria-pressed="false">За ціною</button>
-        <button data-sort="new" aria-pressed="false">Нові</button>
+      <div class="folder-order">
+        <div class="seg" id="seg-sort">
+          <button data-sort="name" aria-pressed="true">А–Я</button>
+          <button data-sort="price" aria-pressed="false">За ціною</button>
+          <button data-sort="new" aria-pressed="false">Нові</button>
+        </div>
+        <!-- Лише телефон: на компʼютері сітка сама підбирає кількість колонок -->
+        <div class="seg seg-view" id="seg-view">
+          <button data-cols="1" aria-pressed="true" aria-label="Одна колонка"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="7" rx="1.5"/><rect x="5" y="13" width="14" height="7" rx="1.5"/></svg></button>
+          <button data-cols="2" aria-pressed="false" aria-label="Дві колонки"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+        </div>
       </div>
     </div>
 
@@ -532,6 +539,105 @@
         <button class="btn" id="btn-reset">Скинути дані</button>
       </div>
       <input type="file" id="import-input" accept="application/json,.json" hidden>
+    </div>
+  </section>
+
+  <!-- ІНСТРУКЦІЯ
+       Оновлювати разом із кодом: нова функція чи змінений підпис кнопки —
+       правка тут у тому ж коміті. Назви кнопок — дослівно як в інтерфейсі. -->
+  <section class="screen" id="s-help">
+    <div class="screen-head">
+      <h1 class="h1">Інструкція</h1>
+      <p class="lede">Як порахувати страву: від першого продукту до PDF.</p>
+    </div>
+
+    <div class="help">
+      <article class="panel help-sec">
+        <span class="help-step">Крок 1</span>
+        <h2 class="h2">База продуктів</h2>
+        <p>Внесіть продукти, з яких готуєте. Це робиться один раз — далі калькуляції беруть ціни звідси.</p>
+        <ul>
+          <li><b>Ціна упаковки</b> — скільки заплатили за упаковку.</li>
+          <li><b>К-сть в уп.</b> і <b>одиниця</b> — що в ній: 1000&nbsp;г, 500&nbsp;мл чи 10&nbsp;шт.</li>
+        </ul>
+        <button class="link-btn help-go" data-screen="base">Відкрити базу продуктів →</button>
+      </article>
+
+      <article class="panel help-sec">
+        <span class="help-step">Крок 2</span>
+        <h2 class="h2">База витрат</h2>
+        <p>Усе, що додається до продуктів: коробка, доставка, амортизація обладнання.</p>
+        <ul>
+          <li><b>Сума</b> — фіксована, наприклад коробка за 15.</li>
+          <li><b>%</b> — відсоток від собівартості продуктів.</li>
+        </ul>
+        <button class="link-btn help-go" data-screen="expbase">Відкрити базу витрат →</button>
+      </article>
+
+      <article class="panel help-sec">
+        <span class="help-step">Крок 3</span>
+        <h2 class="h2">Калькуляція</h2>
+        <p>Натисніть «Нова калькуляція» і впишіть назву страви. Фото — за бажанням.</p>
+        <ul>
+          <li><b>Інгредієнти</b> — почніть вводити назву й оберіть продукт із підказки. Ціна й упаковка підтягнуться самі, вам лишається вписати, скільки взяли.</li>
+          <li><b>Додаткові витрати</b> — так само, з бази витрат.</li>
+          <li><b>Маржа</b> — скільки заробити зверху, у відсотках.</li>
+        </ul>
+        <p>У «Підсумку» — собівартість, витрати й ціна продажу, а під нею підказка, до скількох зручно округлити.</p>
+        <p>На телефоні рядки згорнуті — торкніться рядка, щоб змінити його.</p>
+        <button class="link-btn help-go" data-recipe="new">Нова калькуляція →</button>
+      </article>
+
+      <article class="panel help-sec">
+        <span class="help-step">Крок 4</span>
+        <h2 class="h2">Збереження й папки</h2>
+        <p>«Зберегти калькуляцію» — оберіть папку або створіть нову. Коли потім змінюєте збережену калькуляцію, кнопка називається «Оновити калькуляцію».</p>
+        <p>У папці — картки з собівартістю й ціною, пошук і сортування. На телефоні картки можна показати в одну або дві колонки.</p>
+        <p>Щоб видалити калькуляцію, відкрийте її — кнопка «Видалити» в підсумку.</p>
+      </article>
+
+      <article class="panel help-sec">
+        <span class="help-step">Крок 5</span>
+        <h2 class="h2">PDF</h2>
+        <p>«Експортувати PDF» у підсумку калькуляції. Спершу побачите аркуш А4, потім — «Завантажити». Довга калькуляція сама розкладеться на кілька сторінок.</p>
+      </article>
+
+      <div class="help-group">Корисно знати</div>
+
+      <article class="panel help-sec">
+        <h2 class="h2">Напівфабрикати</h2>
+        <p>Заготовка, яка йде в кілька страв: тісто, крем, начинка. Складається один раз.</p>
+        <ul>
+          <li><b>Склад</b> — як у калькуляції.</li>
+          <li><b>Вихід</b> — скільки вийшло із замісу. Під час випікання вага змінюється, тому число вписуєте ви.</li>
+        </ul>
+        <p>У калькуляції — кнопка «+ Напівфабрикат». Вкажіть, скільки потрібно, і складники стануть окремими рядками, перерахованими під цю кількість.</p>
+        <button class="link-btn help-go" data-screen="prep">Відкрити напівфабрикати →</button>
+      </article>
+
+      <article class="panel help-sec">
+        <h2 class="h2">Коли змінились ціни</h2>
+        <p>Ціни в калькуляції — знімок того, за скільки ви рахували. Самі вони не змінюються.</p>
+        <p>Виправили ціну в базі — у калькуляції зʼявиться смуга «… за старими цінами» з кнопкою «Перерахувати». Після перерахунку не забудьте зберегти калькуляцію.</p>
+      </article>
+
+      <article class="panel help-sec">
+        <h2 class="h2">КБЖУ та алергени</h2>
+        <p>Вмикаються в Налаштуваннях. Після цього в базі продуктів у рядку зʼявиться кнопка «КБЖУ».</p>
+        <ul>
+          <li><b>Калорії, білки, жири, вуглеводи</b> — на 100&nbsp;г, з етикетки. Для штучних продуктів ще вага 1&nbsp;шт.</li>
+          <li><b>Алергени</b> — оберіть зі списку або допишіть свій. Якщо їх немає, натисніть «Без алергенів»: не вказані алергени й відсутні — це різне.</li>
+        </ul>
+        <p>Калькуляція рахує КБЖУ на 100&nbsp;г і на весь виріб і показує їх у PDF. «Вагу готового виробу» можна вписати свою — після випікання вона менша.</p>
+      </article>
+
+      <article class="panel help-sec">
+        <h2 class="h2">Дані й резервна копія</h2>
+        <p>Усе зберігається лише в цьому браузері на цьому пристрої. Очищення історії браузера стирає дані, а на іншому пристрої їх не буде.</p>
+        <p>Час від часу натискайте «Зберегти у файл» у Налаштуваннях. «Відновити з файла» замінює всі поточні дані тими, що у файлі.</p>
+        <p>Там же — валюта, округлення ціни й темна тема.</p>
+        <button class="link-btn help-go" data-screen="settings">Відкрити налаштування →</button>
+      </article>
     </div>
   </section>
 
