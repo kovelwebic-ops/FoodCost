@@ -560,6 +560,13 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .chip[aria-pressed="true"] { border-color: var(--fg); background: var(--fg); color: var(--panel); }
 .chip.is-none[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
 .chip.is-static { display: inline-flex; align-items: center; border-color: var(--edge-2); color: var(--fg); cursor: default; }
+.al-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Поле свого алергену — пунктирною «пігулкою» в тон чипам: видно, що це додавання, а не ще один чип */
+.inp.al-add {
+  width: 220px; max-width: 100%; height: 30px; padding: 0 12px;
+  border: 1px dashed var(--dash); border-radius: 999px; background: transparent; font-size: 13px;
+}
+.inp.al-add:focus { border-style: solid; }
 .nut-hints { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .nut-hint { font-size: 12.5px; color: var(--muted); }
 .nut-hint.is-warn { color: var(--danger); }
@@ -1120,5 +1127,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .nut-al-view { flex-direction: column; gap: 8px; }
   .nut-al-view .nut-cap { padding-top: 0; }
   .nut-al-view .chips { min-width: 0; }
+  /* 16px — інакше iOS зумить сторінку на тапі; .inp.al-add важить більше за загальне «.inp 16px» */
+  .inp.al-add { width: 100%; max-width: 280px; height: 36px; font-size: 16px; }
   .panel-tip { flex: 1 1 100%; }
 }

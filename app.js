@@ -10,14 +10,19 @@
 var STORE_KEY = 'fc:state:v1';
 var UNITS = ['г', 'мл', 'шт'];
 
-/* Обовʼязковий перелік із 14 алергенів — такий самий, як у ЄС.
-   Порядок не абетковий: спершу те, що трапляється в кондитерці щодня. */
+/* Базові алергени — лише ті, що в кондитерці трапляються щодня. Решту
+   (мед, какао, цитрусові…) людина вписує сама, і в продукті вони лежать
+   текстом. Порядок не абетковий: спершу найчастіші. */
 var ALLERGENS = [
   ['gluten', 'Глютен'], ['eggs', 'Яйця'], ['milk', 'Молоко'], ['nuts', 'Горіхи'],
-  ['peanuts', 'Арахіс'], ['soy', 'Соя'], ['sesame', 'Кунжут'], ['sulphites', 'Сульфіти'],
-  ['mustard', 'Гірчиця'], ['celery', 'Селера'], ['lupin', 'Люпин'], ['fish', 'Риба'],
-  ['crustaceans', 'Ракоподібні'], ['molluscs', 'Молюски']
+  ['peanuts', 'Арахіс'], ['soy', 'Соя'], ['sesame', 'Кунжут']
 ];
+/* Колишні стандартні з повного переліку ЄС. Лишились тільки для читання
+   старих даних: у продуктах, де їх позначили, вони стають своїми з назвою. */
+var LEGACY_ALLERGENS = {
+  sulphites: 'Сульфіти', mustard: 'Гірчиця', celery: 'Селера', lupin: 'Люпин',
+  fish: 'Риба', crustaceans: 'Ракоподібні', molluscs: 'Молюски'
+};
 var NUT_KEYS = [['kcal', 'Ккал'], ['prot', 'Білки'], ['fat', 'Жири'], ['carb', 'Вуглеводи']];
 var PHOTO_MAX = 720;     // px — до цього розміру стискаємо фото
 var PHOTO_Q = 0.72;      // якість jpeg
@@ -84,7 +89,7 @@ var draftDirty = false;
  * Модель:
  *   product = { id, name, price, pack, unit, nutrition, allergens, pieceWeight }
  *     nutrition = null | { kcal, prot, fat, carb }      ← на 100 г; поле null — не вписане, у сумі 0
- *     allergens = null (не вказано) | [] (немає) | ['gluten', …]
+ *     allergens = null (не вказано) | [] (немає) | ['gluten', 'Мед', …] — ключ базового або назва свого
  *     pieceWeight = вага 1 шт у грамах, потрібна лише штучним продуктам
  *   ingredient = { name, price, pack, unit, qty, g? }   ← копія даних, не посилання
  *   expense = { name, mode, value }   mode: 'sum' (валюта) | 'pct' (% від собівартості)
@@ -208,7 +213,7 @@ function normalizeProduct(p) {
     if (NUT_KEYS.every(function (k) { return clean[k[0]] == null; })) clean = null;
   }
   p.nutrition = clean;
-  p.allergens = Array.isArray(p.allergens) ? orderAllergens(p.allergens) : null;
+  p.allergens = Array.isArray(p.allergens) ? normalizeAllergens(p.allergens) : null;
   p.pieceWeight = num(p.pieceWeight);
 }
 
@@ -637,9 +642,60 @@ function staleLabel(c) {
 var NUT_ROWS = [['kcal', 'Калорійність', ' ккал', 0], ['prot', 'Білки', ' г', 1],
                 ['fat', 'Жири', ' г', 1], ['carb', 'Вуглеводи', ' г', 1]];
 
-/** Порядок як в ALLERGENS, без дублікатів і невідомих ключів. */
-function orderAllergens(list) {
-  return ALLERGENS.map(function (a) { return a[0]; }).filter(function (k) { return list.indexOf(k) !== -1; });
+/** Ключ для порівняння: у базового — його код, у свого — назва без регістру й зайвих пробілів. */
+function alKey(item) {
+  var s = String(item).trim();
+  if (ALLERGENS.some(function (a) { return a[0] === s; })) return s;
+  return 'c:' + s.replace(/\s+/g, ' ').toLowerCase();
+}
+
+function isCustomAllergen(item) { return alKey(item).indexOf('c:') === 0; }
+
+function alLabel(item) {
+  var b = ALLERGENS.filter(function (a) { return a[0] === item; })[0];
+  return b ? b[1] : item;
+}
+
+/**
+ * Прибирає дублікати й сміття; базові йдуть першими в порядку ALLERGENS,
+ * свої — за ними в порядку появи. Колишні стандартні ключі стають своїми
+ * з людською назвою, а вписане «молоко» — базовим ключем: інакше в
+ * калькуляції стояло б два «Молоко».
+ */
+function normalizeAllergens(list) {
+  var basic = {}, custom = [], seen = {};
+  list.forEach(function (raw) {
+    if (typeof raw !== 'string') return;
+    var s = raw.replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!s) return;
+    if (LEGACY_ALLERGENS[s]) s = LEGACY_ALLERGENS[s];
+    var low = s.toLowerCase();
+    var hit = ALLERGENS.filter(function (a) { return a[0] === s || a[1].toLowerCase() === low; })[0];
+    if (hit) { basic[hit[0]] = 1; return; }
+    if (seen[low]) return;
+    seen[low] = 1;
+    custom.push(s);
+  });
+  return ALLERGENS.filter(function (a) { return basic[a[0]]; })
+    .map(function (a) { return a[0]; })
+    .concat(custom);
+}
+
+var sessionAllergens = [];   // свої, вписані за цей сеанс: чип не зникає, щойно його зняли
+
+/** Свої алергени з усієї бази — вписаний раз стає вибором і в інших продуктах. */
+function customAllergens() {
+  var all = sessionAllergens.slice();
+  S.products.forEach(function (p) {
+    (p.allergens || []).forEach(function (a) { if (isCustomAllergen(a)) all.push(a); });
+  });
+  var seen = {};
+  return all.filter(function (a) {
+    var k = alKey(a);
+    if (seen[k]) return false;
+    seen[k] = 1;
+    return true;
+  }).sort(function (a, b) { return a.localeCompare(b, 'uk'); });
 }
 
 /**
@@ -694,13 +750,19 @@ function nutritionOf(rows) {
     // даних читався б як «алергенів немає», а в тому борошні глютен
     if (p && Array.isArray(p.allergens)) {
       t.alKnown++;
-      p.allergens.forEach(function (a) { alSet[a] = 1; });
+      // Ключ — без регістру: «Мед» в одному продукті й «мед» в іншому — один алерген
+      p.allergens.forEach(function (a) { var k = alKey(a); if (!alSet[k]) alSet[k] = a; });
     } else {
       report(t.noAl, seenAl);
     }
   });
 
-  t.allergens = ALLERGENS.filter(function (a) { return alSet[a[0]]; });
+  // Базові — у звичному порядку, свої — за абеткою після них
+  var customs = Object.keys(alSet)
+    .filter(function (k) { return k.indexOf('c:') === 0; })
+    .map(function (k) { return [alSet[k], alSet[k]]; })
+    .sort(function (a, b) { return a[1].localeCompare(b[1], 'uk'); });
+  t.allergens = ALLERGENS.filter(function (a) { return alSet[a[0]]; }).concat(customs);
   return t;
 }
 
@@ -744,11 +806,10 @@ function nutEditorHtml() {
     '</div>' +
     '<div class="nut-al">' +
       '<span class="nut-cap">Алергени</span>' +
-      '<span class="chips">' +
-        ALLERGENS.map(function (a) {
-          return '<button type="button" class="chip" data-al="' + a[0] + '" aria-pressed="false">' + a[1] + '</button>';
-        }).join('') +
-        '<button type="button" class="chip is-none" data-al-none aria-pressed="false">Без алергенів</button>' +
+      '<span class="al-body">' +
+        // Чипи малює paintAllergens: свої алергени зʼявляються разом із базою
+        '<span class="chips" data-al-chips></span>' +
+        '<input class="inp al-add" data-al-add maxlength="40" autocomplete="off" enterkeyhint="done" placeholder="+ Свій алерген">' +
       '</span>' +
     '</div>' +
     '<div class="nut-hints">' +
@@ -770,10 +831,22 @@ function syncNutUnit(box, p) {
 
 function paintAllergens(box, p) {
   var list = Array.isArray(p.allergens) ? p.allergens : null;
-  $$('[data-al]', box).forEach(function (c) {
-    c.setAttribute('aria-pressed', list && list.indexOf(c.getAttribute('data-al')) !== -1 ? 'true' : 'false');
+  var on = {};
+  (list || []).forEach(function (a) { on[alKey(a)] = 1; });
+
+  // Базові, далі свої з усієї бази й цього продукту (свій могли щойно вписати)
+  var items = ALLERGENS.map(function (a) { return a[0]; });
+  var keys = items.slice();
+  customAllergens().concat(list || []).forEach(function (a) {
+    if (keys.indexOf(alKey(a)) === -1) { keys.push(alKey(a)); items.push(a); }
   });
-  $('[data-al-none]', box).setAttribute('aria-pressed', list && !list.length ? 'true' : 'false');
+
+  $('[data-al-chips]', box).innerHTML = items.map(function (a) {
+    return '<button type="button" class="chip" data-al="' + esc(a) + '" aria-pressed="' +
+      (on[alKey(a)] ? 'true' : 'false') + '">' + esc(alLabel(a)) + '</button>';
+  }).join('') +
+    '<button type="button" class="chip is-none" data-al-none aria-pressed="' +
+      (list && !list.length ? 'true' : 'false') + '">Без алергенів</button>';
   $('[data-al-unset]', box).hidden = !!list;
   syncNutHints(box);
 }
@@ -799,13 +872,24 @@ function readNutFields(box, p) {
   p.nutrition = n;
 }
 
-function toggleAllergen(p, key) {
+function toggleAllergen(p, item) {
   var list = Array.isArray(p.allergens) ? p.allergens.slice() : [];
-  var at = list.indexOf(key);
-  if (at === -1) list.push(key); else list.splice(at, 1);
+  var at = list.map(alKey).indexOf(alKey(item));
+  if (at === -1) list.push(item); else list.splice(at, 1);
   // Зняли останній — назад у «не вказано», а не в «немає»: випадковий клік
   // не повинен тихо оголосити продукт безпечним
-  p.allergens = list.length ? orderAllergens(list) : null;
+  p.allergens = list.length ? normalizeAllergens(list) : null;
+}
+
+/** Вписаний свій алерген позначається в продукті; повторне введення його не знімає. */
+function addCustomAllergen(p, text) {
+  var item = normalizeAllergens([String(text || '')])[0];
+  if (!item) return false;
+  var list = Array.isArray(p.allergens) ? p.allergens.slice() : [];
+  list.push(item);
+  p.allergens = normalizeAllergens(list);
+  if (isCustomAllergen(item)) sessionAllergens.push(item);
+  return true;
 }
 
 function toggleNoAllergens(p) {
@@ -836,6 +920,21 @@ function bindNutEditor(root, resolve, onChange) {
     else return;
     paintAllergens(c.box, c.p); persist(); onChange(c.p, c.box);
   });
+
+  // Свій алерген додається Enter-ом або виходом із поля
+  function addFromInput(e) {
+    if (!e.target.hasAttribute || !e.target.hasAttribute('data-al-add')) return;
+    var c = ctx(e); if (!c) return;
+    if (!addCustomAllergen(c.p, e.target.value)) return;
+    e.target.value = '';
+    paintAllergens(c.box, c.p); persist(); onChange(c.p, c.box);
+  }
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.hasAttribute || !e.target.hasAttribute('data-al-add')) return;
+    e.preventDefault();
+    addFromInput(e);
+  });
+  root.addEventListener('change', addFromInput);
 
   root.addEventListener('blur', function (e) {
     var c = ctx(e); if (!c) return;
@@ -924,7 +1023,7 @@ function nutPanelHtml(nu, per, opts) {
   }).join('');
 
   var al = nu.allergens.length
-    ? nu.allergens.map(function (a) { return '<span class="chip is-static">' + a[1] + '</span>'; }).join('')
+    ? nu.allergens.map(function (a) { return '<span class="chip is-static">' + esc(a[1]) + '</span>'; }).join('')
     : '<span class="nut-none">' + (nu.noAl.length ? '—' : 'Немає') + '</span>';
 
   return '<div class="nut-body">' +
