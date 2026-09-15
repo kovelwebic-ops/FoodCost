@@ -958,42 +958,42 @@ html:not(.nut-on) .nut-only { display: none !important; }
      ціна і скільки взято («45,00 ₴ за 1000 г / 400 г»). Полів тут немає,
      тож тап будь-де по рядку відкриває його (rowTapTarget в app.js). */
   #ing-body tr:not(.ing-group):not(.is-edit),
-  #prep-ing-body tr:not(.is-edit) { grid-template-columns: minmax(0, 1fr); cursor: pointer; }
+  #prep-ing-body tr:not(.is-edit), #exp-body tr:not(.is-edit) { grid-template-columns: minmax(0, 1fr); cursor: pointer; }
   #ing-body tr:not(.ing-group):not(.is-edit) [data-f="name"],
-  #prep-ing-body tr:not(.is-edit) [data-f="name"],
+  #prep-ing-body tr:not(.is-edit) [data-f="name"], #exp-body tr:not(.is-edit) [data-f="name"],
   #ing-body tr:not(.ing-group):not(.is-edit) > td:not(:first-child):not(.t-cost),
-  #prep-ing-body tr:not(.is-edit) > td:not(:first-child):not(.t-cost) { display: none; }
+  #prep-ing-body tr:not(.is-edit) > td:not(:first-child):not(.t-cost), #exp-body tr:not(.is-edit) > td:not(:first-child):not(.t-cost) { display: none; }
   /* Вартість — просто числом праворуч на рівні назви, без рамки: рамка
      робила її схожою на поле, а редагувати тут нічого. Назва лишає місце. */
   #ing-body tr:not(.ing-group):not(.is-edit) .peek-name,
-  #prep-ing-body tr:not(.is-edit) .peek-name { padding-right: 84px; }
+  #prep-ing-body tr:not(.is-edit) .peek-name, #exp-body tr:not(.is-edit) .peek-name { padding-right: 84px; }
   #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost,
-  #prep-ing-body tr:not(.is-edit) > td.t-cost {
+  #prep-ing-body tr:not(.is-edit) > td.t-cost, #exp-body tr:not(.is-edit) > td.t-cost {
     position: absolute; top: 15px; right: 14px; display: block;
     text-align: right; font-size: 15px;
   }
   #ing-body tr:not(.ing-group):not(.is-edit) > td.t-cost::before,
-  #prep-ing-body tr:not(.is-edit) > td.t-cost::before { display: none; }
+  #prep-ing-body tr:not(.is-edit) > td.t-cost::before, #exp-body tr:not(.is-edit) > td.t-cost::before { display: none; }
   /* Два поверхи: назва з вартістю, під ними — з повітрям — опис (ціна,
      упаковка, скільки взято), а шеврон у правому куті на лінії опису,
      рівно під вартістю. Опис на найвужчих екранах обрізається трикрапкою,
      а не зсуває шеврон униз. */
-  #ing-body .row-peek, #prep-ing-body .row-peek { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
-  #ing-body .peek-name, #prep-ing-body .peek-name { order: 1; flex: 1 1 100%; min-width: 0; }
-  #ing-body .peek-sum, #prep-ing-body .peek-sum {
+  #ing-body .row-peek, #prep-ing-body .row-peek, #exp-body .row-peek { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+  #ing-body .peek-name, #prep-ing-body .peek-name, #exp-body .peek-name { order: 1; flex: 1 1 100%; min-width: 0; }
+  #ing-body .peek-sum, #prep-ing-body .peek-sum, #exp-body .peek-sum {
     order: 2; margin-top: 8px; max-width: calc(100% - 24px);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   /* margin-right від'ємний: сама стрілка всередині іконки має поля, без
      зсуву її видимий край стояв на 3,6px лівіше за край вартості над нею */
-  #ing-body .peek-caret, #prep-ing-body .peek-caret { order: 3; margin-top: 8px; margin-left: auto; margin-right: -3.6px; }
+  #ing-body .peek-caret, #prep-ing-body .peek-caret, #exp-body .peek-caret { order: 3; margin-top: 8px; margin-left: auto; margin-right: -3.6px; }
   /* Відкритий інгредієнт — та сама картка, що й раніше, плюс «згорнути» біля назви */
-  #ing-body tr.is-edit .row-peek, #prep-ing-body tr.is-edit .row-peek { display: none; }
+  #ing-body tr.is-edit .row-peek, #prep-ing-body tr.is-edit .row-peek, #exp-body tr.is-edit .row-peek { display: none; }
   #ing-body tr.is-edit > td:first-child,
-  #prep-ing-body tr.is-edit > td:first-child { display: flex; align-items: center; gap: 6px; }
-  #ing-body tr.is-edit [data-f="name"], #prep-ing-body tr.is-edit [data-f="name"] { order: 1; }
-  #ing-body tr.is-edit .row-fold, #prep-ing-body tr.is-edit .row-fold { order: 2; display: grid; }
-  #ing-body tr.is-edit, #prep-ing-body tr.is-edit { background: var(--panel-2); }
+  #prep-ing-body tr.is-edit > td:first-child, #exp-body tr.is-edit > td:first-child { display: flex; align-items: center; gap: 6px; }
+  #ing-body tr.is-edit [data-f="name"], #prep-ing-body tr.is-edit [data-f="name"], #exp-body tr.is-edit [data-f="name"] { order: 1; }
+  #ing-body tr.is-edit .row-fold, #prep-ing-body tr.is-edit .row-fold, #exp-body tr.is-edit .row-fold { order: 2; display: grid; }
+  #ing-body tr.is-edit, #prep-ing-body tr.is-edit, #exp-body tr.is-edit { background: var(--panel-2); }
 
   /* Службові рядки — на всю ширину картки */
   .tbl tbody td.tbl-empty { grid-column: 1 / -1; padding: 30px 4px; }

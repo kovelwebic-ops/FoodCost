@@ -1263,6 +1263,12 @@ function ingSum(i) {
   return i.qty > 0 ? src + ' / ' + qtyFmt(i.qty) + ' ' + i.unit : src;
 }
 
+/** Опис згорнутої витрати в калькуляції. Суму праворуч не дублюємо — лише як вона рахується. */
+function expRowSum(e) {
+  if (!(e.value > 0)) return 'Значення не вказане';
+  return e.mode === 'pct' ? qtyFmt(e.value) + ' % від собівартості' : 'Фіксована сума';
+}
+
 /** Розгортає/згортає картку. Разом із карткою ховається і редактор КБЖУ:
     лишити його відкритим під згорнутим рядком — значить показати поля нізвідки. */
 function toggleRowCard(tr) {
@@ -2119,7 +2125,7 @@ function expRow(data) {
   var v = data || { name: '', mode: 'sum', value: 0 };
   var tr = document.createElement('tr');
   tr.innerHTML =
-    '<td><input class="inp" data-f="name" list="dl-expenses" placeholder="Наприклад, коробка" autocomplete="off"></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" list="dl-expenses" placeholder="Наприклад, коробка" autocomplete="off"></td>' +
     '<td class="t-mid" data-lbl="Тип">' + modeSelect(v.mode) + '</td>' +
     '<td data-lbl="Значення"><span class="qty-wrap"><input class="inp is-num" data-f="value" inputmode="decimal" autocomplete="off" placeholder="0,00"><span class="unit-tag" data-suffix hidden>%</span></span></td>' +
     '<td class="t-cost t-empty" data-lbl="Вартість">—</td>' +
@@ -2127,6 +2133,9 @@ function expRow(data) {
   $('[data-f=name]', tr).value = v.name;
   paintExpValue(tr, v);
   syncExpSuffix(tr);
+  // Як і в інгредієнта: порожній рядок відкритий, заповнений — згорнутий до підсумку
+  if (!v.name) tr.classList.add('is-edit');
+  paintPeek(tr, v.name, expRowSum(v));
   return tr;
 }
 
@@ -2271,6 +2280,7 @@ function recalc() {
     var ok = e.value > 0;
     cell.textContent = ok ? fmt(expenseCost(e, t.cost)) : '—';
     cell.classList.toggle('t-empty', !ok);
+    paintPeek(tr, e.name, expRowSum(e));
   });
 
   paintReceipt(t, d.margin);
@@ -2446,6 +2456,12 @@ function bindCalc() {
     if (e.target.closest('[data-grp-toggle]')) { toggleGroup(gtr); return; }
     if (e.target.closest('[data-grp-unlink]')) { unlinkGroup(gtr); return; }
     if (e.target.closest('[data-grp-del]')) deleteGroup(gtr);
+  });
+
+  // Згорнута витрата на телефоні відкривається тапом по рядку, як інгредієнт
+  eb.addEventListener('click', function (e) {
+    var tr = rowTapTarget(e);
+    if (tr) toggleRowCard(tr);
   });
 
   eb.addEventListener('input', function (e) {
