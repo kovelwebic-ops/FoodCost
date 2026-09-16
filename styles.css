@@ -733,6 +733,11 @@ html:not(.nut-on) .nut-only { display: none !important; }
 }
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .modal-foot .btn { height: 40px; }
+/* Три дії одна під одною — «Незбережені зміни»: головна зверху, відмова червоним */
+.modal-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+.modal-acts .btn { height: 44px; }
+.leave-discard { color: var(--danger); }
+.leave-discard:hover { border-color: var(--danger); background: var(--danger-soft); }
 
 /* Запрошення: головна дія зверху на всю ширину, відмова — тихо під нею.
    Анімація помітніша, ніж у робочих модалок: вікно зʼявляється само, а не

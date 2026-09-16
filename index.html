@@ -654,6 +654,7 @@
         <span class="help-step">Крок 4</span>
         <h2 class="h2">Збереження й папки</h2>
         <p>«Зберегти калькуляцію» — оберіть папку або створіть нову. Коли потім змінюєте збережену калькуляцію, кнопка називається «Оновити калькуляцію».</p>
+        <p>Якщо вийти з калькуляції, не зберігши зміни, застосунок спитає: «Зберегти», «Вийти без збереження» чи «Скасувати» й лишитись. Тож випадково натиснуте меню чи «Назад» роботу не зітре.</p>
         <p>У папці — картки з собівартістю й ціною, пошук і сортування. На телефоні картки можна показати в одну або дві колонки.</p>
         <p>Щоб видалити калькуляцію, відкрийте її — кнопка «Видалити» в підсумку.</p>
       </article>
@@ -753,6 +754,19 @@
     <div class="modal-foot">
       <button class="btn" id="ask-cancel">Скасувати</button>
       <button class="btn btn-primary" id="ask-ok">Готово</button>
+    </div>
+  </div>
+</div>
+
+<!-- Вихід із калькуляції з незбереженими змінами: зберегти, відкинути чи лишитись -->
+<div class="overlay" id="leave-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="leave-title">
+    <div class="modal-title" id="leave-title">Є незбережені зміни</div>
+    <div class="modal-sub" id="leave-sub"></div>
+    <div class="modal-acts">
+      <button type="button" class="btn btn-primary" id="leave-save">Зберегти</button>
+      <button type="button" class="btn leave-discard" id="leave-discard">Вийти без збереження</button>
+      <button type="button" class="btn btn-ghost" id="leave-cancel">Скасувати</button>
     </div>
   </div>
 </div>

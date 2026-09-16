@@ -1744,6 +1744,7 @@ function replaceNav() {
 function closeOverlays() {
   closeMenu();
   closeAsk();
+  closeLeave();
   closePdfPreview();
   closePrepPick();
   closeNutModal();
@@ -2041,6 +2042,8 @@ function refreshAllRecipes() {
         // Нова чернетка розійшлася з тим, що було на екрані. Збережена ж отримала
         // в папці ті самі ціни — «Є незбережені зміни» лише якщо вони були й до того
         draftDirty = S.ui.editing ? wasDirty : true;
+        // Знімок тепер — уже з правками; невідомо, яка там збережена версія, тож «змінено»
+        if (S.ui.editing && wasDirty) calcBaseline = null;
         updateSaveBtn();
       }
     }
@@ -2764,7 +2767,7 @@ function bindFolder() {
 
   $('#nav-folders').addEventListener('click', function (e) {
     var b = e.target.closest('[data-folder]');
-    if (b) openFolder(b.getAttribute('data-folder'));
+    if (b) leaveCalc(function () { openFolder(b.getAttribute('data-folder')); });
   });
 
   $('#btn-add-folder').addEventListener('click', function () {
@@ -2772,8 +2775,8 @@ function bindFolder() {
       var f = { id: uid('f'), title: v, recipes: [] };
       S.folders.push(f);
       closeAsk(); renderSidebar(); persist(true);
-      openFolder(f.id);
       toast('Папку «' + v + '» створено');
+      leaveCalc(function () { openFolder(f.id); });
     });
   });
 }
@@ -3016,7 +3019,9 @@ function recalc() {
   if (!$('#calc-scale').hidden) paintScalePanel(calcBaseWeight());
 
   S.draft = cleanRecipe(d);
-  draftDirty = true;
+  // Збережена калькуляція «змінена», лише поки відрізняється від того, як її відкрили:
+  // змінили й повернули як було — знову «Збережено», і вихід нічого не питає
+  draftDirty = calcDiffers(S.draft);
   updateSaveBtn();
   persist();
 }
@@ -3081,6 +3086,7 @@ function loadCalc(rec, crumb) {
 
   recalc();
   draftDirty = false;   // щойно завантажили — незбережених правок ще немає
+  calcBaseline = calcSnapshot();
   updateSaveBtn();
   updateCalcStale();
 }
@@ -3154,6 +3160,66 @@ function backFromCalc() {
   var id = (S.ui.editing && S.ui.editing.folderId) || S.ui.folderId;
   if (id && folderById(id)) openFolder(id);
   else show('home');
+}
+
+/* ── Вихід із калькуляції з незбереженими змінами ──────────────
+   Питаємо при будь-якому переході з екрана калькуляції: меню, «←», «Назад»
+   браузера чи жест на телефоні. Інакше «Нова калькуляція» чи відкрита з папки
+   інша мовчки затирали чернетку. */
+
+var calcBaseline = null;   // знімок збереженої калькуляції, як її відкрили чи зберегли; null — невідомо
+var leaveGo = null;        // куди йти після відповіді у вікні
+var afterSave = null;      // перехід, відкладений до кінця збереження («Зберегти» у вікні)
+
+function calcSnapshot() { return JSON.stringify(cleanRecipe(readCalc())); }
+
+/** d — cleanRecipe поточного екрана. Нова чернетка завжди «не в папці». */
+function calcDiffers(d) {
+  return !S.ui.editing || calcBaseline === null || JSON.stringify(d) !== calcBaseline;
+}
+
+/**
+ * Чи пропаде щось, якщо зараз піти з калькуляції. Порожня нова (нічого не
+ * вписали, лише відкрили) — ні: питати про неї тільки дратувало б.
+ */
+function calcUnsaved() {
+  if (S.ui.screen !== 'calc') return false;
+  var d = cleanRecipe(readCalc());
+  if (!S.ui.editing) return !!(d.name || d.photo || d.ing.length || d.exp.length);
+  return calcDiffers(d);
+}
+
+/** go — сам перехід. Без незбереженого виконується одразу. */
+function leaveCalc(go) {
+  if (!calcUnsaved()) { go(); return; }
+  leaveGo = go;
+  var name = $('#calc-name').value.trim();
+  $('#leave-sub').textContent = S.ui.editing
+    ? '«' + (name || 'Без назви') + '» — зміни ще не збережено. Якщо вийти, вони пропадуть.'
+    : (name ? '«' + name + '» ще не збережено в папку.' : 'Калькуляцію ще не збережено в папку.') +
+      ' Якщо вийти, вона пропаде.';
+  $('#leave-overlay').classList.add('is-on');
+  setTimeout(function () { $('#leave-save').focus(); }, 30);
+}
+
+function closeLeave() { $('#leave-overlay').classList.remove('is-on'); leaveGo = null; }
+
+/**
+ * «Вийти без збереження»: екран калькуляції повертається до збереженої версії
+ * (або порожнього), а не лишається з відкинутими правками. Інакше перерахунок
+ * валюти чи «Назад» у браузері підняли б їх назад у чернетку.
+ */
+function discardCalc() {
+  var ed = S.ui.editing, f = ed && folderById(ed.folderId);
+  var r = f && f.recipes.filter(function (x) { return x.id === ed.recipeId; })[0];
+  if (r) {
+    loadCalc(r, f.title);
+  } else {
+    S.ui.editing = null;
+    loadCalc({ name: '', margin: 50, ing: [], exp: [] }, 'Нова калькуляція');
+    S.draft = null;
+  }
+  persist(true);
 }
 
 function bindCalc() {
@@ -3245,7 +3311,24 @@ function bindCalc() {
     var tr = expRow(null); eb.appendChild(tr); $('[data-f=name]', tr).focus(); recalc();
   });
 
-  $('#calc-back').addEventListener('click', backFromCalc);
+  $('#calc-back').addEventListener('click', function () { leaveCalc(backFromCalc); });
+
+  // Вікно «Є незбережені зміни»
+  $('#leave-save').addEventListener('click', function () {
+    var go = leaveGo;
+    closeLeave();
+    openSaveModal(false);
+    // Не відкрилось (нема назви чи інгредієнтів) — лишаємось, підказку вже показано
+    if ($('#save-overlay').classList.contains('is-on')) afterSave = go;
+  });
+  $('#leave-discard').addEventListener('click', function () {
+    var go = leaveGo;
+    closeLeave();
+    discardCalc();
+    if (go) go();
+  });
+  $('#leave-cancel').addEventListener('click', closeLeave);
+  $('#leave-overlay').addEventListener('click', function (e) { if (e.target === this) closeLeave(); });
   $('#calc-name').addEventListener('input', recalc);
   $('#margin-inp').addEventListener('input', recalc);
   $('#margin-inp').addEventListener('blur', function () {
@@ -3600,6 +3683,7 @@ function scaledName(name) {
 }
 
 function openSaveModal(asNew) {
+  afterSave = null;   // перехід чекає лише збереження, розпочатого з вікна «Є незбережені зміни»
   var d = cleanRecipe(readCalc());
   if (!d.name) { toast('Спочатку вкажіть назву страви'); $('#calc-name').focus(); return; }
   if (!d.ing.length) { toast('Додайте хоча б один інгредієнт'); return; }
@@ -3704,6 +3788,7 @@ function bindSave() {
     $('#calc-crumb').textContent = target.title;
     replaceNav();         // крок історії тепер про збережений рецепт, а не про чернетку
     draftDirty = false;   // збережено — попереджати про втрату вже нема про що
+    calcBaseline = calcSnapshot();
     updateSaveBtn();
     scaleSnap = null;   // перераховану версію збережено — відміняти вже нічого
     paintScaled();
@@ -3711,10 +3796,15 @@ function bindSave() {
     renderSidebar();
     if (S.ui.folderId === target.id) renderFolder();
     persist(true);
+
+    // Зберігали, щоб піти з калькуляції, — тепер і йдемо
+    var next = afterSave;
+    afterSave = null;
+    if (next) next();
   });
 
-  $('#save-cancel').addEventListener('click', function () { ov.classList.remove('is-on'); });
-  ov.addEventListener('click', function (e) { if (e.target === ov) ov.classList.remove('is-on'); });
+  $('#save-cancel').addEventListener('click', function () { ov.classList.remove('is-on'); afterSave = null; });
+  ov.addEventListener('click', function (e) { if (e.target === ov) { ov.classList.remove('is-on'); afterSave = null; } });
 }
 
 /* ═════════════════ 14. Експорт PDF (А4) ═════════════════ */
@@ -4135,13 +4225,15 @@ function bindGlobal() {
     var sc = e.target.closest('[data-screen]');
     if (sc) {
       var id = sc.getAttribute('data-screen');
-      if (id === 'base') renderBase();
-      if (id === 'expbase') renderExpBase();
-      if (id === 'prep') renderPreps();
-      show(id);
+      leaveCalc(function () {
+        if (id === 'base') renderBase();
+        if (id === 'expbase') renderExpBase();
+        if (id === 'prep') renderPreps();
+        show(id);
+      });
       return;
     }
-    if (e.target.closest('[data-recipe="new"]')) newCalc();
+    if (e.target.closest('[data-recipe="new"]')) leaveCalc(newCalc);
   });
 
   // Модалка-запит
@@ -4164,14 +4256,20 @@ function bindGlobal() {
       if (curNav && history.pushState) history.pushState(curNav, '');
       return;
     }
+    // «Назад» із незбереженої калькуляції: браузер уже зробив крок — повертаємо
+    // калькуляцію на місце й питаємо. Відповіли «вийти» — робимо той самий крок ще раз
+    if (calcUnsaved()) {
+      if (curNav && history.pushState) history.pushState(curNav, '');
+      leaveCalc(function () { history.back(); });
+      return;
+    }
     restoreNav(e.state);
   });
 
   // Не даємо зайвий раз втратити незбережену роботу
   window.addEventListener('beforeunload', function (e) {
     persist(true);   // запис відкладений на 300 мс — при перезавантаженні дописуємо одразу
-    if (!draftDirty || !S.draft || !S.draft.name) return;
-    if (S.ui.screen !== 'calc') return;
+    if (!calcUnsaved()) return;
     e.preventDefault();
     e.returnValue = '';
   });
@@ -4198,9 +4296,26 @@ function boot(fresh) {
   }
   if (ui.screen === 'calc') {
     // відновлюємо незбережену чернетку
-    var crumb = 'Нова калькуляція';
-    if (ui.editing) { var f = folderById(ui.editing.folderId); if (f) crumb = f.title; }
-    loadCalc(S.draft || { name: '', margin: 50, ing: [], exp: [] }, crumb);
+    var crumb = 'Нова калькуляція', saved = null, draft = S.draft;
+    if (ui.editing) {
+      var f = folderById(ui.editing.folderId);
+      if (f) {
+        crumb = f.title;
+        saved = f.recipes.filter(function (x) { return x.id === ui.editing.recipeId; })[0] || null;
+      }
+    }
+    if (saved && draft) {
+      // Знімок беремо зі збереженої версії, а не з чернетки: інакше правки, не
+      // збережені до перезавантаження, вважались би збереженими й вихід не питав би
+      loadCalc(saved, crumb);
+      var base = calcSnapshot();
+      loadCalc(draft, crumb);
+      calcBaseline = base;
+      draftDirty = calcSnapshot() !== base;
+      updateSaveBtn();
+    } else {
+      loadCalc(draft || saved || { name: '', margin: 50, ing: [], exp: [] }, crumb);
+    }
     show('calc', null);
   } else if (ui.screen === 'folder' && folderById(ui.folderId)) {
     openFolder(ui.folderId);
