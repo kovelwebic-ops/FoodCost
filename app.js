@@ -2032,11 +2032,15 @@ function refreshAllRecipes() {
 
     // Відкрита чернетка — той самий рецепт, тільки ще не в папці
     if (S.draft) {
-      var dres = syncWithBase(S.draft, false, idx);
-      changed += dres.changed; skipped += dres.skipped;
+      var dres = syncWithBase(S.draft, false, idx), wasDirty = draftDirty;
+      // Відкрита збережена калькуляція — копія запису з папки, який уже пораховано
+      // вище: без цього «1 запис — 2 рядки», хоча змінився один
+      if (!S.ui.editing) { changed += dres.changed; skipped += dres.skipped; }
       if (dres.changed && $('#ing-body').children.length) {
         loadCalc(S.draft, $('#calc-crumb').textContent);
-        draftDirty = true;   // чернетка розійшлася зі збереженою версією
+        // Нова чернетка розійшлася з тим, що було на екрані. Збережена ж отримала
+        // в папці ті самі ціни — «Є незбережені зміни» лише якщо вони були й до того
+        draftDirty = S.ui.editing ? wasDirty : true;
         updateSaveBtn();
       }
     }
