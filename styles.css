@@ -484,6 +484,27 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 /* Сума інгредієнтів, підставлена сама, — сірим: видно, що число не вписане руками */
 .calc-weight-field .inp.is-auto { color: var(--muted); }
 .calc-weight-reset { font-size: 12.5px; }
+#btn-scale[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
+
+/* Панель перерахунку — над таблицею, як картка: «Було → Стане» і множник
+   видно одразу, пояснення коротке, кнопки під ним */
+.scale-panel {
+  margin-bottom: 18px; padding: 16px 18px;
+  border: 1px solid var(--line-2); border-radius: var(--r-m); background: var(--panel);
+}
+.scale-title { margin-bottom: 12px; font-size: 15px; font-weight: 600; color: var(--fg); }
+.scale-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.scale-from { font-size: 14px; color: var(--fg-2); }
+.scale-from b { margin-left: 6px; font-weight: 600; color: var(--fg); }
+.scale-arrow { font-size: 16px; color: var(--muted); }
+.scale-k { font-size: 14px; font-weight: 600; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.scale-note { margin: 12px 0 14px; font-size: 13px; line-height: 1.5; color: var(--fg-3); }
+.scale-panel .btn { height: 38px; }
+
+/* Смуга після перерахунку: що зробили + підказка, праворуч «Відмінити» і збереження */
+.scaled-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.scaled-sub { padding-left: 27px; font-size: 13px; color: var(--fg-3); }
+.scaled-undo { height: 36px; padding: 0 12px; }
 .title-inp {
   flex: 1; min-width: 0; margin-left: -10px; padding: 6px 10px; border: 1px solid transparent;
   border-radius: var(--r-m); font-size: 34px; font-weight: 700; letter-spacing: -.028em;
@@ -910,6 +931,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* Дві кнопки в смузі перерахунку: з width:100% кожна в одному рядку вони
      разом ставали вдвічі ширші за екран і тягнули сторінку вбік — стовпчиком */
   .scaled-bar .btn-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  /* «Відмінити» — другорядна: у стовпчику під кнопками збереження */
+  .scaled-bar .scaled-undo { order: 3; }
   .nut-offer { flex-direction: column; align-items: stretch; gap: 12px; }
   .nut-offer .btn-row .btn { flex: 1; }
   .nut-body { grid-template-columns: 1fr; }
@@ -1173,6 +1196,13 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .calc-weight-field .inp { height: 40px; }
   /* Кнопка перерахунку — окремим рядком на всю ширину: поруч із полем не влазить */
   #btn-scale { flex: 1 1 100%; }
+  /* «Було» окремим рядком, «Стане» з полем на всю ширину, множник поруч;
+     стрілка між рядками вже не читається */
+  .scale-panel { padding: 14px; }
+  .scale-from { flex: 1 1 100%; }
+  .scale-arrow { display: none; }
+  .scale-to { flex: 1 1 0; }
+  .scale-panel .btn-row .btn { flex: 1; height: 42px; }
   .panel-foot { padding: 12px 14px; }
 
   /* ── Папка ── */

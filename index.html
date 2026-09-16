@@ -383,15 +383,42 @@
       </label>
       <!-- Поза label: кнопка всередині нього фокусувала б поле замість скидання -->
       <button type="button" class="link-btn calc-weight-reset" id="calc-outw-reset" hidden></button>
-      <button type="button" class="btn-dash" id="btn-scale">Перерахувати на іншу вагу</button>
+      <button type="button" class="btn-dash" id="btn-scale" aria-expanded="false" aria-controls="calc-scale">Перерахувати на іншу вагу</button>
     </div>
 
-    <!-- Після перерахунку збереженої калькуляції: базову лишити чи замінити -->
+    <!-- Перерахунок на іншу вагу — панель над таблицею, а не окреме вікно:
+         видно, від якої ваги рахуємо, у скільки разів і що саме зміниться -->
+    <div class="scale-panel" id="calc-scale" hidden>
+      <div class="scale-title">Перерахувати калькуляцію</div>
+      <div class="scale-row">
+        <span class="scale-from">Було <b id="scale-from"></b></span>
+        <span class="scale-arrow" aria-hidden="true">→</span>
+        <label class="calc-weight-field scale-to">
+          <span>Стане</span>
+          <span class="qty-wrap">
+            <input class="inp is-num" id="scale-to" inputmode="decimal" autocomplete="off" placeholder="0">
+            <span class="unit-tag">кг</span>
+          </span>
+        </label>
+        <span class="scale-k" id="scale-k"></span>
+      </div>
+      <p class="scale-note">Кількість усіх продуктів зміниться пропорційно. Фіксовані витрати (коробка, доставка) лишаться як є.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-soft" id="scale-apply">Перерахувати</button>
+        <button type="button" class="btn" id="scale-cancel">Скасувати</button>
+      </div>
+    </div>
+
+    <!-- Після перерахунку: відмінити, а збережену калькуляцію — лишити базову чи замінити -->
     <div class="stale-bar scaled-bar" id="calc-scaled" hidden>
-      <span class="stale-txt" id="calc-scaled-txt"></span>
+      <span class="scaled-info">
+        <span class="stale-txt" id="calc-scaled-txt"></span>
+        <span class="scaled-sub">Перевірте кількості та збережіть.</span>
+      </span>
       <span class="btn-row">
-        <button class="btn" id="btn-scaled-new">Зберегти як нову</button>
-        <button class="btn btn-soft" id="btn-scaled-replace">Замінити цю</button>
+        <button type="button" class="btn btn-ghost scaled-undo" id="btn-scaled-undo"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Відмінити</button>
+        <button type="button" class="btn" id="btn-scaled-new">Зберегти як нову</button>
+        <button type="button" class="btn btn-soft" id="btn-scaled-replace">Замінити цю</button>
       </span>
     </div>
 
@@ -616,7 +643,7 @@
           <li><b>Додаткові витрати</b> — так само, з бази витрат.</li>
           <li><b>Маржа</b> — скільки заробити зверху, у відсотках.</li>
           <li><b>Вага виробу</b> — під назвою, у кілограмах. Порожнє поле — застосунок бере суму інгредієнтів, але після випікання виріб легший, тож краще вписати свою.</li>
-          <li><b>Перерахувати на іншу вагу</b> — торт на 1&nbsp;кг, а замовили 2,5&nbsp;кг: усі грамовки й ціна зміняться пропорційно, фіксовані витрати (коробка, доставка) лишаться як є. Збережену калькуляцію можна «Зберегти як нову» — базова лишиться в папці.</li>
+          <li><b>Перерахувати на іншу вагу</b> — торт на 1&nbsp;кг, а замовили 2,5&nbsp;кг: впишіть нову вагу в полі «Стане», і всі грамовки й ціна зміняться пропорційно, округлені до зручних чисел. Фіксовані витрати (коробка, доставка) лишаться як є. Не те — «Відмінити» поверне як було. Збережену калькуляцію можна «Зберегти як нову» — базова лишиться в папці.</li>
         </ul>
         <p>У «Підсумку» — собівартість, витрати й ціна продажу, а під нею підказка, до скількох зручно округлити.</p>
         <p>На телефоні рядки згорнуті — торкніться рядка, щоб змінити його.</p>

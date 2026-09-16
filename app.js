@@ -1370,7 +1370,9 @@ function paintOutWeight(mass, force) {
     return;
   }
   ow.classList.remove('is-auto');
-  var differs = auto > 0 && Math.abs(num(ow.value) * 1000 - auto) >= 1;
+  // Піввідсотка — не різниця: після перерахунку округлені грамовки дають 2,201 кг
+  // замість 2,2, і підказка лізла б без причини. Усушка при випіканні — 10–20 %
+  var differs = auto > 0 && Math.abs(num(ow.value) * 1000 - auto) > Math.max(1, auto * 0.005);
   reset.hidden = !differs;
   if (differs) reset.textContent = 'Сума інгредієнтів — ' + qtyFmt(auto / 1000) + ' кг';
 }
@@ -1391,20 +1393,132 @@ function calcBaseWeight() {
  * правка «Взяти» перерахувала б складники від старого числа.
  */
 function scaleCalc(toG, fromG) {
-  var k = toG / fromG;
+  var s = scaleSnap, ow = $('#calc-outw');
+  if (!s) {
+    s = scaleSnap = {
+      fromG: fromG,
+      weight: { manual: !!ow.dataset.manual, value: ow.value },
+      dirty: draftDirty,
+      json: JSON.stringify(cleanRecipe(readCalc())),
+      fields: []
+    };
+  }
+  s.toG = toG;   // для смуги: поле ваги потім можуть змінити, а перерахували саме на цю
   ingRows().forEach(function (tr) {
-    var q = $('[data-f=qty]', tr);
-    if (num(q.value) > 0) q.value = qtyFmt(num(q.value) * k);
+    scaleField(s, $('[data-f=qty]', tr), $('[data-f=unit]', tr).value, toG, fromG);
   });
   grpRows().forEach(function (gtr) {
-    var take = num(gtr.getAttribute('data-take')) * k;
-    gtr.setAttribute('data-take', take);
-    $('[data-grp-take]', gtr).value = qtyFmt(take);
+    var inp = $('[data-grp-take]', gtr);
+    scaleField(s, inp, gtr.getAttribute('data-unit'), toG, fromG, gtr);
+    gtr.setAttribute('data-take', num(inp.value));
   });
-  var ow = $('#calc-outw');
   ow.dataset.manual = '1';
   ow.value = qtyFmt(toG / 1000);
   recalc();
+}
+
+/* Перерахунок, який ще можна відмінити: що стояло в полях до нього. Живе лише
+   в памʼяті, поки видно смугу «Перераховано»: після збереження, відміни чи
+   відкриття іншої калькуляції відміняти вже нічого. */
+var scaleSnap = null;
+
+/**
+ * Кількість після перерахунку — так, як її відважують: 444,444 г нікому не
+ * потрібні. Від 10 — до цілих, від 1 — до десятих, менше — до сотих, щоб
+ * щіпка ванілі не стала нулем. Штуки — щонайменше до десятих: 3,3 яйця
+ * рахуються чесніше, ніж 3.
+ */
+function roundScaled(n, unit) {
+  var step = n >= 10 && unit !== 'шт' ? 1 : n >= 1 ? 10 : 100;
+  return Math.round(n * step) / step;
+}
+
+/**
+ * Одне поле при перерахунку. Поки число в полі те, що поставив попередній
+ * перерахунок, рахуємо від вихідного — інакше 0,9 → 1,2 → 0,9 кг через
+ * округлення не повернув би рівно ті самі грами. Підправлене руками чи нове
+ * поле множимо від того, що в ньому зараз, і запамʼятовуємо як вихідне.
+ */
+function scaleField(s, inp, unit, toG, fromG, gtr) {
+  if (!(num(inp.value) > 0)) return;
+  var f = null;
+  for (var i = 0; i < s.fields.length; i++) if (s.fields[i].inp === inp) { f = s.fields[i]; break; }
+  if (!f || inp.value !== f.set) {
+    if (!f) { f = { inp: inp, orig: inp.value, gtr: gtr, take: gtr && gtr.getAttribute('data-take') }; s.fields.push(f); }
+    f.base = num(inp.value);
+    f.baseG = fromG;
+  }
+  inp.value = qtyFmt(roundScaled(f.base * toG / f.baseG, unit));
+  f.set = inp.value;
+}
+
+/** «Відмінити»: поля, вага й навіть «Збережено» — як до перерахунку, якщо нічого іншого не міняли. */
+function undoScale() {
+  var s = scaleSnap;
+  if (!s) return;
+  s.fields.forEach(function (f) {
+    if (!f.inp.isConnected) return;   // рядок відтоді видалили
+    f.inp.value = f.orig;
+    if (f.gtr) f.gtr.setAttribute('data-take', f.take);
+  });
+  var ow = $('#calc-outw');
+  if (s.weight.manual) ow.dataset.manual = '1'; else delete ow.dataset.manual;
+  ow.value = s.weight.value;
+  scaleSnap = null;
+  recalc();
+  if (JSON.stringify(cleanRecipe(readCalc())) === s.json) { draftDirty = s.dirty; updateSaveBtn(); }
+  paintScaled();
+  toast('Повернули як було — ' + qtyFmt(s.fromG / 1000) + ' кг');
+}
+
+/** Смуга «Перераховано»: поки відкрита панель перерахунку, ховається — дві зелені рамки підряд зайві. */
+function paintScaled() {
+  var bar = $('#calc-scaled'), s = scaleSnap;
+  bar.hidden = !s || !$('#calc-scale').hidden;
+  if (bar.hidden) return;
+  // &nbsp; — щоб «кг» на вузькому екрані не зривалось окремим рядком
+  $('#calc-scaled-txt').innerHTML = ICON_TICK + '<span>Перераховано з ' + qtyFmt(s.fromG / 1000) +
+    '&nbsp;кг на ' + qtyFmt(s.toG / 1000) + '&nbsp;кг</span>';
+  // Не збережена ще калькуляція — лише «Відмінити»: зберігають її звичайною кнопкою
+  $('#btn-scaled-new').hidden = $('#btn-scaled-replace').hidden = !S.ui.editing;
+}
+
+/** «Було» й множник у панелі. from — у грамах. */
+function paintScalePanel(from) {
+  $('#scale-from').textContent = from > 0 ? qtyFmt(from / 1000) + ' кг' : '—';
+  var k = from > 0 ? num($('#scale-to').value) * 1000 / from : 0;
+  $('#scale-k').textContent = k > 0 && Math.abs(k - 1) >= 0.005 ? '×' + qtyFmt(Math.round(k * 100) / 100) : '';
+}
+
+function openScalePanel() {
+  var from = calcBaseWeight();
+  if (!(from > 0)) {
+    toast('Спершу додайте інгредієнти або вкажіть вагу виробу — від неї рахується перерахунок');
+    $('#calc-outw').focus();
+    return;
+  }
+  $('#scale-to').value = '';
+  paintScalePanel(from);
+  $('#calc-scale').hidden = false;
+  $('#btn-scale').setAttribute('aria-expanded', 'true');
+  paintScaled();
+  $('#scale-to').focus();
+}
+
+function closeScalePanel() {
+  $('#calc-scale').hidden = true;
+  $('#btn-scale').setAttribute('aria-expanded', 'false');
+  paintScaled();
+}
+
+function applyScale() {
+  var from = calcBaseWeight();
+  var to = Math.round(num($('#scale-to').value) * 1000);
+  if (!(to > 0)) { toast('Вкажіть нову вагу в кілограмах, наприклад 2,5'); $('#scale-to').focus(); return; }
+  closeScalePanel();
+  if (to === from || !(from > 0)) return;
+  scaleCalc(to, from);
+  paintScaled();
 }
 
 function paintCalcNut(d) {
@@ -2894,6 +3008,8 @@ function recalc() {
   // Вага виробу — у шапці й потрібна всім, а не лише з увімкненим КБЖУ
   paintOutWeight(nutritionOf(d.ing).mass);
   paintCalcNut(d);
+  // Змінили вагу чи продукти — «Було» в панелі не має брехати
+  if (!$('#calc-scale').hidden) paintScalePanel(calcBaseWeight());
 
   S.draft = cleanRecipe(d);
   draftDirty = true;
@@ -2933,7 +3049,9 @@ function loadCalc(rec, crumb) {
   var ow = $('#calc-outw');
   if (num(rec.outWeight) > 0) { ow.dataset.manual = '1'; ow.value = qtyFmt(num(rec.outWeight) / 1000); }
   else { delete ow.dataset.manual; ow.value = ''; }   // суму інгредієнтів підставить recalc()
-  $('#calc-scaled').hidden = true;                    // інша калькуляція — питання про перерахунок уже не її
+  scaleSnap = null;                                   // інша калькуляція — відміняти перерахунок уже нічого
+  $('#scale-to').value = '';
+  closeScalePanel();
 
   setPhoto(rec.photo || null);
 
@@ -3149,35 +3267,19 @@ function bindCalc() {
     recalc();
   });
 
+  // Та сама кнопка й закриває панель — щоб не шукати «Скасувати»
   $('#btn-scale').addEventListener('click', function () {
-    var from = calcBaseWeight();
-    if (!(from > 0)) {
-      toast('Спершу вкажіть вагу виробу — від неї рахується перерахунок');
-      ow.focus();
-      return;
-    }
-    // Перерахована збережена калькуляція — окреме питання: лишити базову чи замінити
-    var wasSaved = !!S.ui.editing;
-    ask({
-      title: 'Перерахувати на іншу вагу',
-      sub: 'Зараз — ' + qtyFmt(from / 1000) + ' кг. Грамовки зміняться пропорційно, фіксовані витрати лишаться як є.',
-      placeholder: 'Нова вага, кг',
-      inputmode: 'decimal',
-      ok: 'Перерахувати'
-    }, function (v) {
-      var to = Math.round(num(v) * 1000);
-      if (!(to > 0)) { toast('Вкажіть вагу в кілограмах, наприклад 2,5'); return; }
-      closeAsk();
-      if (to === from) return;
-      scaleCalc(to, from);
-      if (wasSaved) {
-        $('#calc-scaled-txt').textContent = 'Перераховано з ' + qtyFmt(from / 1000) + ' кг на ' + qtyFmt(to / 1000) + ' кг';
-        $('#calc-scaled').hidden = false;
-      } else {
-        toast('Перераховано на ' + qtyFmt(to / 1000) + ' кг');
-      }
-    });
+    if ($('#calc-scale').hidden) openScalePanel(); else closeScalePanel();
   });
+  var st = $('#scale-to');
+  st.addEventListener('input', function () { paintScalePanel(calcBaseWeight()); });
+  st.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); applyScale(); }
+    else if (e.key === 'Escape') closeScalePanel();
+  });
+  $('#scale-apply').addEventListener('click', applyScale);
+  $('#scale-cancel').addEventListener('click', closeScalePanel);
+  $('#btn-scaled-undo').addEventListener('click', undoScale);
 
   // «Замінити цю» — звичайне збереження поверх; смугу прибере саме збереження
   $('#btn-scaled-replace').addEventListener('click', function () { openSaveModal(false); });
@@ -3565,7 +3667,13 @@ function bindSave() {
     var d = cleanRecipe(readCalc());
     // «Зберегти як нову» — лише тепер, після підтвердження: нова назва й без оригіналу
     var ed = saveAsNew ? null : S.ui.editing;
-    if (saveAsNew) { d.name = scaledName(d.name); $('#calc-name').value = d.name; }
+    if (saveAsNew) {
+      d.name = scaledName(d.name);
+      $('#calc-name').value = d.name;
+      // І в чернетку: вона відновлюється після перезавантаження, і зі старою назвою
+      // «Оновити» перейменувало б нову картку назад на «Медовик»
+      if (S.draft) S.draft.name = d.name;
+    }
     saveAsNew = false;
 
     if (ed) {
@@ -3593,7 +3701,8 @@ function bindSave() {
     replaceNav();         // крок історії тепер про збережений рецепт, а не про чернетку
     draftDirty = false;   // збережено — попереджати про втрату вже нема про що
     updateSaveBtn();
-    $('#calc-scaled').hidden = true;   // перераховану версію збережено — питання закрите
+    scaleSnap = null;   // перераховану версію збережено — відміняти вже нічого
+    paintScaled();
     ov.classList.remove('is-on');
     renderSidebar();
     if (S.ui.folderId === target.id) renderFolder();
