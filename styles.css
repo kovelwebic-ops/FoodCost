@@ -59,7 +59,9 @@ body {
   font-family: var(--ui); font-size: 15px; -webkit-font-smoothing: antialiased;
 }
 input, select, button, textarea { font: inherit; color: inherit; }
-input::placeholder { color: var(--dim); }
+/* Трохи темніше за --dim: підказки в полях були майже невидимі на світлому фоні */
+input::placeholder { color: var(--muted-2); }
+.title-inp::placeholder { color: var(--muted); }
 button { white-space: nowrap; transition: background-color .13s ease, border-color .13s ease, color .13s ease, box-shadow .13s ease, transform .13s ease; }
 button:active { transform: translateY(1px); }
 input, select { transition: background-color .13s ease, border-color .13s ease, box-shadow .13s ease; }
@@ -229,19 +231,19 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
   display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
   padding: 16px 20px 14px; border-bottom: 1px solid var(--line-soft);
 }
-.panel-sum { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--muted); }
+.panel-sum { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--fg-3); }
 .panel-sum b { font-family: var(--num); font-size: 16px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
 .panel-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 12px 20px; background: var(--panel-2);
 }
-.panel-tip { font-size: 12.5px; color: var(--muted); }
+.panel-tip { font-size: 12.5px; color: var(--fg-3); }
 
 .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .tbl th {
   padding: 9px 6px; border-bottom: 1px solid var(--line-faint); background: var(--panel-2);
-  font-family: var(--num); font-size: 10.5px; font-weight: 400; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--muted-2); text-align: left; white-space: nowrap;
+  font-family: var(--num); font-size: 10.5px; font-weight: 500; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); text-align: left; white-space: nowrap;
 }
 .tbl thead th:first-child { padding-left: 20px; }
 .tbl thead th:last-child { padding-right: 20px; }
@@ -314,6 +316,23 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .tbl tbody tr.ing-child.is-last > td:first-child::before { bottom: 50%; }
 
 .foot-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ═════════════════ Пропозиція ввімкнути КБЖУ ═════════════════
+   Спокійніша за смугу «ціни змінились»: це не проблема, а вибір. */
+
+.nut-offer {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  margin-bottom: 18px; padding: 14px 16px;
+  border: 1px solid var(--line-2); border-radius: var(--r-m); background: var(--seg-bg);
+}
+.nut-offer-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nut-offer-txt b { font-size: 14.5px; font-weight: 600; }
+.nut-offer-txt span { font-size: 13px; line-height: 1.5; color: var(--fg-3); }
+.nut-offer .btn-row { flex: 0 0 auto; }
+.nut-offer .btn { height: 36px; }
+
+/* Попередження про двійника в базі — під полем назви, тим самим червоним */
+.row-warn { display: block; margin: 2px 8px 6px; font-size: 12px; line-height: 1.45; color: var(--danger); }
 
 /* ═════════════════ Смуга «ціни змінились» ═════════════════
    Зʼявляється лише коли є що оновлювати, тому не мозолить око. */
@@ -470,7 +489,7 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .photo-box img { width: 72px; height: 54px; object-fit: cover; border-radius: var(--r-s); border: 1px solid var(--line-2); display: block; }
 .photo-acts { display: flex; flex-direction: column; gap: 4px; }
 
-.calc-mid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 20px 0; }
+.calc-mid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 24px 0; }
 /* 480, не 360: рядок витрати тепер має ще й тип+вартість поруч з назвою.
    Колонки фіксовані (mode/value/cost/дії), тож таблиці потрібен поверх —
    інакше «Назва» стискається до нечитабельного мінімуму. */
@@ -572,6 +591,21 @@ html:not(.nut-on) .nut-only { display: none !important; }
   border: 1px dashed var(--dash); border-radius: 999px; background: transparent; font-size: 13px;
 }
 .inp.al-add:focus { border-style: solid; }
+/* Пошук за штрихкодом — перший рядок редактора: він заповнює поля під собою */
+.nut-off { display: flex; align-items: flex-start; gap: 16px; }
+.nut-off .nut-cap { padding-top: 9px; }
+.off-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+.off-row { display: flex; align-items: center; gap: 8px; }
+.inp.off-inp {
+  width: 190px; height: 34px; padding: 0 10px; border-color: var(--edge); background: var(--field);
+  font-family: var(--num); font-size: 13.5px;
+}
+.off-btn { flex: 0 0 auto; height: 34px; padding: 0 14px; font-size: 13.5px; }
+.off-btn[disabled] { opacity: .6; cursor: default; }
+.off-note { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.off-note.is-warn { color: var(--danger); }
+.off-note b { font-weight: 600; color: var(--fg); }
+
 .nut-hints { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .nut-hint { font-size: 12.5px; color: var(--muted); }
 .nut-hint.is-warn { color: var(--danger); }
@@ -626,6 +660,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .set-row-txt { max-width: 420px; }
 .set-row-txt .h2 { font-size: 15px; }
 .set-row-desc { display: block; margin-top: 4px; font-size: 13.5px; line-height: 1.5; color: var(--fg-3); }
+/* Глобального стилю посилань немає — інакше зовнішнє джерело виглядало б як стандартна синя ссилка */
+.set-row-desc a, .help-sec a { color: var(--accent); text-decoration: none; }
+.set-row-desc a:hover, .help-sec a:hover { color: var(--accent-2); text-decoration: underline; }
 #btn-reset, #btn-wipe { height: 38px; }
 
 /* ═════════════════ Інструкція ═════════════════ */
@@ -863,10 +900,16 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* Поруч із кнопкою тексту лишається смужка на три рядки — краще в стовпчик */
   .stale-bar { flex-direction: column; align-items: stretch; gap: 12px; }
   .stale-bar .btn { width: 100%; }
+  .nut-offer { flex-direction: column; align-items: stretch; gap: 12px; }
+  .nut-offer .btn-row .btn { flex: 1; }
   .nut-body { grid-template-columns: 1fr; }
   .panel-nut .panel-head { flex-wrap: wrap; }
   .nut-al { flex-direction: column; gap: 8px; }
   .nut-al .nut-cap { padding-top: 0; }
+  /* align-items: stretch обовʼязково: з flex-start (успадкованим зверху) рядок
+     у стовпчику бере ширину свого вмісту, і кнопка «Знайти» вилазила за край */
+  .nut-off { flex-direction: column; align-items: stretch; gap: 8px; }
+  .nut-off .nut-cap { padding-top: 0; }
   .panel-foot { flex-wrap: wrap; }
   .total-bar { flex-direction: column; align-items: stretch; }
   .total-acts { flex-wrap: wrap; }
@@ -999,7 +1042,10 @@ html:not(.nut-on) .nut-only { display: none !important; }
   #base-body .t-act .icon-btn svg, #expbase-body .t-act .icon-btn svg { width: 12px; height: 12px; }
   #base-body .t-act .icon-btn::after, #expbase-body .t-act .icon-btn::after { content: 'Видалити'; }
   #base-body tr.is-edit > td:first-child,
-  #expbase-body tr.is-edit > td:first-child { display: flex; align-items: center; gap: 6px; padding-right: 0; }
+  #expbase-body tr.is-edit > td:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-right: 0; }
+  /* Попередження — окремим рядком під назвою: у флекс-рядку воно ставало
+     сусідом поля й тиснуло назву до третини ширини */
+  #base-body tr.is-edit .row-warn { order: 3; flex: 1 1 100%; margin: 0; }
   /* Шеврон лишається праворуч, як і в згорнутому стані — інакше він стрибає */
   #base-body tr.is-edit [data-f="name"],
   #expbase-body tr.is-edit [data-f="name"] { order: 1; }
@@ -1211,5 +1257,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .nut-al-view .chips { min-width: 0; }
   /* 16px — інакше iOS зумить сторінку на тапі; .inp.al-add важить більше за загальне «.inp 16px» */
   .inp.al-add { width: 100%; max-width: 280px; height: 36px; font-size: 16px; }
+  /* Поле штрихкода тягнеться, кнопка лишається по вмісту — на 320px вони ще вміщаються в рядок */
+  .inp.off-inp { flex: 1 1 120px; width: auto; min-width: 0; height: 40px; font-size: 16px; }
+  .off-btn { height: 40px; }
   .panel-tip { flex: 1 1 100%; }
 }

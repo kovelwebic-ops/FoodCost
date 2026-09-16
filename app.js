@@ -12,20 +12,41 @@ var STORE_KEY = 'fc:state:v1';
 var INVITE_KEY = 'fc:invite:v1';
 var UNITS = ['г', 'мл', 'шт'];
 
-/* Базові алергени — лише ті, що в кондитерці трапляються щодня. Решту
-   (мед, какао, цитрусові…) людина вписує сама, і в продукті вони лежать
-   текстом. Порядок не абетковий: спершу найчастіші. */
+/* Усі 14 алергенів зі стандарту ЄС (Регламент 1169/2011) — той самий перелік,
+   що на етикетках і в Open Food Facts. Порядок не абетковий: спершу ті, що в
+   кондитерці трапляються щодня, далі решта. Решту (мед, какао, цитрусові…)
+   людина вписує сама, і в продукті вони лежать текстом. */
 var ALLERGENS = [
   ['gluten', 'Глютен'], ['eggs', 'Яйця'], ['milk', 'Молоко'], ['nuts', 'Горіхи'],
-  ['peanuts', 'Арахіс'], ['soy', 'Соя'], ['sesame', 'Кунжут']
+  ['peanuts', 'Арахіс'], ['soy', 'Соя'], ['sesame', 'Кунжут'], ['sulphites', 'Сульфіти'],
+  ['mustard', 'Гірчиця'], ['celery', 'Селера'], ['lupin', 'Люпин'], ['fish', 'Риба'],
+  ['crustaceans', 'Ракоподібні'], ['molluscs', 'Молюски']
 ];
-/* Колишні стандартні з повного переліку ЄС. Лишились тільки для читання
-   старих даних: у продуктах, де їх позначили, вони стають своїми з назвою. */
-var LEGACY_ALLERGENS = {
-  sulphites: 'Сульфіти', mustard: 'Гірчиця', celery: 'Селера', lupin: 'Люпин',
-  fish: 'Риба', crustaceans: 'Ракоподібні', molluscs: 'Молюски'
-};
+/* Гачок для перейменованих або вилучених ключів: старе значення → нинішня назва.
+   Зараз порожній — сім ключів, що тут лежали, повернулись у ALLERGENS вище, і
+   старі дані з ними знову збігаються з базовими. */
+var LEGACY_ALLERGENS = {};
 var NUT_KEYS = [['kcal', 'Ккал'], ['prot', 'Білки'], ['fat', 'Жири'], ['carb', 'Вуглеводи']];
+
+/* Open Food Facts — відкрита база фасованих продуктів. Ключ не потрібен,
+   запит іде з браузера користувача, бекенду в нас як не було, так і немає.
+   Джерело даних вказане в налаштуваннях та в інструкції (ліцензія ODbL). */
+var OFF_URL = 'https://world.openfoodfacts.org/api/v2/product/';
+/* Їхні теґи алергенів — свої. Зводимо до наших ключів або до звичайних
+   українських назв; далі normalizeAllergens() сам розбереться, що з них
+   базове, а що своє. Невідомий теґ лишаємо читабельним рядком, а не губимо:
+   «є щось англійською» краще, ніж мовчазно втрачений алерген. */
+var OFF_ALLERGENS = {
+  gluten: 'gluten', eggs: 'eggs', milk: 'milk',
+  nuts: 'nuts', 'tree-nuts': 'nuts', peanuts: 'peanuts',
+  soybeans: 'soy', soy: 'soy', 'sesame-seeds': 'sesame', sesame: 'sesame',
+  celery: 'celery', mustard: 'mustard', fish: 'fish', lupin: 'lupin',
+  crustaceans: 'crustaceans', molluscs: 'molluscs',
+  'sulphur-dioxide-and-sulphites': 'sulphites', sulphites: 'sulphites',
+  lactose: 'Лактоза', wheat: 'Пшениця', barley: 'Ячмінь', oats: 'Овес', rye: 'Жито',
+  almonds: 'Мигдаль', hazelnuts: 'Фундук', walnuts: 'Волоські горіхи',
+  'cashew-nuts': 'Кешʼю', pistachios: 'Фісташки', 'macadamia-nuts': 'Макадамія'
+};
 var PHOTO_MAX = 720;     // px — до цього розміру стискаємо фото
 var PHOTO_Q = 0.72;      // якість jpeg
 
@@ -116,6 +137,7 @@ function emptyState() {
     round: 5,
     theme: 'light',
     showNutrition: false,                          // КБЖУ й алергени потрібні не всім
+    nutAsked: false,                               // чи вже пропонували ввімкнути КБЖУ в базі
     products: [],
     expenseBase: [],
     preps: [],
@@ -172,6 +194,8 @@ function normalize(s) {
   if (!s.round) s.round = 5;
   if (!s.theme) s.theme = 'light';
   if (typeof s.showNutrition !== 'boolean') s.showNutrition = false;
+  // Пропозицію ввімкнути КБЖУ показуємо один раз; тим, у кого воно вже ввімкнене, — ніколи
+  if (typeof s.nutAsked !== 'boolean') s.nutAsked = !!s.showNutrition;
   if (!s.ui.folderSort) s.ui.folderSort = 'name';
   if (s.ui.folderQuery == null) s.ui.folderQuery = '';
   if (s.ui.folderCols !== 2) s.ui.folderCols = 1;   // картки папки на телефоні: 1 або 2 колонки
@@ -218,6 +242,9 @@ function normalizeProduct(p) {
   p.nutrition = clean;
   p.allergens = Array.isArray(p.allergens) ? normalizeAllergens(p.allergens) : null;
   p.pieceWeight = num(p.pieceWeight);
+  // Штрихкод: лише цифри. Потрібен, щоб той самий продукт не завели двічі
+  p.code = typeof p.code === 'string' || typeof p.code === 'number'
+    ? String(p.code).replace(/\D/g, '').slice(0, 14) : '';
 }
 
 function readStore() {
@@ -797,8 +824,265 @@ function nutNum(v, dec) {
    що відкривається прямо з калькуляції. Модалка — не зручність, а потреба:
    перехід у базу з незбереженої калькуляції прибирає її з екрана. */
 
+/* ── Пошук за штрихкодом (Open Food Facts) ───────────────────────
+   Заповнює назву, вагу упаковки, КБЖУ й алергени. Ціну — ніколи: вона в
+   кожному магазині своя. Знайдене заміняє наявне без підтверджень (окрім
+   назви — див. offApply), а той самий товар двічі в базу не пускає. */
+
+/**
+ * Контрольна цифра GS1: цифри справа наліво з вагами 3,1,3,1… Один і той
+ * самий розрахунок для EAN-8, UPC-A, EAN-13 та ITF-14.
+ */
+function offCheckDigit(code) {
+  var body = code.slice(0, -1), sum = 0, w = 3;
+  for (var i = body.length - 1; i >= 0; i--) {
+    sum += +body.charAt(i) * w;
+    w = w === 3 ? 1 : 3;
+  }
+  return String((10 - sum % 10) % 10);
+}
+
+/**
+ * Розбирає введений штрихкод. Помилку краще показати одразу, ніж питати
+ * базу даремно: описка в цифрі дає таке саме «немає в базі», як і реально
+ * відсутній товар, і людина шукає проблему не там.
+ * Нестандартні довжини (напр. 11 цифр) пропускаємо — база вміє їх доповнювати.
+ */
+function offParseCode(raw) {
+  var s = String(raw || '').replace(/[\s\-–—]/g, '');
+  if (!s) return { err: 'len' };
+  if (/\D/.test(s)) return { err: 'chars' };
+  if (s.length < 8 || s.length > 14) return { err: 'len' };
+  if ([8, 12, 13, 14].indexOf(s.length) !== -1 && offCheckDigit(s) !== s.charAt(s.length - 1)) {
+    return { err: 'check' };
+  }
+  return { code: s };
+}
+
+function offNum(v) {
+  if (v == null || v === '') return null;
+  var n = num(v);
+  return n > 0 ? Math.round(n * 10) / 10 : (n === 0 ? 0 : null);
+}
+
+/** Теґ 'en:sesame-seeds' → наш ключ, наша назва або читабельний запас. */
+function offAllergenItems(tags) {
+  if (!Array.isArray(tags)) return [];
+  return tags.map(function (t) {
+    var key = String(t).replace(/^[a-z]{2}:/, '');
+    if (OFF_ALLERGENS[key]) return OFF_ALLERGENS[key];
+    var s = key.replace(/-/g, ' ').trim();
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  }).filter(Boolean);
+}
+
+/**
+ * Вага упаковки. Основне — числове product_quantity з одиницею; якщо його
+ * немає, розбираємо текст «400 g e». Кілограми й літри зводимо до г і мл,
+ * бо в застосунку одиниці саме такі. Часто ваги в базі просто немає.
+ */
+function offPack(prod) {
+  var v = num(prod.product_quantity);
+  var u = String(prod.product_quantity_unit || '').toLowerCase();
+  if (!(v > 0)) {
+    var m = String(prod.quantity || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*(kg|кг|g|г|ml|мл|l|л)\b/i);
+    if (m) { v = num(m[1]); u = m[2].toLowerCase(); }
+  }
+  if (!(v > 0) || v > 100000) return null;
+  if (u === 'kg' || u === 'кг') return { pack: v * 1000, unit: 'г' };
+  if (u === 'l' || u === 'л') return { pack: v * 1000, unit: 'мл' };
+  if (u === 'ml' || u === 'мл') return { pack: v, unit: 'мл' };
+  if (u === 'g' || u === 'г' || !u) return { pack: v, unit: 'г' };
+  return null;   // штуки, порції та інша екзотика — надійніше вписати руками
+}
+
+/** Витягує з відповіді лише те, що вміє показати застосунок. */
+function offRead(prod) {
+  var n = prod.nutriments || {};
+  var nut = {
+    kcal: offNum(n['energy-kcal_100g']),
+    prot: offNum(n.proteins_100g),
+    fat: offNum(n.fat_100g),
+    carb: offNum(n.carbohydrates_100g)
+  };
+  var has = NUT_KEYS.some(function (k) { return nut[k[0]] != null; });
+  return {
+    name: String(prod.product_name_uk || prod.product_name || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+    pack: offPack(prod),
+    nutrition: has ? nut : null,
+    allergens: offAllergenItems(prod.allergens_tags)
+  };
+}
+
+/** Назва й упаковка живуть у рядку продукту, а не в редакторі — оновлюємо їх там. */
+function offSyncRow(box, p) {
+  var tr = box.closest('tr');
+  var main = tr && tr.previousElementSibling;
+  if (main && main.getAttribute('data-id') === p.id) {
+    var nameInp = $('[data-f=name]', main);
+    var packInp = $('[data-f=pack]', main);
+    var unitSel = $('[data-f=unit]', main);
+    if (nameInp) nameInp.value = p.name;
+    if (packInp) packInp.value = qtyFmt(p.pack);
+    if (unitSel) unitSel.value = p.unit;
+    paintPeek(main, p.name, productSum(p));
+  }
+  if (box.id === 'nut-modal-edit') $('#nut-title').textContent = p.name || 'Продукт';
+  renderDatalist();
+}
+
+/* XHR, а не fetch: тут потрібен свій таймаут, а він у XHR вбудований.
+   done(err, product): err — 'none' (немає в базі), 'net' (не достукались). */
+function offLookup(code, done) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', OFF_URL + encodeURIComponent(code) +
+    '.json?fields=product_name,product_name_uk,quantity,product_quantity,product_quantity_unit,nutriments,allergens_tags', true);
+  xhr.timeout = 12000;
+  xhr.onload = function () {
+    // 404 — продукту справді немає; 500/503/429 — це збій на їхньому боці,
+    // і писати «немає в базі» було б брехнею: сервер просто не відповів
+    if (xhr.status === 404) { done('none'); return; }
+    if (xhr.status !== 200) { done('net'); return; }
+    var data = null;
+    try { data = JSON.parse(xhr.responseText); } catch (e) { /* нижче */ }
+    // Не JSON — щось не те зі звʼязком; валідна відповідь без продукту
+    // означає саме «немає в базі», навіть якщо код відповіді 200
+    if (!data) { done('net'); return; }
+    if (data.status !== 1 || !data.product) { done('none'); return; }
+    done(null, data.product);
+  };
+  xhr.onerror = function () { done('net'); };
+  xhr.ontimeout = function () { done('net'); };
+  xhr.send();
+}
+
+function offNote(box, html, warn) {
+  var el = $('[data-off-note]', box);
+  el.innerHTML = html || '';
+  el.className = 'off-note' + (warn ? ' is-warn' : '');
+  el.hidden = !html;
+}
+
+/**
+ * Пише знайдене в продукт. Новий штрихкод — новий продукт у цьому рядку,
+ * тож вага, КБЖУ й алергени просто заміняються, без запитань.
+ *
+ * Виняток — назва: її пишемо лише в порожнє поле. Рецепти знаходять продукт
+ * у базі за назвою (звірка цін, КБЖУ, алергени), і перейменування тихо
+ * відірвало б від нього збережені калькуляції.
+ *
+ * Алергени беруться з бази цілком: є список — ставимо його, немає — ставимо
+ * «Без алергенів» (рішення власника 16.09). Це єдине місце, де `[]` виникає
+ * не з рук людини, тому в примітці завжди стоїть прохання звірити з етикеткою:
+ * у Open Food Facts порожнє поле частіше означає «ніхто не вніс», ніж «немає».
+ */
+function offApply(box, p, d, code, onChange) {
+  var filled = [];
+  p.code = code;
+  if (d.name && !String(p.name || '').trim()) { p.name = d.name; filled.push('назву'); }
+  if (d.pack) {
+    p.pack = d.pack.pack;
+    p.unit = d.pack.unit;
+    filled.push('упаковку');
+  }
+  if (d.nutrition) { p.nutrition = d.nutrition; filled.push('КБЖУ'); }
+  p.allergens = d.allergens.length ? normalizeAllergens(d.allergens) : [];
+  if (d.allergens.length) filled.push('алергени');
+  normalizeProduct(p);
+  fillNutEditor(box, p);
+  offSyncRow(box, p);
+  persist();
+  onChange(p, box);
+
+  var tail = [];
+  // «Без алергенів» з бази — найризикованіше зі знайденого: просить звірки завжди
+  if (!d.allergens.length) tail.push('алергенів у базі немає, поставили «Без алергенів» — звірте з етикеткою');
+  if (!d.pack) tail.push('ваги упаковки в базі немає');
+  if (d.name && String(p.name || '').trim() && String(p.name).trim().toLowerCase() !== d.name.toLowerCase()) {
+    tail.push('у базі назва «' + esc(d.name) + '» — вашу лишили');
+  }
+  if (p.unit === 'шт' && !num(p.pieceWeight)) tail.push('впишіть вагу 1 шт');
+  offNote(box, 'Заповнено з Open Food Facts: <b>' + esc(d.name || 'без назви') + '</b>' +
+    (filled.length ? ' — ' + filled.join(', ') : '') + '. Перевірте значення' +
+    (tail.length ? ': ' + tail.join('; ') : '') + '.');
+}
+
+/**
+ * Чи є цей продукт у базі ще раз. За штрихкодом — надійно; за назвою — для
+ * продуктів, заведених до того, як штрихкоди почали зберігатись.
+ */
+function offDuplicate(p, code, name) {
+  var nm = String(name || '').trim().toLowerCase();
+  return S.products.filter(function (x) {
+    if (x.id === p.id) return false;
+    if (code && x.code === code) return true;
+    return !!nm && String(x.name || '').trim().toLowerCase() === nm;
+  })[0] || null;
+}
+
+var OFF_CODE_ERR = {
+  chars: 'У штрихкоді тільки цифри — перевірте, чи не закралась буква',
+  len: 'Штрихкод — це 8–14 цифр під смужками на упаковці',
+  check: 'Схоже, у штрихкоді помилка — звірте цифри з упаковкою'
+};
+
+function offSearch(box, p, onChange) {
+  var inp = $('[data-off-code]', box), btn = $('[data-off-find]', box);
+  var parsed = offParseCode(inp.value);
+  var code = parsed.code;
+  if (!code) {
+    offNote(box, OFF_CODE_ERR[parsed.err] || OFF_CODE_ERR.len, true);
+    inp.focus();
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Шукаю…';
+  offNote(box, '');
+  offLookup(code, function (err, prod) {
+    btn.disabled = false;
+    btn.textContent = 'Знайти';
+    if (err === 'none') {
+      // Це звичайна справа, а не збій: база неповна, багатьох товарів у ній просто немає
+      offNote(box, 'Немає в базі Open Food Facts — там є не всі товари. ' +
+        'Впишіть дані з етикетки вручну', true);
+      return;
+    }
+    if (err) {
+      offNote(box, 'Не вдалося звʼязатися з базою. Перевірте інтернет і спробуйте ще раз', true);
+      return;
+    }
+    var d = offRead(prod);
+    if (!d.nutrition && !d.allergens.length && !d.pack) {
+      offNote(box, 'Знайшли «' + esc(d.name || 'без назви') + '», але даних про нього в базі немає', true);
+      return;
+    }
+    // Той самий продукт двічі в базі — гірше, ніж незаповнений рядок: рецепти
+    // шукають продукт за назвою й натраплять на випадковий із двох
+    var dup = offDuplicate(p, code, d.name);
+    if (dup) {
+      offNote(box, '«' + esc(dup.name || 'без назви') + '» уже є в базі — не заповнювали, ' +
+        'щоб не було двох однакових продуктів. Видаліть цей рядок і правте той, що вже є', true);
+      return;
+    }
+    offApply(box, p, d, code, onChange);
+  });
+}
+
 function nutEditorHtml() {
-  return '<div class="nut-fields">' +
+  return '<div class="nut-off">' +
+      '<span class="nut-cap">Штрихкод</span>' +
+      '<span class="off-body">' +
+        '<span class="off-row">' +
+          // maxlength із запасом: 14 цифр плюс пробіли й дефіси, якщо їх набрали
+          // так, як надруковано на упаковці — offParseCode їх однаково прибере
+          '<input class="inp off-inp" data-off-code inputmode="numeric" enterkeyhint="search" ' +
+            'maxlength="20" autocomplete="off" placeholder="Цифри з упаковки">' +
+          '<button type="button" class="btn btn-soft off-btn" data-off-find>Знайти</button>' +
+        '</span>' +
+        '<span class="off-note" data-off-note hidden></span>' +
+      '</span>' +
+    '</div>' +
+    '<div class="nut-fields">' +
       '<span class="nut-cap">На 100 г</span>' +
       NUT_KEYS.map(function (n) {
         return '<label class="nut-f"><span>' + n[1] + '</span>' +
@@ -858,6 +1142,9 @@ function fillNutEditor(box, p) {
   $$('[data-n]', box).forEach(function (inp) {
     inp.value = nutFieldText(p, inp.getAttribute('data-n'));
   });
+  // Штрихкод показуємо той, з якого продукт заповнили — видно, що це за товар
+  var code = $('[data-off-code]', box);
+  if (code && p.code) code.value = p.code;
   $('[data-pw]', box).value = qtyFmt(num(p.pieceWeight));
   syncNutUnit(box, p);
   paintAllergens(box, p);
@@ -917,11 +1204,20 @@ function bindNutEditor(root, resolve, onChange) {
 
   root.addEventListener('click', function (e) {
     var c = ctx(e); if (!c) return;
+    if (e.target.closest('[data-off-find]')) { offSearch(c.box, c.p, onChange); return; }
     var chip = e.target.closest('[data-al]');
     if (chip) toggleAllergen(c.p, chip.getAttribute('data-al'));
     else if (e.target.closest('[data-al-none]')) toggleNoAllergens(c.p);
     else return;
     paintAllergens(c.box, c.p); persist(); onChange(c.p, c.box);
+  });
+
+  // Enter у полі штрихкода шукає — інакше форма просто нічого не робить
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.hasAttribute || !e.target.hasAttribute('data-off-code')) return;
+    var c = ctx(e); if (!c) return;
+    e.preventDefault();
+    offSearch(c.box, c.p, onChange);
   });
 
   // Свій алерген додається Enter-ом або виходом із поля
@@ -1536,6 +1832,13 @@ function renderBase() {
     : '';
   renderDatalist();
   updateBaseStale();
+  paintNutOffer();
+}
+
+/* Пропозиція ввімкнути КБЖУ — лише поки функція вимкнена й людину ще не питали.
+   Відмовились — більше не показуємо, вмикання лишається в налаштуваннях. */
+function paintNutOffer() {
+  $('#nut-offer').hidden = !!S.showNutrition || !!S.nutAsked;
 }
 
 /* Пропозиція підтягнути нові значення в раніше збережені калькуляції.
@@ -1606,12 +1909,37 @@ function refreshAllRecipes() {
   });
 }
 
+/**
+ * Інший продукт із такою ж назвою. Це не дрібниця: збережені калькуляції
+ * шукають продукт у базі за назвою — і натраплять на випадковий із двох.
+ */
+function sameNameProduct(p) {
+  var nm = String(p.name || '').trim().toLowerCase();
+  if (!nm) return null;
+  return S.products.filter(function (x) {
+    return x.id !== p.id && String(x.name || '').trim().toLowerCase() === nm;
+  })[0] || null;
+}
+
+function paintDup(tr, p) {
+  var el = $('[data-dup]', tr);
+  if (el) el.hidden = !sameNameProduct(p);
+}
+
+function paintAllDups() {
+  $$('#base-body tr[data-id]:not(.nut-row)').forEach(function (tr) {
+    var p = productById(tr.getAttribute('data-id'));
+    if (p) paintDup(tr, p);
+  });
+}
+
 function baseRow(p) {
   var tr = document.createElement('tr');
   tr.setAttribute('data-id', p.id);
   if (rowOpen[p.id]) tr.className = 'is-edit';
   tr.innerHTML =
-    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва продукту" autocomplete="off"></td>' +
+    '<td>' + peekHtml() + '<input class="inp" data-f="name" placeholder="Назва продукту" autocomplete="off">' +
+      '<span class="row-warn" data-dup hidden>Такий продукт уже є в базі — назви мають бути різними, інакше калькуляції плутатимуть їх</span></td>' +
     '<td data-lbl="Ціна"><input class="inp is-num" data-f="price" inputmode="decimal" autocomplete="off" placeholder="0,00"></td>' +
     '<td data-lbl="Упаковка"><input class="inp is-num" data-f="pack" inputmode="decimal" autocomplete="off" placeholder="0"></td>' +
     '<td class="t-mid" data-lbl="Одиниця">' + unitSelect(p.unit) + '</td>' +
@@ -1622,6 +1950,7 @@ function baseRow(p) {
   $('[data-f=pack]', tr).value = qtyFmt(p.pack);
   paintPeek(tr, p.name, productSum(p));
   paintNutBtn(tr, p);
+  paintDup(tr, p);
   return tr;
 }
 
@@ -1645,6 +1974,8 @@ function bindBase() {
     else if (f === 'price') p.price = num(e.target.value);
     else if (f === 'pack') p.pack = num(e.target.value);
     paintPeek(tr, p.name, productSum(p));
+    // Попередження про однакову назву стосується обох рядків, тож перемальовуємо всі
+    if (f === 'name') paintAllDups();
     persist();
     // підказка автопідстановки показує ціну й упаковку — оновлюємо за будь-якою правкою рядка, не тільки за назвою
     renderDatalist();
@@ -1695,14 +2026,33 @@ function bindBase() {
 
   /** toTop: кнопка над таблицею кладе рядок зверху, кнопка під таблицею — знизу. */
   function addProduct(toTop) {
-    var p = { id: uid('p'), name: '', price: 0, pack: 0, unit: 'г', nutrition: null, allergens: null, pieceWeight: 0 };
+    var p = { id: uid('p'), name: '', price: 0, pack: 0, unit: 'г', code: '', nutrition: null, allergens: null, pieceWeight: 0 };
     if (toTop) S.products.unshift(p); else S.products.push(p);
     rowOpen[p.id] = true;   // новий продукт одразу з відкритими полями — його ж прийшли заповнювати
+    // КБЖУ ввімкнено — редактор теж одразу: новий продукт заповнюють за раз,
+    // і зайвий тап по «КБЖУ» щоразу лише заважає
+    if (S.showNutrition) nutOpen[p.id] = true;
     $('#base-search').value = '';
     renderBase(); renderSidebar(); persist();
     var tr = $('#base-body tr[data-id="' + p.id + '"]');
     if (tr) { tr.scrollIntoView({ block: 'center' }); $('[data-f=name]', tr).focus(); }
   }
+  $('#nut-offer-on').addEventListener('click', function () {
+    S.showNutrition = true;
+    S.nutAsked = true;
+    applyNutrition();
+    paintNutOffer();
+    repaintNutPanels();
+    persist(true);
+    toast('Увімкнено. КБЖУ й алергени вносяться тут, у рядку продукту');
+  });
+
+  $('#nut-offer-off').addEventListener('click', function () {
+    S.nutAsked = true;
+    paintNutOffer();
+    persist(true);
+  });
+
   $('#btn-add-product').addEventListener('click', function () { addProduct(true); });
   $('#btn-add-product-2').addEventListener('click', function () { addProduct(false); });
   $$('[data-refresh-all]').forEach(function (b) { b.addEventListener('click', refreshAllRecipes); });
@@ -2552,7 +2902,7 @@ function loadCalc(rec, crumb) {
   var ib = $('#ing-body'); ib.innerHTML = '';
   var ing = (rec.ing || []).slice();
   var groups = rec.groups || [];
-  while (ing.length < 5) ing.push(null);              // стартово 5 рядків
+  if (!ing.length) ing.push(null);                    // порожня калькуляція — один рядок, а не купа полів
   // Шапка групи йде перед її першим складником — порядок рядків беремо зі стану
   var seenGroup = {};
   ing.forEach(function (i) {
@@ -2566,7 +2916,7 @@ function loadCalc(rec, crumb) {
 
   var eb = $('#exp-body'); eb.innerHTML = '';
   var exp = (rec.exp || []).slice();
-  while (exp.length < 3) exp.push(null);              // стартово 3 рядки
+  if (!exp.length) exp.push(null);                    // так само тут: далі додають кнопкою
   exp.forEach(function (e) { eb.appendChild(expRow(e)); });
 
   recalc();
@@ -3508,7 +3858,9 @@ function bindSettings() {
     var on = b.getAttribute('data-nut-val') === 'on';
     if (on === S.showNutrition) return;
     S.showNutrition = on;
+    S.nutAsked = true;            // рішення прийнято свідомо — пропозиція в базі більше не потрібна
     applyNutrition();
+    paintNutOffer();
     persist(true);
     if (on) {
       repaintNutPanels();
