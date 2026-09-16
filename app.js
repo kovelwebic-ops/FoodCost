@@ -1352,10 +1352,11 @@ function calcNutPer(d, nu) {
 }
 
 /**
- * Поле «Вага готового виробу». Поки людина не вписала своє число, воно само
- * показує суму інгредієнтів — сірим, щоб було видно, що це підставлене.
- * Своє число вже не перезаписується; кнопка під полем повертає суму.
+ * Поле «Вага виробу» в шапці калькуляції, у кілограмах. Поки людина не вписала
+ * своє число, воно само показує суму інгредієнтів — сірим, щоб було видно, що
+ * це підставлене. Своє число вже не перезаписується; кнопка поруч повертає суму.
  * Ручне значення позначає data-manual: саме його, а не текст поля, читає readCalc().
+ * mass — у грамах, як і outWeight у рецепті.
  */
 function paintOutWeight(mass, force) {
   var ow = $('#calc-outw'), reset = $('#calc-outw-reset');
@@ -1363,25 +1364,56 @@ function paintOutWeight(mass, force) {
   if (!ow.dataset.manual) {
     // Під час набору не підміняємо текст під пальцем. force — з blur: там
     // activeElement ще може вказувати на саме поле, і суму б не підставило
-    if (force || document.activeElement !== ow) ow.value = auto ? qtyFmt(auto) : '';
+    if (force || document.activeElement !== ow) ow.value = auto ? qtyFmt(auto / 1000) : '';
     ow.classList.add('is-auto');
     reset.hidden = true;
     return;
   }
   ow.classList.remove('is-auto');
-  var differs = auto > 0 && Math.abs(num(ow.value) - auto) >= 1;
+  var differs = auto > 0 && Math.abs(num(ow.value) * 1000 - auto) >= 1;
   reset.hidden = !differs;
-  if (differs) reset.textContent = 'Сума інгредієнтів — ' + qtyFmt(auto) + ' г';
+  if (differs) reset.textContent = 'Сума інгредієнтів — ' + qtyFmt(auto / 1000) + ' кг';
+}
+
+/** Вага, від якої рахує перерахунок: своя, якщо вписана, інакше сума інгредієнтів. У грамах. */
+function calcBaseWeight() {
+  var ow = $('#calc-outw');
+  if (ow.dataset.manual) return Math.round(num(ow.value) * 1000);
+  return Math.round(nutritionOf(readCalc().ing).mass);
+}
+
+/**
+ * Перерахунок калькуляції на іншу вагу: кожна кількість множиться на один
+ * коефіцієнт. Ціни упаковок не чіпаємо — вони від ваги торта не залежать, тож
+ * вартість рядків зміниться сама. Фіксовані витрати теж лишаються: коробка
+ * одна на торт, хоч 1 кг, хоч 3. Відсоткові перерахуються від нової собівартості.
+ * Напівфабрикату множимо й «скільки взяти», і data-take — інакше наступна
+ * правка «Взяти» перерахувала б складники від старого числа.
+ */
+function scaleCalc(toG, fromG) {
+  var k = toG / fromG;
+  ingRows().forEach(function (tr) {
+    var q = $('[data-f=qty]', tr);
+    if (num(q.value) > 0) q.value = qtyFmt(num(q.value) * k);
+  });
+  grpRows().forEach(function (gtr) {
+    var take = num(gtr.getAttribute('data-take')) * k;
+    gtr.setAttribute('data-take', take);
+    $('[data-grp-take]', gtr).value = qtyFmt(take);
+  });
+  var ow = $('#calc-outw');
+  ow.dataset.manual = '1';
+  ow.value = qtyFmt(toG / 1000);
+  recalc();
 }
 
 function paintCalcNut(d) {
   if (!S.showNutrition) return;
   var nu = nutritionOf(d.ing);
-  paintOutWeight(nu.mass);
   $('#calc-nut-body').innerHTML = nutPanelHtml(nu, calcNutPer(d, nu), {
     whole: 'Весь виріб',
     empty: 'Додайте інгредієнти — тут зʼявиться харчова цінність і алергени.',
-    approx: 'Вага виробу — сума інгредієнтів, без урахування упікання. Впишіть вагу після випікання — буде точно.'
+    approx: 'Вага виробу — сума інгредієнтів, без урахування упікання. Впишіть вагу після випікання вгорі калькуляції — буде точно.'
   });
 }
 
@@ -1498,6 +1530,8 @@ function ask(opts, cb) {
   inp.hidden = !useInput;
   inp.value = opts.value || '';
   inp.placeholder = opts.placeholder || '';
+  // Вікно одне на всі запити: числу — цифрова клавіатура, назві папки — звичайна
+  inp.setAttribute('inputmode', opts.inputmode || 'text');
   var okBtn = $('#ask-ok');
   okBtn.textContent = opts.ok || 'Готово';
   okBtn.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
@@ -2717,8 +2751,9 @@ function readCalc() {
     name: $('#calc-name').value.trim(),
     photo: calcPhoto,
     margin: num($('#margin-inp').value),
-    // Підставлена сума інгредієнтів — не значення рецепта: 0 означає «рахувати самим»
-    outWeight: $('#calc-outw').dataset.manual ? num($('#calc-outw').value) : 0,
+    // Підставлена сума інгредієнтів — не значення рецепта: 0 означає «рахувати самим».
+    // У полі кілограми, у рецепті — грами, як і всі ваги застосунку
+    outWeight: $('#calc-outw').dataset.manual ? Math.round(num($('#calc-outw').value) * 1000) : 0,
     ing: ingRows().map(function (tr) {
       var g = tr.getAttribute('data-g');
       var o = {
@@ -2856,6 +2891,8 @@ function recalc() {
   });
 
   paintReceipt(t, d.margin);
+  // Вага виробу — у шапці й потрібна всім, а не лише з увімкненим КБЖУ
+  paintOutWeight(nutritionOf(d.ing).mass);
   paintCalcNut(d);
 
   S.draft = cleanRecipe(d);
@@ -2894,8 +2931,9 @@ function loadCalc(rec, crumb) {
   $('#calc-crumb').textContent = crumb;
   $('#margin-inp').value = qtyFmt(rec.margin != null ? rec.margin : 50) || '0';
   var ow = $('#calc-outw');
-  if (num(rec.outWeight) > 0) { ow.dataset.manual = '1'; ow.value = qtyFmt(num(rec.outWeight)); }
+  if (num(rec.outWeight) > 0) { ow.dataset.manual = '1'; ow.value = qtyFmt(num(rec.outWeight) / 1000); }
   else { delete ow.dataset.manual; ow.value = ''; }   // суму інгредієнтів підставить recalc()
+  $('#calc-scaled').hidden = true;                    // інша калькуляція — питання про перерахунок уже не її
 
   setPhoto(rec.photo || null);
 
@@ -3110,6 +3148,43 @@ function bindCalc() {
     ow.value = '';
     recalc();
   });
+
+  $('#btn-scale').addEventListener('click', function () {
+    var from = calcBaseWeight();
+    if (!(from > 0)) {
+      toast('Спершу вкажіть вагу виробу — від неї рахується перерахунок');
+      ow.focus();
+      return;
+    }
+    // Перерахована збережена калькуляція — окреме питання: лишити базову чи замінити
+    var wasSaved = !!S.ui.editing;
+    ask({
+      title: 'Перерахувати на іншу вагу',
+      sub: 'Зараз — ' + qtyFmt(from / 1000) + ' кг. Грамовки зміняться пропорційно, фіксовані витрати лишаться як є.',
+      placeholder: 'Нова вага, кг',
+      inputmode: 'decimal',
+      ok: 'Перерахувати'
+    }, function (v) {
+      var to = Math.round(num(v) * 1000);
+      if (!(to > 0)) { toast('Вкажіть вагу в кілограмах, наприклад 2,5'); return; }
+      closeAsk();
+      if (to === from) return;
+      scaleCalc(to, from);
+      if (wasSaved) {
+        $('#calc-scaled-txt').textContent = 'Перераховано з ' + qtyFmt(from / 1000) + ' кг на ' + qtyFmt(to / 1000) + ' кг';
+        $('#calc-scaled').hidden = false;
+      } else {
+        toast('Перераховано на ' + qtyFmt(to / 1000) + ' кг');
+      }
+    });
+  });
+
+  // «Замінити цю» — звичайне збереження поверх; смугу прибере саме збереження
+  $('#btn-scaled-replace').addEventListener('click', function () { openSaveModal(false); });
+
+  // «Зберегти як нову»: базова лишається в папці, до назви дописується вага —
+  // інакше в папці стояли б дві однакові картки. Застосовується при підтвердженні
+  $('#btn-scaled-new').addEventListener('click', function () { openSaveModal(true); });
   $('#margin-quick').addEventListener('click', function (e) {
     var b = e.target.closest('[data-m]'); if (!b) return;
     $('#margin-inp').value = b.getAttribute('data-m');
@@ -3407,6 +3482,30 @@ function bindPhoto() {
 /* ═════════════════ 13. Збереження в папку ═════════════════ */
 
 var pickedFolderId = null;
+/* Модалку відкрили через «Зберегти як нову». Відвʼязка від оригіналу й нова назва
+   застосовуються лише в момент підтвердження: скасували — калькуляція лишилась
+   тією самою, і «Замінити цю» справді замінить оригінал, а не створить копію. */
+var saveAsNew = false;
+
+/** «Медовик 1 кг» → «Медовик 2,5 кг»: стару вагу в кінці назви замінюємо, а не дописуємо поруч. */
+function scaledName(name) {
+  var base = String(name || '').replace(/\s*\d+(?:[.,]\d+)?\s*кг\s*$/i, '').trim();
+  return (base || 'Калькуляція') + ' ' + qtyFmt(num($('#calc-outw').value)) + ' кг';
+}
+
+function openSaveModal(asNew) {
+  var d = cleanRecipe(readCalc());
+  if (!d.name) { toast('Спочатку вкажіть назву страви'); $('#calc-name').focus(); return; }
+  if (!d.ing.length) { toast('Додайте хоча б один інгредієнт'); return; }
+
+  saveAsNew = !!asNew;
+  var updating = !!S.ui.editing && !saveAsNew;
+  $('#save-title').textContent = updating ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';
+  $('#save-sub').textContent = '«' + (saveAsNew ? scaledName(d.name) : d.name) + '» — оберіть папку';
+  buildSaveList();   // папку пропонує ту саму, що в оригіналу: editing ще не чіпали
+  $('#save-confirm').textContent = updating ? 'Оновити' : 'Зберегти';
+  $('#save-overlay').classList.add('is-on');
+}
 
 function buildSaveList() {
   var list = $('#save-folders');
@@ -3433,17 +3532,7 @@ function buildSaveList() {
 function bindSave() {
   var ov = $('#save-overlay');
 
-  $('#btn-save').addEventListener('click', function () {
-    var d = cleanRecipe(readCalc());
-    if (!d.name) { toast('Спочатку вкажіть назву страви'); $('#calc-name').focus(); return; }
-    if (!d.ing.length) { toast('Додайте хоча б один інгредієнт'); return; }
-
-    $('#save-title').textContent = S.ui.editing ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';
-    $('#save-sub').textContent = '«' + d.name + '» — оберіть папку';
-    buildSaveList();
-    $('#save-confirm').textContent = S.ui.editing ? 'Оновити' : 'Зберегти';
-    ov.classList.add('is-on');
-  });
+  $('#btn-save').addEventListener('click', function () { openSaveModal(false); });
 
   $('#save-folders').addEventListener('click', function (e) {
     if (e.target.closest('#save-new-folder')) {
@@ -3474,7 +3563,10 @@ function bindSave() {
     if (!target) { toast('Папку не знайдено'); return; }
 
     var d = cleanRecipe(readCalc());
-    var ed = S.ui.editing;
+    // «Зберегти як нову» — лише тепер, після підтвердження: нова назва й без оригіналу
+    var ed = saveAsNew ? null : S.ui.editing;
+    if (saveAsNew) { d.name = scaledName(d.name); $('#calc-name').value = d.name; }
+    saveAsNew = false;
 
     if (ed) {
       var old = folderById(ed.folderId);
@@ -3501,6 +3593,7 @@ function bindSave() {
     replaceNav();         // крок історії тепер про збережений рецепт, а не про чернетку
     draftDirty = false;   // збережено — попереджати про втрату вже нема про що
     updateSaveBtn();
+    $('#calc-scaled').hidden = true;   // перераховану версію збережено — питання закрите
     ov.classList.remove('is-on');
     renderSidebar();
     if (S.ui.folderId === target.id) renderFolder();
@@ -3512,6 +3605,14 @@ function bindSave() {
 }
 
 /* ═════════════════ 14. Експорт PDF (А4) ═════════════════ */
+
+/** Техкарта без ваги виробу неповна: «на скільки» — перше, що питають. Суму позначаємо «≈». */
+function pdfWeightLine(d) {
+  var g = num(d.outWeight), approx = false;
+  if (!(g > 0)) { g = Math.round(nutritionOf(d.ing).mass); approx = true; }
+  if (!(g > 0)) return '';
+  return '<div class="pdf-weight">Вага виробу: ' + (approx ? '≈ ' : '') + qtyFmt(g / 1000) + ' кг</div>';
+}
 
 /**
  * Тіло таблиці інгредієнтів: кожна група — окремий <tbody>, суцільні
@@ -3575,6 +3676,7 @@ function buildPdfDoc(d, t) {
 
     // Фото поки свідомо не йде в експорт — повернемо пізніше
     '<h1 class="pdf-title">' + esc(d.name || 'Калькуляція') + '</h1>' +
+    pdfWeightLine(d) +
 
     '<section class="pdf-block">' +
       '<h2 class="pdf-sec">Інгредієнти</h2>' +

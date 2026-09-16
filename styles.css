@@ -471,6 +471,19 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .save-state.is-warn { color: var(--danger); font-weight: 600; }
 
 .calc-titlebar { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 34px; }
+
+/* Вага виробу під назвою: одне поле на всю калькуляцію (і для КБЖУ, і для
+   перерахунку), тож ближче до назви, а відступ до інгредієнтів — уже після нього */
+#s-calc .calc-titlebar { margin-bottom: 14px; }
+.calc-weight { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 28px; }
+.calc-weight-field { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--fg-2); }
+.calc-weight-field .qty-wrap { width: 116px; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field); }
+.calc-weight-field .qty-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+.calc-weight-field .inp { height: 36px; padding: 0 30px 0 10px; }
+.calc-weight-field .inp:focus { border-color: transparent; box-shadow: none; }
+/* Сума інгредієнтів, підставлена сама, — сірим: видно, що число не вписане руками */
+.calc-weight-field .inp.is-auto { color: var(--muted); }
+.calc-weight-reset { font-size: 12.5px; }
 .title-inp {
   flex: 1; min-width: 0; margin-left: -10px; padding: 6px 10px; border: 1px solid transparent;
   border-radius: var(--r-m); font-size: 34px; font-weight: 700; letter-spacing: -.028em;
@@ -612,14 +625,6 @@ html:not(.nut-on) .nut-only { display: none !important; }
 
 .panel-nut { margin-bottom: 20px; }
 .panel-nut .panel-head { align-items: center; min-height: 54px; padding-top: 8px; padding-bottom: 8px; }
-.nut-out-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.nut-out { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg-3); }
-/* Сума інгредієнтів, підставлена сама, — сірим: видно, що число не вписане руками */
-.nut-out .inp.is-auto { color: var(--muted); }
-.nut-out-reset { font-size: 12.5px; }
-.nut-out .qty-wrap { width: 116px; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field); }
-.nut-out .inp { height: 34px; padding: 0 28px 0 10px; }
-.nut-out .inp:focus { border-color: transparent; box-shadow: none; }
 .nut-body {
   display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 18px 40px;
   align-items: start; padding: 14px 20px 18px;
@@ -793,6 +798,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .pdf-head { padding-bottom: .66em; border-bottom: 2px solid #1b1a17; }
 .pdf-brand { font-size: 1.17em; font-weight: 700; letter-spacing: -.01em; }
 .pdf-title { font-size: 1.92em; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin: 1.66em 0 1.5em; }
+/* Від'ємний верх — рядок ваги стоїть під назвою, а не на відстані цілого блоку */
+.pdf-weight { margin: -1.1em 0 1.5em; font-size: 1.04em; color: #55524b; }
 
 /* Рамка блока навмисно важча за внутрішні лінії рядків —
    інакше блоки зливаються з таблицею в суцільну сітку. */
@@ -900,6 +907,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* Поруч із кнопкою тексту лишається смужка на три рядки — краще в стовпчик */
   .stale-bar { flex-direction: column; align-items: stretch; gap: 12px; }
   .stale-bar .btn { width: 100%; }
+  /* Дві кнопки в смузі перерахунку: з width:100% кожна в одному рядку вони
+     разом ставали вдвічі ширші за екран і тягнули сторінку вбік — стовпчиком */
+  .scaled-bar .btn-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .nut-offer { flex-direction: column; align-items: stretch; gap: 12px; }
   .nut-offer .btn-row .btn { flex: 1; }
   .nut-body { grid-template-columns: 1fr; }
@@ -1158,7 +1168,11 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .panel-head .h2, .panel-margin > .h2, .panel-yield .h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
   .panel-sum { font-size: 0; gap: 0; }
   .panel-sum b { font-size: 16px; }
-  .nut-out-wrap { align-items: flex-start; }
+  .calc-weight { margin-bottom: 16px; gap: 10px; }
+  .calc-weight-field { flex: 1 1 auto; justify-content: space-between; }
+  .calc-weight-field .inp { height: 40px; }
+  /* Кнопка перерахунку — окремим рядком на всю ширину: поруч із полем не влазить */
+  #btn-scale { flex: 1 1 100%; }
   .panel-foot { padding: 12px 14px; }
 
   /* ── Папка ── */

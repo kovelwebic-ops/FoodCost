@@ -371,6 +371,30 @@
       <input type="file" id="photo-input" accept="image/*" hidden>
     </div>
 
+    <!-- Вага виробу — одна на калькуляцію. У полі кілограми, у рецепті зберігаються
+         грами (outWeight, 0 = «сума інгредієнтів»). Від неї рахує й перерахунок, і КБЖУ. -->
+    <div class="calc-weight">
+      <label class="calc-weight-field">
+        <span>Вага виробу</span>
+        <span class="qty-wrap">
+          <input class="inp is-num" id="calc-outw" inputmode="decimal" autocomplete="off" placeholder="—">
+          <span class="unit-tag">кг</span>
+        </span>
+      </label>
+      <!-- Поза label: кнопка всередині нього фокусувала б поле замість скидання -->
+      <button type="button" class="link-btn calc-weight-reset" id="calc-outw-reset" hidden></button>
+      <button type="button" class="btn-dash" id="btn-scale">Перерахувати на іншу вагу</button>
+    </div>
+
+    <!-- Після перерахунку збереженої калькуляції: базову лишити чи замінити -->
+    <div class="stale-bar scaled-bar" id="calc-scaled" hidden>
+      <span class="stale-txt" id="calc-scaled-txt"></span>
+      <span class="btn-row">
+        <button class="btn" id="btn-scaled-new">Зберегти як нову</button>
+        <button class="btn btn-soft" id="btn-scaled-replace">Замінити цю</button>
+      </span>
+    </div>
+
     <div class="stale-bar" id="calc-stale" hidden>
       <span class="stale-txt" id="calc-stale-txt"></span>
       <button class="btn btn-soft" id="btn-refresh-calc">Перерахувати</button>
@@ -445,17 +469,6 @@
     <div class="panel panel-nut nut-only" id="calc-nut">
       <div class="panel-head">
         <h2 class="h2">Харчова цінність</h2>
-        <span class="nut-out-wrap">
-          <label class="nut-out">
-            <span>Вага готового виробу</span>
-            <span class="qty-wrap">
-              <input class="inp is-num" id="calc-outw" inputmode="decimal" autocomplete="off" placeholder="—">
-              <span class="unit-tag">г</span>
-            </span>
-          </label>
-          <!-- Поза label: кнопка всередині нього фокусувала б поле замість скидання -->
-          <button type="button" class="link-btn nut-out-reset" id="calc-outw-reset" hidden></button>
-        </span>
       </div>
       <div id="calc-nut-body"></div>
     </div>
@@ -602,6 +615,8 @@
           <li><b>Разовий продукт</b>, якого немає в базі, — впишіть назву, ціну й упаковку в рядку вручну. Його не оновить «Перерахувати», і КБЖУ для нього не буде.</li>
           <li><b>Додаткові витрати</b> — так само, з бази витрат.</li>
           <li><b>Маржа</b> — скільки заробити зверху, у відсотках.</li>
+          <li><b>Вага виробу</b> — під назвою, у кілограмах. Порожнє поле — застосунок бере суму інгредієнтів, але після випікання виріб легший, тож краще вписати свою.</li>
+          <li><b>Перерахувати на іншу вагу</b> — торт на 1&nbsp;кг, а замовили 2,5&nbsp;кг: усі грамовки й ціна зміняться пропорційно, фіксовані витрати (коробка, доставка) лишаться як є. Збережену калькуляцію можна «Зберегти як нову» — базова лишиться в папці.</li>
         </ul>
         <p>У «Підсумку» — собівартість, витрати й ціна продажу, а під нею підказка, до скількох зручно округлити.</p>
         <p>На телефоні рядки згорнуті — торкніться рядка, щоб змінити його.</p>
