@@ -1055,7 +1055,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .peek-caret { grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 16px; height: 16px; }
   .peek-caret svg { width: 15px; height: 15px; fill: none; stroke: var(--dim); stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
   .row-fold {
-    flex: 0 0 40px; place-items: center; height: 40px;
+    flex: 0 0 40px; place-items: center; height: 40px; padding: 0;
     border: 0; border-radius: var(--r-s); background: transparent; color: var(--muted); cursor: pointer;
   }
   .row-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; transform: rotate(180deg); }
@@ -1090,8 +1090,10 @@ html:not(.nut-on) .nut-only { display: none !important; }
      рядок і збивало шеврон під себе, у лівий кут */
   #base-body tr.is-edit [data-f="name"],
   #expbase-body tr.is-edit [data-f="name"] { order: 1; flex: 1 1 0; width: auto; min-width: 0; }
+  /* place-items ...end: кнопка ширша за іконку заради дотику, тож по центру
+     іконка стояла б на 12px лівіше за шеврон згорнутої картки — і стрибала б */
   #base-body tr.is-edit .row-fold,
-  #expbase-body tr.is-edit .row-fold { order: 2; }
+  #expbase-body tr.is-edit .row-fold { order: 2; place-items: center end; }
   #base-body tr.is-edit .row-peek,
   #expbase-body tr.is-edit .row-peek { display: none; }
   #base-body tr.is-edit .row-fold,
@@ -1152,7 +1154,11 @@ html:not(.nut-on) .nut-only { display: none !important; }
   #ing-body tr.is-edit > td:first-child,
   #prep-ing-body tr.is-edit > td:first-child, #exp-body tr.is-edit > td:first-child { display: flex; align-items: center; gap: 6px; }
   #ing-body tr.is-edit [data-f="name"], #prep-ing-body tr.is-edit [data-f="name"], #exp-body tr.is-edit [data-f="name"] { order: 1; }
-  #ing-body tr.is-edit .row-fold, #prep-ing-body tr.is-edit .row-fold, #exp-body tr.is-edit .row-fold { order: 2; display: grid; }
+  /* Той самий зсув, що й у шеврона згорнутого рядка (.peek-caret), — інакше
+     іконка переїжджає вбік у момент відкриття */
+  #ing-body tr.is-edit .row-fold, #prep-ing-body tr.is-edit .row-fold, #exp-body tr.is-edit .row-fold {
+    order: 2; display: grid; place-items: center end; margin-right: -3.6px;
+  }
   #ing-body tr.is-edit, #prep-ing-body tr.is-edit, #exp-body tr.is-edit { background: var(--panel-2); }
 
   /* Службові рядки — на всю ширину картки */
