@@ -1085,9 +1085,11 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* Попередження — окремим рядком під назвою: у флекс-рядку воно ставало
      сусідом поля й тиснуло назву до третини ширини */
   #base-body tr.is-edit .row-warn { order: 3; flex: 1 1 100%; margin: 0; }
-  /* Шеврон лишається праворуч, як і в згорнутому стані — інакше він стрибає */
+  /* Шеврон лишається праворуч, як і в згорнутому стані — інакше він стрибає.
+     Полю треба flex, а не його власні width: 100%: з ними воно займало весь
+     рядок і збивало шеврон під себе, у лівий кут */
   #base-body tr.is-edit [data-f="name"],
-  #expbase-body tr.is-edit [data-f="name"] { order: 1; }
+  #expbase-body tr.is-edit [data-f="name"] { order: 1; flex: 1 1 0; width: auto; min-width: 0; }
   #base-body tr.is-edit .row-fold,
   #expbase-body tr.is-edit .row-fold { order: 2; }
   #base-body tr.is-edit .row-peek,

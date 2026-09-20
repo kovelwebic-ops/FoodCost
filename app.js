@@ -1275,14 +1275,22 @@ function toggleNutRow(tr) {
   var next = tr.nextElementSibling;
   if (nutOpen[p.id]) {
     delete nutOpen[p.id];
-    if (next && next.classList.contains('nut-row')) next.remove();
+    if (next && next.classList.contains('nut-row')) {
+      var leaving = next;
+      collapseRow(leaving, function () { leaving.remove(); });
+    }
   } else {
     nutOpen[p.id] = true;
     // Редактор КБЖУ живе всередині картки продукту — згорнута картка з
     // відкритим редактором під нею виглядала б як поля нізвідки
     rowOpen[p.id] = true;
     tr.classList.add('is-edit');
-    tr.parentNode.insertBefore(nutRow(p), next);
+    // Швидко тицьнули «КБЖУ» двічі — попередній редактор ще згортається;
+    // прибираємо його одразу, інакше під карткою лишилося б два
+    if (next && next.classList.contains('nut-row')) { next.remove(); next = tr.nextElementSibling; }
+    var row = nutRow(p);
+    tr.parentNode.insertBefore(row, next);
+    expandRow(row);
   }
   paintNutBtn(tr, p);
 }
@@ -1924,6 +1932,55 @@ function expRowSum(e) {
   return e.value > 0 ? qtyFmt(e.value) + ' % від собівартості' : 'Відсоток не вказаний';
 }
 
+/* ── Розкриття карток ──────────────────────────────────────────
+   Анімуємо саму висоту рядка й нічого більше: один короткий перехід на
+   картку, без тіней і трансформацій, тож навіть на слабкому телефоні це
+   недорого. «Зменшити рух» у системі вимикає анімацію повністю.
+   На широкому екрані карток немає — рядок там звичайний рядок таблиці,
+   і його висоту анімувати ні до чого. */
+
+var ROW_MOTION = { duration: 170, easing: 'cubic-bezier(.2,.7,.3,1)' };
+
+function rowMotionOff(row) {
+  return calmMotion() || !row.animate || getComputedStyle(row).display !== 'grid';
+}
+
+/** apply() міняє вміст рядка, а ми проводимо висоту від старої до нової. */
+function animateRow(row, apply) {
+  if (rowMotionOff(row)) { apply(); return; }
+  var from = row.getBoundingClientRect().height;
+  apply();
+  var to = row.getBoundingClientRect().height;
+  if (Math.abs(to - from) < 2) return;
+  playRowMotion(row, from, to);
+}
+
+/** Новий рядок (редактор КБЖУ) виїжджає з нуля, а не зʼявляється ривком. */
+function expandRow(row) {
+  if (rowMotionOff(row)) return;
+  playRowMotion(row, 0, row.getBoundingClientRect().height);
+}
+
+/** Згортає рядок і лише потім віддає його — done зазвичай прибирає рядок із DOM. */
+function collapseRow(row, done) {
+  if (rowMotionOff(row)) { done(); return; }
+  playRowMotion(row, row.getBoundingClientRect().height, 0).onfinish = done;
+}
+
+function playRowMotion(row, from, to) {
+  // Тицьнули ще раз, поки їде попередня — знімаємо її одразу, інакше вона
+  // потім зніме overflow уже під новою анімацією й рядок смикнеться
+  row.getAnimations().forEach(function (a) { a.cancel(); });
+  row.style.overflow = 'hidden';
+  var anim = row.animate(
+    [{ height: from + 'px', opacity: from ? 1 : 0 }, { height: to + 'px', opacity: to ? 1 : 0 }],
+    ROW_MOTION
+  );
+  anim.addEventListener('finish', function () { row.style.overflow = ''; });
+  anim.addEventListener('cancel', function () { row.style.overflow = ''; });
+  return anim;
+}
+
 /** Розгортає/згортає картку. Разом із карткою ховається і редактор КБЖУ:
     лишити його відкритим під згорнутим рядком — значить показати поля нізвідки. */
 function toggleRowCard(tr) {
@@ -1932,10 +1989,12 @@ function toggleRowCard(tr) {
   var id = tr.getAttribute('data-id');
   var open = !tr.classList.contains('is-edit');
   if (id) { if (open) rowOpen[id] = true; else delete rowOpen[id]; }
-  tr.classList.toggle('is-edit', open);
-  var b = $('.row-peek', tr);
-  if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (!open && id && nutOpen[id]) toggleNutRow(tr);
+  animateRow(tr, function () {
+    tr.classList.toggle('is-edit', open);
+    var b = $('.row-peek', tr);
+    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (!open && id && nutOpen[id]) toggleNutRow(tr);
+  });
   if (open) {
     var n = $('[data-f=name]', tr);
     if (n && !n.value) n.focus();
