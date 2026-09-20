@@ -843,9 +843,8 @@ function offCheckDigit(code) {
 }
 
 /**
- * Розбирає введений штрихкод. Помилку краще показати одразу, ніж питати
- * базу даремно: описка в цифрі дає таке саме «немає в базі», як і реально
- * відсутній товар, і людина шукає проблему не там.
+ * Розбирає введений штрихкод. Одразу зупиняємо лише те, що точно не штрихкод:
+ * букви або зовсім інша довжина — інакше людина чекає відповіді бази даремно.
  * Нестандартні довжини (напр. 11 цифр) пропускаємо — база вміє їх доповнювати.
  */
 function offParseCode(raw) {
@@ -853,10 +852,11 @@ function offParseCode(raw) {
   if (!s) return { err: 'len' };
   if (/\D/.test(s)) return { err: 'chars' };
   if (s.length < 8 || s.length > 14) return { err: 'len' };
-  if ([8, 12, 13, 14].indexOf(s.length) !== -1 && offCheckDigit(s) !== s.charAt(s.length - 1)) {
-    return { err: 'check' };
-  }
-  return { code: s };
+  // Контрольна цифра — підказка, а не заборона: у коротких кодів (UPC-E) вона
+  // рахується інакше, та й внутрішні коди магазинів її не дотримуються. Шукаємо
+  // однаково, а не збіглась — згадаємо про неї, лише якщо товару не знайшли
+  var weak = [8, 12, 13, 14].indexOf(s.length) !== -1 && offCheckDigit(s) !== s.charAt(s.length - 1);
+  return { code: s, weak: weak };
 }
 
 function offNum(v) {
@@ -865,14 +865,16 @@ function offNum(v) {
   return n > 0 ? Math.round(n * 10) / 10 : (n === 0 ? 0 : null);
 }
 
-/** Теґ 'en:sesame-seeds' → наш ключ, наша назва або читабельний запас. */
+/**
+ * Теґ 'en:sesame-seeds' → наш ключ або наша назва. Незнайомі теґи пропускаємо:
+ * у базі до товарів дописують місцеві позначки («pl:śmietanka», «pl:twaróg»),
+ * а це те саме молоко іншою мовою — у списку з них виходило сміття, ще й
+ * осідало в «своїх алергенах» усієї бази.
+ */
 function offAllergenItems(tags) {
   if (!Array.isArray(tags)) return [];
   return tags.map(function (t) {
-    var key = String(t).replace(/^[a-z]{2}:/, '');
-    if (OFF_ALLERGENS[key]) return OFF_ALLERGENS[key];
-    var s = key.replace(/-/g, ' ').trim();
-    return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+    return OFF_ALLERGENS[String(t).replace(/^[a-z]{2}:/, '')] || '';
   }).filter(Boolean);
 }
 
@@ -910,7 +912,10 @@ function offRead(prod) {
     name: String(prod.product_name_uk || prod.product_name || '').replace(/\s+/g, ' ').trim().slice(0, 60),
     pack: offPack(prod),
     nutrition: has ? nut : null,
-    allergens: offAllergenItems(prod.allergens_tags)
+    allergens: offAllergenItems(prod.allergens_tags),
+    // Скільки позначок було в базі взагалі: якщо вони є, а ми жодної не впізнали,
+    // ставити «Без алергенів» не можна — алергени там якраз указані
+    alTags: (prod.allergens_tags || []).length
   };
 }
 
@@ -986,8 +991,8 @@ function offApply(box, p, d, code, onChange) {
     filled.push('упаковку');
   }
   if (d.nutrition) { p.nutrition = d.nutrition; filled.push('КБЖУ'); }
-  p.allergens = d.allergens.length ? normalizeAllergens(d.allergens) : [];
-  if (d.allergens.length) filled.push('алергени');
+  if (d.allergens.length) { p.allergens = normalizeAllergens(d.allergens); filled.push('алергени'); }
+  else if (!d.alTags) p.allergens = [];   // у базі порожньо — це і є «Без алергенів»
   normalizeProduct(p);
   fillNutEditor(box, p);
   offSyncRow(box, p);
@@ -996,7 +1001,8 @@ function offApply(box, p, d, code, onChange) {
 
   var tail = [];
   // «Без алергенів» з бази — найризикованіше зі знайденого: просить звірки завжди
-  if (!d.allergens.length) tail.push('алергенів у базі немає, поставили «Без алергенів» — звірте з етикеткою');
+  if (!d.allergens.length && !d.alTags) tail.push('алергенів у базі немає, поставили «Без алергенів» — звірте з етикеткою');
+  if (!d.allergens.length && d.alTags) tail.push('алергени в базі записані незрозуміло — впишіть їх з етикетки');
   if (!d.pack) tail.push('ваги упаковки в базі немає');
   if (d.name && String(p.name || '').trim() && String(p.name).trim().toLowerCase() !== d.name.toLowerCase()) {
     tail.push('у базі назва «' + esc(d.name) + '» — вашу лишили');
@@ -1022,8 +1028,7 @@ function offDuplicate(p, code, name) {
 
 var OFF_CODE_ERR = {
   chars: 'У штрихкоді тільки цифри — перевірте, чи не закралась буква',
-  len: 'Штрихкод — це 8–14 цифр під смужками на упаковці',
-  check: 'Схоже, у штрихкоді помилка — звірте цифри з упаковкою'
+  len: 'Штрихкод — це 8–14 цифр під смужками на упаковці'
 };
 
 function offSearch(box, p, onChange) {
@@ -1044,6 +1049,7 @@ function offSearch(box, p, onChange) {
     if (err === 'none') {
       // Це звичайна справа, а не збій: база неповна, багатьох товарів у ній просто немає
       offNote(box, 'Немає в базі Open Food Facts — там є не всі товари. ' +
+        (parsed.weak ? 'Заодно звірте цифри з упаковкою. ' : '') +
         'Впишіть дані з етикетки вручну', true);
       return;
     }
@@ -1277,7 +1283,7 @@ function toggleNutRow(tr) {
     delete nutOpen[p.id];
     if (next && next.classList.contains('nut-row')) {
       var leaving = next;
-      collapseRow(leaving, function () { leaving.remove(); });
+      nutMotion(leaving, false, function () { leaving.remove(); });
     }
   } else {
     nutOpen[p.id] = true;
@@ -1290,7 +1296,7 @@ function toggleNutRow(tr) {
     if (next && next.classList.contains('nut-row')) { next.remove(); next = tr.nextElementSibling; }
     var row = nutRow(p);
     tr.parentNode.insertBefore(row, next);
-    expandRow(row);
+    nutMotion(row, true);
   }
   paintNutBtn(tr, p);
 }
@@ -1933,14 +1939,22 @@ function expRowSum(e) {
 }
 
 /* ── Розкриття карток ──────────────────────────────────────────
-   Анімуємо саму висоту рядка й нічого більше: один короткий перехід на
-   картку, без тіней і трансформацій, тож навіть на слабкому телефоні це
-   недорого. «Зменшити рух» у системі вимикає анімацію повністю.
-   На широкому екрані карток немає — рядок там звичайний рядок таблиці,
-   і його висоту анімувати ні до чого. */
+   Анімуємо саму висоту й нічого більше: один короткий перехід, без тіней
+   і трансформацій, тож навіть на слабкому телефоні це недорого.
+   «Зменшити рух» у системі вимикає анімацію повністю. */
 
 var ROW_MOTION = { duration: 170, easing: 'cubic-bezier(.2,.7,.3,1)' };
 
+/** Попередня анімація того ж елемента ще їде — знімаємо, інакше вона зніме
+    overflow уже під новою, і рядок смикнеться. */
+function stopMotion(el) { el.getAnimations().forEach(function (a) { a.cancel(); }); }
+
+function onMotionEnd(anim, fn) {
+  anim.addEventListener('finish', fn);
+  anim.addEventListener('cancel', fn);
+}
+
+/** На компʼютері картки не згортаються — там рядок звичайний рядок таблиці. */
 function rowMotionOff(row) {
   return calmMotion() || !row.animate || getComputedStyle(row).display !== 'grid';
 }
@@ -1955,30 +1969,50 @@ function animateRow(row, apply) {
   playRowMotion(row, from, to);
 }
 
-/** Новий рядок (редактор КБЖУ) виїжджає з нуля, а не зʼявляється ривком. */
-function expandRow(row) {
-  if (rowMotionOff(row)) return;
-  playRowMotion(row, 0, row.getBoundingClientRect().height);
-}
-
-/** Згортає рядок і лише потім віддає його — done зазвичай прибирає рядок із DOM. */
-function collapseRow(row, done) {
-  if (rowMotionOff(row)) { done(); return; }
-  playRowMotion(row, row.getBoundingClientRect().height, 0).onfinish = done;
-}
-
 function playRowMotion(row, from, to) {
-  // Тицьнули ще раз, поки їде попередня — знімаємо її одразу, інакше вона
-  // потім зніме overflow уже під новою анімацією й рядок смикнеться
-  row.getAnimations().forEach(function (a) { a.cancel(); });
+  stopMotion(row);
   row.style.overflow = 'hidden';
   var anim = row.animate(
     [{ height: from + 'px', opacity: from ? 1 : 0 }, { height: to + 'px', opacity: to ? 1 : 0 }],
     ROW_MOTION
   );
-  anim.addEventListener('finish', function () { row.style.overflow = ''; });
-  anim.addEventListener('cancel', function () { row.style.overflow = ''; });
+  onMotionEnd(anim, function () { row.style.overflow = ''; });
   return anim;
+}
+
+/**
+ * Редактор КБЖУ виїжджає так само на телефоні й на компʼютері, але вести
+ * доводиться різне. На телефоні рядок — звичайний блок, тож ведемо його
+ * висоту. На компʼютері це рядок таблиці: його висоту браузер тримає як
+ * мінімальну й анімувати не дає, тому там ведемо вміст комірки разом з її
+ * вертикальними відступами — інакше редактор зʼявлявся б ривком.
+ * done викликається в кінці — ним закриття прибирає рядок із DOM.
+ */
+function nutMotion(row, opening, done) {
+  var end = done || function () {};
+  if (calmMotion() || !row.animate) { end(); return; }
+
+  if (getComputedStyle(row).display === 'grid') {
+    var h = row.getBoundingClientRect().height;
+    onMotionEnd(playRowMotion(row, opening ? 0 : h, opening ? h : 0), end);
+    return;
+  }
+
+  var box = $('[data-nut-edit]', row), cell = box && box.parentNode;
+  if (!box) { end(); return; }
+  var pad = getComputedStyle(cell);
+  var boxOpen = { height: box.getBoundingClientRect().height + 'px', opacity: 1 };
+  var boxShut = { height: '0px', opacity: 0 };
+  var cellOpen = { paddingTop: pad.paddingTop, paddingBottom: pad.paddingBottom };
+  var cellShut = { paddingTop: '0px', paddingBottom: '0px' };
+
+  stopMotion(box); stopMotion(cell);
+  box.style.overflow = 'hidden';
+  cell.animate(opening ? [cellShut, cellOpen] : [cellOpen, cellShut], ROW_MOTION);
+  onMotionEnd(box.animate(opening ? [boxShut, boxOpen] : [boxOpen, boxShut], ROW_MOTION), function () {
+    box.style.overflow = '';
+    end();
+  });
 }
 
 /** Розгортає/згортає картку. Разом із карткою ховається і редактор КБЖУ:
