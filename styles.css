@@ -13,14 +13,14 @@
   --dash: #cfc9bd; --edge: #d9d4ca; --edge-2: #b9b3a8;
   --fg: #1b1a17; --fg-2: #55524b; --fg-3: #6d685f;
   --muted: #8b867c; --muted-2: #9a958b; --dim: #b8b2a7;
-  --accent: #2e6a4f; --accent-2: #24543f; --accent-soft: #eef3ef; --on-accent: #fbfaf7;
+  --accent: #075e46; --accent-2: #054a37; --accent-soft: #e8fff2; --on-accent: #f6fffb;
   --danger: #a3402f; --danger-soft: #f9edea; --on-danger: #fdf7f5;
   --field: #ffffff;
   --ink: #1e1d1a; --ink-fg: #f3f0ea;
   --desk: #e6e2db; --thumb: #e9e3d6;
   --thumb-ink: rgba(27,26,23,.2); --thumb-ink-2: rgba(27,26,23,.3);
   --thumb-stripe: rgba(27,26,23,.035); --thumb-btn: rgba(255,253,250,.62);
-  --focus: rgba(46,106,79,.14); --overlay: rgba(27,26,23,.42);
+  --focus: rgba(7,94,70,.16); --overlay: rgba(27,26,23,.42);
   --card-shadow: rgba(27,26,23,.28); --modal-shadow: rgba(27,26,23,.5); --nav-shadow: rgba(27,26,23,.04);
   --nav-active: #f6f3ed;
 
@@ -36,14 +36,15 @@ html[data-theme="dark"] {
   --dash: #3f3c35; --edge: #3f3c35; --edge-2: #575349;
   --fg: #f0ede6; --fg-2: #c0bbb1; --fg-3: #a5a097;
   --muted: #8d887f; --muted-2: #7e7970; --dim: #6b665e;
-  --accent: #5f9d7c; --accent-2: #7ebb99; --accent-soft: #1e2b24; --on-accent: #10201a;
+  /* Forest Code на темному тлі майже зливається — той самий зелений, але світліший */
+  --accent: #3fa680; --accent-2: #63c79c; --accent-soft: #0f2a21; --on-accent: #04231a;
   --danger: #cc7c6c; --danger-soft: #33211d; --on-danger: #1b1310;
   --field: #26241f;
   --ink: #0e0d0b; --ink-fg: #f0ede6;
   --desk: #100f0d; --thumb: #2a2823;
   --thumb-ink: rgba(240,237,230,.22); --thumb-ink-2: rgba(240,237,230,.32);
   --thumb-stripe: rgba(240,237,230,.04); --thumb-btn: rgba(32,31,27,.7);
-  --focus: rgba(95,157,124,.22); --overlay: rgba(8,7,6,.62);
+  --focus: rgba(63,166,128,.22); --overlay: rgba(8,7,6,.62);
   --card-shadow: rgba(0,0,0,.5); --modal-shadow: rgba(0,0,0,.6); --nav-shadow: rgba(0,0,0,.25);
   --nav-active: #262420;
 }
@@ -1154,6 +1155,10 @@ html:not(.nut-on) .nut-only { display: none !important; }
 
   /* Службові рядки — на всю ширину картки */
   .tbl tbody td.tbl-empty { grid-column: 1 / -1; padding: 30px 4px; }
+  /* КБЖУ — частина того самого продукту. На картці рамка стоїть на рядку, а не
+     на комірці, тож десктопне правило .is-open > td її не прибирало: лінія різала
+     продукт навпіл, і блок виглядав приліпленим до наступного */
+  .tbl tbody tr.is-open { border-bottom-color: transparent; }
   .tbl tbody tr.nut-row { padding-top: 0; }
   .tbl tbody tr.nut-row > td { grid-column: 1 / -1; padding: 0 0 12px; }
 
