@@ -592,44 +592,114 @@ html:not(.orders-on) .orders-only { display: none !important; }
 .ord.is-open .ord-chev { transform: rotate(180deg); }
 .ord.is-open .ord-head { background: var(--panel-2); }
 
+/* Картка: три блоки під звичайними заголовками й «чек» із позиціями та оплатою */
 .ord-body { background: var(--panel-2); }
-.ord-form { display: flex; flex-direction: column; gap: 18px; padding: 6px 20px 20px 88px; }
-.ord-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
-.ord-f { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.ord-cap { font-family: var(--num); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); }
-.inp.ord-inp { height: 38px; padding: 0 10px; border-color: var(--edge); background: var(--field); }
-.inp.ord-inp:focus { border-color: var(--accent); }
-.qty-wrap .inp.ord-inp { padding-right: 30px; }
-.ord-note { height: auto !important; min-height: 64px; padding: 8px 10px !important; line-height: 1.5; resize: vertical; }
-.ord-hint { font-size: 12.5px; color: var(--accent-2); }
-/* Вбудований календар і годинник браузера — у тон темній темі */
-html[data-theme="dark"] .ord-inp { color-scheme: dark; }
+.ord-form { display: flex; flex-direction: column; padding: 0 20px 18px 88px; }
+.ord-sec { padding: 16px 0; }
+.ord-sec + .ord-sec { border-top: 1px solid var(--line-soft); }
+.ord-sec-t { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; font-size: 14px; font-weight: 600; color: var(--fg); }
+.ord-hint { font-size: 12.5px; font-weight: 500; color: var(--accent-2); }
 
-.ord-tel { display: flex; gap: 6px; }
+.inp.ord-inp { height: 40px; padding: 0 12px; border-color: var(--line-2); background: var(--field); }
+.inp.ord-inp:hover { border-color: var(--edge-2); }
+.inp.ord-inp:focus { border-color: var(--accent); }
+.inp.is-bad, .inp.is-bad:focus { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.ord-note { height: auto !important; min-height: 66px; padding: 10px 12px !important; line-height: 1.5; resize: vertical; }
+
+.ord-who { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 10px; }
+.ord-tel { display: flex; gap: 6px; min-width: 0; }
 .ord-call {
-  flex: 0 0 auto; display: grid; place-items: center; width: 38px; height: 38px;
-  border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--field); color: var(--accent-2);
+  flex: 0 0 auto; display: grid; place-items: center; width: 40px; height: 40px;
+  border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--field); color: var(--accent-2);
 }
 .ord-call:hover { border-color: var(--accent); background: var(--accent-soft); }
 .ord-call svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 
-.ord-deliv { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.ord-deliv .seg { flex: 0 0 auto; }
-.ord-deliv .ord-inp { flex: 1 1 240px; width: auto; }
+.ord-when { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ord-pick {
+  display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px 0 12px;
+  border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--field);
+  font-size: 14.5px; color: var(--fg); text-align: left; cursor: pointer;
+}
+.ord-pick:hover { border-color: var(--edge-2); }
+.ord-pick.is-on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+.ord-pick.is-empty { color: var(--muted-2); }
+.ord-pick.is-late { color: var(--danger); }
+.ord-pick svg { flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: var(--muted); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ord-pick span { overflow: hidden; text-overflow: ellipsis; }
+.ord-pick[data-pick=date] { min-width: 232px; }
+.ord-pick-time { min-width: 108px; font-family: var(--num); font-size: 14px; }
+.ord-seg { margin-left: auto; }
+.ord-addr { margin-top: 10px; }
 
-.ord-lines { display: flex; flex-direction: column; gap: 8px; }
-.ord-line { display: grid; grid-template-columns: minmax(0, 1fr) 76px 108px 92px 30px; align-items: center; gap: 8px; }
-.ord-line-sum { text-align: right; font-family: var(--num); font-size: 13.5px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
-.ord-add-line { align-self: flex-start; margin-top: 2px; }
+.ord-bill { border: 1px solid var(--line-2); border-radius: var(--r-m); background: var(--panel); overflow: hidden; }
+.ord-ih, .ord-line { display: grid; grid-template-columns: minmax(0, 1fr) 84px 112px 104px 32px; align-items: center; gap: 6px; }
+.ord-ih {
+  padding: 9px 12px; border-bottom: 1px solid var(--line-faint); background: var(--panel-2);
+  font-family: var(--num); font-size: 10.5px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.ord-ih span:nth-child(n+2) { text-align: right; }
+.ord-line { padding: 4px 12px 4px 4px; border-bottom: 1px solid var(--line-faint); }
+.ord-line:hover { background: var(--row-hov); }
+.inp.ord-li { height: 38px; padding: 0 8px; font-size: 14.5px; }
+.ord-lq .inp.ord-li { padding-right: 30px; }
+.ord-li[data-l=name] { font-weight: 500; }
+.ord-line-sum { text-align: right; font-family: var(--num); font-size: 14px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+.ord-line-sum.is-empty { color: var(--dim); font-weight: 400; }
+.ord-add { padding: 10px 12px; }
+/* Суми праворуч стоять рівно під колонкою «Сума»: 12 відступу + 32 кнопки + 6 проміжку */
+.ord-sums {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 50px 14px 12px;
+  border-top: 1px solid var(--line-soft); background: var(--panel-2); font-size: 14px;
+}
+.ord-sr { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--fg-2); }
+.ord-sr b { font-family: var(--num); font-size: 15px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+.ord-prepaid { width: 150px; }
+.ord-prepaid .inp.ord-inp { height: 36px; padding-right: 26px; }
+.ord-sr.is-due { padding-top: 10px; border-top: 1px solid var(--line-soft); color: var(--fg); font-weight: 600; }
+.ord-sr.is-due b { font-size: 18px; }
+.ord-sr.is-paid, .ord-sr.is-paid b { color: var(--accent-2); }
+.ord-sr b svg { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 
-.ord-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; }
-.ord-prepaid { width: 170px; }
-.ord-total { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-.ord-total-lbl { font-family: var(--num); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); }
-.ord-total-val { font-family: var(--num); font-size: 20px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
-.ord-left { font-size: 13px; color: var(--fg-3); }
-.ord-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
-.ord-acts .btn { height: 38px; }
+.ord-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.ord-acts .btn { height: 40px; }
+
+/* Спливне вікно календаря й часу — у тон панелям, не браузерне */
+.pop {
+  position: fixed; z-index: 70; width: 308px; padding: 14px;
+  border: 1px solid var(--line-2); border-radius: var(--r-l); background: var(--panel);
+  box-shadow: 0 22px 44px -22px var(--modal-shadow), 0 2px 8px -4px var(--card-shadow);
+}
+.pop-time { width: 292px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-title { font-size: 15px; font-weight: 600; color: var(--fg); }
+.cal-nav {
+  display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: var(--r-s);
+  background: transparent; color: var(--fg-2); cursor: pointer;
+}
+.cal-nav:hover { background: var(--side-hov); color: var(--fg); }
+.cal-nav svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.cal-wd { padding: 6px 0; text-align: center; font-family: var(--num); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-2); }
+.cal-d {
+  height: 36px; border: 0; border-radius: var(--r-s); background: transparent;
+  font-family: var(--num); font-size: 13.5px; color: var(--fg); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.cal-d:hover { background: var(--side-hov); }
+.cal-d.is-past { color: var(--muted-2); }
+.cal-d.is-today { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent-2); font-weight: 600; }
+.cal-d.is-sel, .cal-d.is-sel:hover { background: var(--accent); box-shadow: none; color: var(--on-accent); font-weight: 600; }
+.pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.pop-quick { display: flex; gap: 6px; }
+.pop-t { margin-bottom: 10px; font-size: 15px; font-weight: 600; color: var(--fg); }
+.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.slot {
+  height: 34px; border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--panel);
+  font-family: var(--num); font-size: 13px; color: var(--fg-2); cursor: pointer;
+}
+.slot:hover { border-color: var(--edge-2); color: var(--fg); }
+.slot.is-sel, .slot.is-sel:hover { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.inp.pop-own { flex: 1; width: auto; height: 36px; font-family: var(--num); font-size: 14px; }
 
 .calc-mid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 24px 0; }
 /* 480, не 360: рядок витрати тепер має ще й тип+вартість поруч з назвою.
@@ -1341,34 +1411,40 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .method-inp { font-size: 16px; }
 
   /* ── Замовлення ──
-     Час — вузька колонка ліворуч, сума праворуч; форма на всю ширину,
-     поля по одному в ряд, позиція: назва зверху, кількість·ціна·сума під нею */
+     Час — вузька колонка ліворуч, сума праворуч. У картці все по одному в ряд;
+     позиція: назва зверху, під нею кількість, ціна й сума */
   .ord-tools .seg { flex: 1 1 100%; }
   .ord-tools .seg button { flex: 1; }
   .ord-head { grid-template-columns: 44px minmax(0, 1fr) auto 14px; gap: 12px; padding: 13px 14px; }
   .ord-time { font-size: 13px; }
-  .ord-form { gap: 16px; padding: 4px 14px 16px; }
-  .ord-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .ord-grid .ord-f:nth-child(-n+2) { grid-column: 1 / -1; }
-  .inp.ord-inp { height: 42px; }
-  .ord-call { width: 42px; height: 42px; }
-  .ord-deliv .seg { flex: 1 1 100%; }
-  .ord-deliv .seg button { flex: 1; }
-  .ord-deliv .ord-inp { flex: 1 1 100%; }
+  .ord-form { padding: 0 14px 16px; }
+  .ord-sec { padding: 14px 0; }
+  .ord-who { grid-template-columns: 1fr; }
+  .inp.ord-inp, .ord-pick { height: 44px; }
+  .ord-call { width: 44px; height: 44px; }
+  .ord-when { display: grid; grid-template-columns: minmax(0, 1fr) 108px; }
+  .ord-pick[data-pick=date], .ord-pick-time { min-width: 0; }
+  .ord-seg { grid-column: 1 / -1; margin-left: 0; }
+  .ord-seg button { flex: 1; }
+  .ord-ih { display: none; }
   .ord-line {
-    grid-template-columns: 78px minmax(0, 1fr) auto 30px;
-    grid-template-areas: "name name name name" "qty price sum del";
-    padding-bottom: 10px; border-bottom: 1px dashed var(--line);
+    grid-template-columns: 84px minmax(0, 1fr) auto 32px;
+    grid-template-areas: "name name name del" "qty price sum sum";
+    row-gap: 8px; padding: 12px;
   }
   .ord-line [data-l=name] { grid-area: name; }
-  .ord-line .qty-wrap { grid-area: qty; }
+  .ord-lq { grid-area: qty; }
   .ord-line [data-l=price] { grid-area: price; }
-  .ord-line-sum { grid-area: sum; min-width: 70px; }
+  .ord-line-sum { grid-area: sum; min-width: 84px; }
   .ord-line [data-l-del] { grid-area: del; }
-  .ord-prepaid { width: 100%; }
-  .ord-foot { flex-direction: column; align-items: stretch; }
-  .ord-total { flex-direction: row; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
-  .ord-left { flex: 1 1 100%; text-align: right; }
+  /* Без наведення курсора поле без рамки не видно — на телефоні рамка завжди */
+  .inp.ord-li { height: 42px; padding: 0 10px; border-color: var(--line-2); background: var(--field); }
+  .ord-lq .inp.ord-li { padding-right: 30px; }
+  .ord-sums { padding: 14px 12px; }
+  .ord-prepaid { width: 150px; }
+  .pop { width: calc(100vw - 16px); max-width: 340px; }
+  .cal-d { height: 40px; }
+  .slot { height: 40px; }
 
   /* ── Папка ── */
   .folder-tools { flex-direction: column; align-items: stretch; }

@@ -1718,6 +1718,7 @@ function setNav(key) {
 }
 
 function show(id, navKey) {
+  closePop();
   $$('.screen').forEach(function (s) { s.classList.toggle('is-active', s.id === 's-' + id); });
   setNav(navKey === undefined ? id : navKey);
   S.ui.screen = id;
@@ -1765,6 +1766,7 @@ function replaceNav() {
 }
 
 function closeOverlays() {
+  closePop();
   closeMenu();
   closeAsk();
   closeLeave();
@@ -4284,6 +4286,13 @@ var ORD_MONTHS = ['січня', 'лютого', 'березня', 'квітня'
 var ORD_DAYS = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'Пʼятниця', 'Субота'];
 var ICON_PHONE = '<svg viewBox="0 0 24 24"><path d="M6 3.5h3l1.6 4.4-2.2 1.4a11.5 11.5 0 0 0 6.3 6.3l1.4-2.2 4.4 1.6v3A2 2 0 0 1 18.3 20 15.8 15.8 0 0 1 4 5.7a2 2 0 0 1 2-2.2z"/></svg>';
 
+var ICON_CAL = '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
+var ICON_CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+var ICON_PREV = '<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>';
+var ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>';
+var CAL_MONTHS = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень',
+  'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
+
 var ordView = 'active';   // 'active' | 'done'
 var ordOpen = {};         // id → картка розкрита
 var ordFresh = null;      // щойно створене: стоїть угорі, доки його не згорнули
@@ -4306,9 +4315,17 @@ function normalizeOrder(o) {
 }
 
 function pad2(n) { return (n < 10 ? '0' : '') + n; }
-function todayIso() {
-  var d = new Date();
-  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+function isoOf(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function todayIso() { return isoOf(new Date()); }
+
+/** «19:45», «1945», «945», «7» → «ГГ:ХХ»; нерозбірливе — ''. На телефонній цифровій клавіатурі двокрапки немає. */
+function parseTime(raw) {
+  var p = String(raw || '').trim().split(/\D+/).filter(Boolean), h, m;
+  if (p.length === 1 && p[0].length <= 2) { h = +p[0]; m = 0; }
+  else if (p.length === 1 && p[0].length <= 4) { h = +p[0].slice(0, -2); m = +p[0].slice(-2); }
+  else if (p.length === 2 && p[1].length <= 2) { h = +p[0]; m = +(p[1].length === 1 ? p[1] + '0' : p[1]); }
+  else return '';
+  return h < 24 && m < 60 ? pad2(h) + ':' + pad2(m) : '';
 }
 
 /** «Сьогодні, 26 вересня», «Пʼятниця, 3 жовтня». Рік — лише коли не цей. */
@@ -4396,6 +4413,7 @@ function ordMatches(o, q) {
 
 /** fresh — прийшли на екран: прибираємо порожні записи й згортаємо все. */
 function renderOrders(fresh) {
+  closePop();
   if (fresh) {
     S.orders = S.orders.filter(function (o) { return !orderEmpty(o); });
     ordOpen = {};
@@ -4512,33 +4530,46 @@ function paintOrdHead(el, o) {
   pay.classList.toggle('is-paid', p.paid);
 }
 
-function ordField(cap, html, extra) {
-  return '<label class="ord-f' + (extra || '') + '"><span class="ord-cap">' + cap + '</span>' + html + '</label>';
-}
-
+/* Картка — три смислові блоки під звичайними заголовками: хто, коли й як, що й
+   скільки. Позиції й оплата — один «чек»: усі суми стоять в одній колонці. */
 function ordBodyHtml() {
   return '<div class="ord-form">' +
-    '<div class="ord-grid">' +
-      ordField('Клієнт', '<input class="inp ord-inp" data-o="client" list="dl-clients" autocomplete="off" placeholder="Імʼя">' +
-        '<span class="ord-hint" data-o-hist hidden></span>') +
-      ordField('Телефон', '<span class="ord-tel"><input class="inp ord-inp" type="tel" data-o="phone" autocomplete="off" placeholder="+380">' +
-        '<a class="ord-call" data-o-call aria-label="Подзвонити" hidden>' + ICON_PHONE + '</a></span>') +
-      ordField('Дата здачі', '<input class="inp ord-inp" type="date" data-o="date">') +
-      ordField('Час', '<input class="inp ord-inp" type="time" data-o="time">') +
-    '</div>' +
-    '<div class="ord-f"><span class="ord-cap">Отримання</span><div class="ord-deliv">' +
-      '<div class="seg"><button type="button" data-deliv="0">Самовивіз</button><button type="button" data-deliv="1">Доставка</button></div>' +
-      '<input class="inp ord-inp" data-o="address" autocomplete="off" placeholder="Адреса доставки" aria-label="Адреса доставки">' +
-    '</div></div>' +
-    '<div class="ord-f"><span class="ord-cap">Що замовили</span>' +
-      '<div class="ord-lines"></div>' +
-      '<button type="button" class="btn-dash ord-add-line" data-l-add>+ Додати позицію</button>' +
-    '</div>' +
-    '<div class="ord-foot">' +
-      ordField('Передоплата', '<input class="inp ord-inp is-num" data-o="prepaid" inputmode="decimal" autocomplete="off" placeholder="0,00">', ' ord-prepaid') +
-      '<div class="ord-total"><span class="ord-total-lbl">Разом</span><b class="ord-total-val" data-o-total></b><span class="ord-left" data-o-left></span></div>' +
-    '</div>' +
-    ordField('Примітка', '<textarea class="inp ord-inp ord-note" data-o="note" rows="2" placeholder="Напис на торті, побажання, як проїхати"></textarea>') +
+    '<section class="ord-sec">' +
+      '<div class="ord-sec-t">Клієнт<span class="ord-hint" data-o-hist hidden></span></div>' +
+      '<div class="ord-who">' +
+        '<input class="inp ord-inp" data-o="client" list="dl-clients" autocomplete="off" placeholder="Імʼя" aria-label="Імʼя клієнта">' +
+        '<span class="ord-tel"><input class="inp ord-inp" type="tel" data-o="phone" autocomplete="off" placeholder="Телефон" aria-label="Телефон">' +
+          '<a class="ord-call" data-o-call aria-label="Подзвонити" hidden>' + ICON_PHONE + '</a></span>' +
+      '</div>' +
+    '</section>' +
+    '<section class="ord-sec">' +
+      '<div class="ord-sec-t">Коли й як</div>' +
+      '<div class="ord-when">' +
+        '<button type="button" class="ord-pick" data-pick="date" aria-haspopup="dialog" aria-expanded="false">' + ICON_CAL + '<span data-pick-v></span></button>' +
+        '<button type="button" class="ord-pick ord-pick-time" data-pick="time" aria-haspopup="dialog" aria-expanded="false">' + ICON_CLOCK + '<span data-pick-v></span></button>' +
+        '<div class="seg ord-seg"><button type="button" data-deliv="0">Самовивіз</button><button type="button" data-deliv="1">Доставка</button></div>' +
+      '</div>' +
+      '<input class="inp ord-inp ord-addr" data-o="address" autocomplete="off" placeholder="Адреса доставки" aria-label="Адреса доставки">' +
+    '</section>' +
+    '<section class="ord-sec">' +
+      '<div class="ord-sec-t">Що замовили</div>' +
+      '<div class="ord-bill">' +
+        '<div class="ord-ih" aria-hidden="true"><span>Позиція</span><span>К-сть</span><span>Ціна</span><span>Сума</span><span></span></div>' +
+        '<div class="ord-lines"></div>' +
+        '<div class="ord-add"><button type="button" class="btn-dash" data-l-add>+ Додати позицію</button></div>' +
+        '<div class="ord-sums">' +
+          '<div class="ord-sr"><span>Разом</span><b data-o-total></b></div>' +
+          '<label class="ord-sr"><span>Передоплата</span><span class="qty-wrap ord-prepaid">' +
+            '<input class="inp ord-inp is-num" data-o="prepaid" inputmode="decimal" autocomplete="off" placeholder="0,00">' +
+            '<span class="unit-tag">' + esc(S.currency) + '</span></span></label>' +
+          '<div class="ord-sr is-due" data-o-due><span data-o-due-l></span><b data-o-left></b></div>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="ord-sec">' +
+      '<div class="ord-sec-t">Примітка</div>' +
+      '<textarea class="inp ord-inp ord-note" data-o="note" rows="2" placeholder="Напис на торті, побажання, як проїхати" aria-label="Примітка"></textarea>' +
+    '</section>' +
     '<div class="ord-acts">' +
       '<button type="button" class="btn btn-soft" data-o-done></button>' +
       '<button type="button" class="btn btn-ghost is-danger" data-o-del>Видалити</button>' +
@@ -4550,9 +4581,9 @@ function ordLine(el, item) {
   var line = document.createElement('div');
   line.className = 'ord-line';
   line.innerHTML =
-    '<input class="inp ord-inp" data-l="name" list="dl-recipes" autocomplete="off" placeholder="Калькуляція або своє" aria-label="Що замовили">' +
-    '<span class="qty-wrap"><input class="inp ord-inp is-num" data-l="qty" inputmode="decimal" autocomplete="off" placeholder="1" aria-label="Кількість"><span class="unit-tag">шт</span></span>' +
-    '<input class="inp ord-inp is-num" data-l="price" inputmode="decimal" autocomplete="off" placeholder="Ціна" aria-label="Ціна за штуку">' +
+    '<input class="inp ord-li" data-l="name" list="dl-recipes" autocomplete="off" placeholder="Калькуляція або своє" aria-label="Що замовили">' +
+    '<span class="qty-wrap ord-lq"><input class="inp ord-li is-num" data-l="qty" inputmode="decimal" autocomplete="off" placeholder="1" aria-label="Кількість"><span class="unit-tag">шт</span></span>' +
+    '<input class="inp ord-li is-num" data-l="price" inputmode="decimal" autocomplete="off" placeholder="Ціна" aria-label="Ціна за штуку">' +
     '<span class="ord-line-sum"></span>' +
     '<button type="button" class="icon-btn is-danger" data-l-del aria-label="Прибрати позицію">' + ICON_X + '</button>';
   if (item) {
@@ -4569,12 +4600,13 @@ function ordLine(el, item) {
 }
 
 function fillOrdBody(el, o) {
-  ['client', 'phone', 'date', 'time', 'address', 'note'].forEach(function (k) {
+  ['client', 'phone', 'address', 'note'].forEach(function (k) {
     $('[data-o=' + k + ']', el).value = o[k];
   });
   $('[data-o=prepaid]', el).value = o.prepaid ? fmt(o.prepaid) : '';
   o.items.forEach(function (i) { ordLine(el, i); });
   if (!o.items.length) ordLine(el, null);
+  paintPicks(el, o);
   paintDeliv(el, o);
   paintCall(el, o);
   paintClientHist(el, o);
@@ -4603,19 +4635,33 @@ function paintClientHist(el, o) {
   if (n) h.textContent = 'Замовляє вже ' + (n + 1) + '-й раз';
 }
 
+function paintPicks(el, o) {
+  var d = $('[data-pick=date]', el), t = $('[data-pick=time]', el);
+  $('[data-pick-v]', d).textContent = o.date ? ordDayLabel(o.date) : 'Дата здачі';
+  d.classList.toggle('is-empty', !o.date);
+  d.classList.toggle('is-late', !o.done && !!o.date && o.date < todayIso());
+  $('[data-pick-v]', t).textContent = o.time || 'Час';
+  t.classList.toggle('is-empty', !o.time);
+}
+
 function paintOrdLines(el) {
   $$('.ord-line', el).forEach(function (line) {
     var sum = (num($('[data-l=qty]', line).value) || 1) * num($('[data-l=price]', line).value);
-    $('.ord-line-sum', line).textContent = sum ? fmt(sum) : '';
+    var cell = $('.ord-line-sum', line);
+    cell.textContent = sum ? fmt(sum) : '—';
+    cell.classList.toggle('is-empty', !sum);
   });
 }
 
+/** «До оплати» — лише коли була передоплата: без неї це просто повтор «Разом». */
 function paintOrdTotals(el, o) {
-  var total = orderTotal(o);
+  var total = orderTotal(o), p = ordPayText(o);
   $('[data-o-total]', el).textContent = money(total);
-  var left = $('[data-o-left]', el), p = ordPayText(o);
-  left.textContent = p.paid ? 'Оплачено повністю' : (o.prepaid > 0 ? 'До оплати ' + money(Math.max(total - o.prepaid, 0)) : '');
-  left.classList.toggle('is-paid', p.paid);
+  var due = $('[data-o-due]', el);
+  due.hidden = !(o.prepaid > 0);
+  due.classList.toggle('is-paid', p.paid);
+  $('[data-o-due-l]', el).textContent = p.paid ? 'Оплачено повністю' : 'До оплати';
+  $('[data-o-left]', el).innerHTML = p.paid ? ICON_TICK : esc(money(Math.max(total - o.prepaid, 0)));
 }
 
 /** Таблиця позицій у DOM — єдине джерело правди, як і рядки калькуляції. */
@@ -4660,6 +4706,166 @@ function fillClientAddress(el, o) {
 
 function ordEl(o) { return $('#ord-list .ord[data-id="' + o.id + '"]'); }
 
+/* ── Календар і час ────────────────────────────────────────────
+   Свої, а не браузерні: ті малюються мовою системи («Сентябрь»), синім
+   і кожен браузер по-своєму. Одне спливне вікно на весь застосунок, fixed —
+   панелі з overflow: hidden його б обрізали. */
+
+var pop = null;       // { kind, el, o, anchor, y, m, typed }
+var popEl = null;
+
+function popBox() {
+  if (popEl) return popEl;
+  popEl = document.createElement('div');
+  popEl.className = 'pop';
+  popEl.setAttribute('role', 'dialog');
+  popEl.hidden = true;
+  document.body.appendChild(popEl);
+  popEl.addEventListener('click', onPopClick);
+  popEl.addEventListener('keydown', function (e) {
+    var ci = e.target.closest('[data-pop-time]');
+    if (ci && e.key === 'Enter') {
+      e.preventDefault();
+      var v = parseTime(ci.value);
+      if (v) setPick(v); else ci.classList.add('is-bad');
+    }
+  });
+  popEl.addEventListener('input', function (e) {
+    if (!e.target.closest('[data-pop-time]')) return;
+    pop.typed = true;
+    e.target.classList.remove('is-bad');
+  });
+  // Клік повз вікно закриває його; по кнопці, що відкрила, — вона сама перемкне
+  document.addEventListener('pointerdown', function (e) {
+    if (pop && !popEl.contains(e.target) && !pop.anchor.contains(e.target)) closePop();
+  }, true);
+  window.addEventListener('scroll', function () { if (pop) placePop(); }, true);
+  window.addEventListener('resize', function () { if (pop) placePop(); });
+  return popEl;
+}
+
+function openPop(kind, el, o, anchor, byKeyboard) {
+  if (pop && pop.anchor === anchor) { closePop(); return; }
+  closePop();
+  var base = (o.date || todayIso()).split('-');
+  pop = { kind: kind, el: el, o: o, anchor: anchor, y: +base[0], m: +base[1] - 1, typed: false };
+  anchor.setAttribute('aria-expanded', 'true');
+  anchor.classList.add('is-on');
+  var box = popBox();
+  box.className = 'pop pop-' + kind;
+  box.setAttribute('aria-label', kind === 'date' ? 'Дата здачі' : 'Час здачі');
+  paintPop();
+  box.hidden = false;
+  placePop();
+  if (byKeyboard) {
+    var f = $('.is-sel', box) || $('.is-today', box) || $('button', box);
+    if (f) f.focus();
+  }
+}
+
+/** Свій час, вписаний без Enter, не пропадає: закриття його й зберігає. */
+function closePop() {
+  if (!pop) return;
+  var p = pop, ci = popEl && $('[data-pop-time]', popEl);
+  var typed = p.kind === 'time' && p.typed && ci ? parseTime(ci.value) : '';
+  pop = null;
+  popEl.hidden = true;
+  p.anchor.setAttribute('aria-expanded', 'false');
+  p.anchor.classList.remove('is-on');
+  if (typed && typed !== p.o.time) applyPick(p, typed);
+}
+
+function placePop() {
+  if (!document.body.contains(pop.anchor)) { closePop(); return; }
+  var r = pop.anchor.getBoundingClientRect();
+  var w = popEl.offsetWidth, h = popEl.offsetHeight;
+  var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+  var top = r.bottom + 6;
+  if (top + h > vh - 8 && r.top - h - 6 >= 8) top = r.top - h - 6;   // знизу не влазить — над полем
+  popEl.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  popEl.style.top = Math.max(8, Math.min(top, vh - h - 8)) + 'px';
+}
+
+function paintPop() {
+  popEl.innerHTML = pop.kind === 'date' ? calHtml() : slotsHtml();
+}
+
+function calHtml() {
+  var y = pop.y, m = pop.m, sel = pop.o.date, today = todayIso();
+  var lead = (new Date(y, m, 1).getDay() + 6) % 7;           // тиждень з понеділка
+  var days = new Date(y, m + 1, 0).getDate();
+  var h = '<div class="cal-head">' +
+      '<button type="button" class="cal-nav" data-cal-nav="-1" aria-label="Попередній місяць">' + ICON_PREV + '</button>' +
+      '<span class="cal-title">' + CAL_MONTHS[m] + ' ' + y + '</span>' +
+      '<button type="button" class="cal-nav" data-cal-nav="1" aria-label="Наступний місяць">' + ICON_NEXT + '</button>' +
+    '</div><div class="cal-grid">' +
+    ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'].map(function (d) { return '<span class="cal-wd">' + d + '</span>'; }).join('');
+  for (var i = 0; i < lead; i++) h += '<span></span>';
+  for (var d = 1; d <= days; d++) {
+    var iso = y + '-' + pad2(m + 1) + '-' + pad2(d);
+    h += '<button type="button" class="cal-d' + (iso === sel ? ' is-sel' : '') + (iso === today ? ' is-today' : '') +
+      (iso < today ? ' is-past' : '') + '" data-day="' + iso + '" aria-label="' + ordDayLabel(iso) + '">' + d + '</button>';
+  }
+  return h + '</div><div class="pop-foot">' +
+    '<span class="pop-quick"><button type="button" class="chip" data-cal-set="0">Сьогодні</button>' +
+    '<button type="button" class="chip" data-cal-set="1">Завтра</button></span>' +
+    (sel ? '<button type="button" class="link-btn" data-pop-clear>Прибрати</button>' : '') + '</div>';
+}
+
+/* Пів години — крок, яким зазвичай і домовляються. Інший час — полем унизу */
+function slotsHtml() {
+  var cur = pop.o.time, h = '<div class="pop-t">Час здачі</div><div class="slots">', inGrid = false;
+  for (var t = 8 * 60; t <= 21 * 60 + 30; t += 30) {
+    var v = pad2(Math.floor(t / 60)) + ':' + pad2(t % 60);
+    if (v === cur) inGrid = true;
+    h += '<button type="button" class="slot' + (v === cur ? ' is-sel' : '') + '" data-slot="' + v + '">' + v + '</button>';
+  }
+  return h + '</div><div class="pop-foot">' +
+    '<input class="inp ord-inp pop-own" data-pop-time inputmode="numeric" autocomplete="off" maxlength="5" ' +
+      'placeholder="Свій, напр. 19:45" aria-label="Свій час" value="' + (cur && !inGrid ? cur : '') + '">' +
+    (cur ? '<button type="button" class="link-btn" data-pop-clear>Прибрати</button>' : '') + '</div>';
+}
+
+function onPopClick(e) {
+  var t = e.target, nav = t.closest('[data-cal-nav]');
+  if (nav) {
+    pop.m += +nav.getAttribute('data-cal-nav');
+    if (pop.m < 0) { pop.m = 11; pop.y--; }
+    if (pop.m > 11) { pop.m = 0; pop.y++; }
+    paintPop();
+    placePop();
+    return;
+  }
+  var day = t.closest('[data-day]');
+  if (day) { setPick(day.getAttribute('data-day')); return; }
+  var q = t.closest('[data-cal-set]');
+  if (q) {
+    var d = new Date();
+    d.setDate(d.getDate() + +q.getAttribute('data-cal-set'));
+    setPick(isoOf(d));
+    return;
+  }
+  var sl = t.closest('[data-slot]');
+  if (sl) { setPick(sl.getAttribute('data-slot')); return; }
+  if (t.closest('[data-pop-clear]')) setPick('');
+}
+
+function setPick(v) {
+  var p = pop;
+  p.typed = false;
+  closePop();
+  applyPick(p, v);
+  p.anchor.focus({ preventScroll: true });
+}
+
+function applyPick(p, v) {
+  p.o[p.kind] = v;
+  if (!p.el.isConnected) { persist(); return; }
+  paintPicks(p.el, p.o);
+  paintOrdHead(p.el, p.o);
+  persist();
+}
+
 /* Картка розкривається так само, як рядок у базі: висота від нуля й назад.
    seq — щоб кінець скасованої анімації закриття не сховав уже знову відкриту картку. */
 function ordSlide(body, opening, done) {
@@ -4687,6 +4893,7 @@ function showOrdBody(el, o, animate) {
 }
 
 function hideOrdBody(el, done) {
+  closePop();
   var body = $('.ord-body', el);
   var seq = el.ordSeq = (el.ordSeq || 0) + 1;
   stopMotion(body);
@@ -4791,6 +4998,9 @@ function bindOrders() {
     if (!hit) return;
     var el = hit.el, o = hit.o;
     if (e.target.closest('.ord-head')) { toggleOrd(el); return; }
+
+    var pk = e.target.closest('[data-pick]');
+    if (pk) { openPop(pk.getAttribute('data-pick'), el, o, pk, e.detail === 0); return; }
 
     var dv = e.target.closest('[data-deliv]');
     if (dv) {
