@@ -4543,7 +4543,7 @@ function ordBodyHtml() {
       '</div>' +
     '</section>' +
     '<section class="ord-sec">' +
-      '<div class="ord-sec-t">Коли й як</div>' +
+      '<div class="ord-sec-t">Дата й доставка</div>' +
       '<div class="ord-when">' +
         '<button type="button" class="ord-pick" data-pick="date" aria-haspopup="dialog" aria-expanded="false">' + ICON_CAL + '<span data-pick-v></span></button>' +
         '<button type="button" class="ord-pick ord-pick-time" data-pick="time" aria-haspopup="dialog" aria-expanded="false">' + ICON_CLOCK + '<span data-pick-v></span></button>' +
@@ -4552,7 +4552,7 @@ function ordBodyHtml() {
       '<input class="inp ord-inp ord-addr" data-o="address" autocomplete="off" placeholder="Адреса доставки" aria-label="Адреса доставки">' +
     '</section>' +
     '<section class="ord-sec">' +
-      '<div class="ord-sec-t">Що замовили</div>' +
+      '<div class="ord-sec-t">Замовлення</div>' +
       '<div class="ord-bill">' +
         '<div class="ord-ih" aria-hidden="true"><span>Позиція</span><span>К-сть</span><span>Ціна</span><span>Сума</span><span></span></div>' +
         '<div class="ord-lines"></div>' +
