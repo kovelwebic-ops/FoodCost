@@ -4619,6 +4619,12 @@ function paintDeliv(el, o) {
   $('[data-o=address]', el).hidden = !o.delivery;
 }
 
+/* Код країни — лише там, де валюта однозначно вказує на країну.
+   Доларом і євро рахують у різних країнах, тож для них не вгадуємо. */
+function phonePrefix() {
+  return { '₴': '+380', 'zł': '+48' }[S.currency] || '';
+}
+
 function paintCall(el, o) {
   var a = $('[data-o-call]', el), tel = o.phone.replace(/[^\d+]/g, '');
   a.hidden = !tel;
@@ -4694,7 +4700,8 @@ function fillFromClient(el, o) {
   var prev = clientOrders(o.client, o.id).pop();
   if (!prev) return;
   var ph = $('[data-o=phone]', el);
-  if (!ph.value.trim() && prev.phone.trim()) { ph.value = o.phone = prev.phone; paintCall(el, o); }
+  var cur = ph.value.trim();
+  if ((!cur || cur === phonePrefix()) && prev.phone.trim()) { ph.value = o.phone = prev.phone; paintCall(el, o); }
   if (o.delivery) fillClientAddress(el, o);
 }
 
@@ -5075,9 +5082,24 @@ function bindOrders() {
     persist();
   });
 
+  // Порожній телефон при фокусі одразу починається з коду країни
+  list.addEventListener('focus', function (e) {
+    var t = e.target, pre = phonePrefix();
+    if (pre && t.matches && t.matches('[data-o=phone]') && !t.value.trim()) t.value = pre + ' ';
+  }, true);
+
   // Гроші й кількість допрацьовуємо, коли людина вийшла з поля, а не посеред набору
   list.addEventListener('blur', function (e) {
     var t = e.target;
+    if (t.matches && t.matches('[data-o=phone]')) {
+      // Лише код без номера — не номер: не зберігаємо його
+      if (t.value.trim() === phonePrefix()) {
+        t.value = '';
+        var hit = orderOf(t);
+        if (hit) { hit.o.phone = ''; paintCall(hit.el, hit.o); persist(); }
+      }
+      return;
+    }
     if (!t.matches || !t.matches('[data-l=price], [data-l=qty], [data-o=prepaid]')) return;
     var v = num(t.value);
     if (t.getAttribute('data-l') === 'qty') t.value = v && v !== 1 ? qtyFmt(v) : '';

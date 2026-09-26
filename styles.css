@@ -595,16 +595,11 @@ html:not(.orders-on) .orders-only { display: none !important; }
 /* Картка: три блоки під звичайними заголовками й «чек» із позиціями та оплатою */
 .ord-body { background: var(--panel-2); }
 .ord-form { display: flex; flex-direction: column; padding: 0 20px 18px 88px; }
-.ord-sec { padding: 16px 0; }
-.ord-sec + .ord-sec { border-top: 1px solid var(--line-soft); }
+/* Розділи відокремлює повітря й заголовок — без ліній між ними */
+.ord-sec { padding: 14px 0 10px; }
 .ord-sec-t { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; font-size: 14px; font-weight: 600; color: var(--fg); }
 .ord-hint { font-size: 12.5px; font-weight: 500; color: var(--accent-2); }
 
-/* Поля тексту лишаються прозорими, як усюди на сайті (.inp за замовчуванням) —
-   рамка з'являється лише при наведенні й фокусі. Постійну білу рамку тут
-   лишаємо тільки для того, що справді є кнопкою (дата/час) чи окремим числом
-   серед підсумків (передоплата), інакше форма перетворюється на стос
-   однакових сірих коробок. */
 .inp.ord-inp { height: 40px; padding: 0 12px; }
 .ord-note {
   height: auto !important; min-height: 66px; padding: 10px 12px !important;
@@ -612,12 +607,15 @@ html:not(.orders-on) .orders-only { display: none !important; }
 }
 .ord-note:hover { border-color: var(--edge-2); }
 
-/* Імʼя й телефон — один рядок з підкресленням, а не дві окремі білі коробки */
+/* Імʼя й телефон — одна біла плашка, видна й без наведення; поля в ній без
+   власних рамок, щоб не було коробки в коробці */
 .ord-who {
-  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px 20px;
-  padding-bottom: 10px; border-bottom: 1px solid var(--line-soft);
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  border: 1px solid var(--line-2); border-radius: var(--r-m); background: var(--field);
 }
-.ord-tel { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ord-who:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+.ord-who .inp, .ord-who .inp:hover, .ord-who .inp:focus { border-color: transparent; box-shadow: none; background: transparent; }
+.ord-tel { display: flex; align-items: center; gap: 2px; min-width: 0; padding-right: 4px; border-left: 1px solid var(--line-soft); }
 .ord-call {
   flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px;
   border: 0; border-radius: var(--r-s); background: transparent; color: var(--accent-2); cursor: pointer;
@@ -640,8 +638,9 @@ html:not(.orders-on) .orders-only { display: none !important; }
 .ord-pick[data-pick=date] { min-width: 232px; }
 .ord-pick-time { min-width: 108px; font-family: var(--num); font-size: 14px; }
 .ord-seg { margin-left: auto; }
-/* Так само рядком, а не ще однією білою коробкою під кнопками дати й доставки */
-.ord-addr { margin-top: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+/* Адреса — таке ж видиме поле, як імʼя й телефон */
+.inp.ord-addr { margin-top: 10px; border-color: var(--line-2); background: var(--field); }
+.inp.ord-addr:hover { border-color: var(--edge-2); }
 
 .ord-bill { border: 1px solid var(--line-2); border-radius: var(--r-m); background: var(--panel); overflow: hidden; }
 .ord-ih, .ord-line { display: grid; grid-template-columns: minmax(0, 1fr) 84px 112px 104px 32px; align-items: center; gap: 6px; }
@@ -677,7 +676,7 @@ html:not(.orders-on) .orders-only { display: none !important; }
 .ord-sr.is-paid, .ord-sr.is-paid b { color: var(--accent-2); }
 .ord-sr b svg { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 
-.ord-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.ord-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; }
 .ord-acts .btn { height: 40px; }
 
 /* Спливне вікно календаря й часу — у тон панелям, не браузерне */
@@ -1445,6 +1444,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .ord-form { padding: 0 14px 16px; }
   .ord-sec { padding: 14px 0; }
   .ord-who { grid-template-columns: 1fr; }
+  .ord-tel { border-left: 0; border-top: 1px solid var(--line-soft); }
   .inp.ord-inp, .ord-pick { height: 44px; }
   .ord-call { width: 44px; height: 44px; }
   .ord-when { display: grid; grid-template-columns: minmax(0, 1fr) 108px; }
