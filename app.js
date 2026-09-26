@@ -139,11 +139,13 @@ function emptyState() {
     theme: 'light',
     showNutrition: false,                          // КБЖУ й алергени потрібні не всім
     nutAsked: false,                               // чи вже пропонували ввімкнути КБЖУ в базі
+    showOrders: false,                             // вкладка «Замовлення» — теж не всім
     products: [],
     expenseBase: [],
     preps: [],
     folders: [],
     draft: null,                                   // незбережена калькуляція
+    orders: [],
     ui: { screen: 'home', folderId: null, editing: null, folderQuery: '', folderSort: 'name', folderCols: 1 }
   };
 }
@@ -204,6 +206,10 @@ function normalize(s) {
   if (!s.expenseBase) s.expenseBase = [];   // до появи бази витрат поля не було
   if (!s.preps) s.preps = [];               // до появи напівфабрикатів поля не було
   if (!s.folders) s.folders = [];
+  if (typeof s.showOrders !== 'boolean') s.showOrders = false;
+  // До появи замовлень поля не було; з файла копії може прийти будь-що
+  s.orders = (Array.isArray(s.orders) ? s.orders : []).filter(function (o) { return o && typeof o === 'object'; });
+  s.orders.forEach(normalizeOrder);
   s.products.forEach(normalizeProduct);
   s.preps.forEach(function (p) {
     if (!p.ing) p.ing = [];
@@ -1789,7 +1795,10 @@ function restoreNav(st) {
         loadCalc(draft || { name: '', margin: 50, ing: [], exp: [] }, 'Нова калькуляція');
         show('calc', null);
       }
+    } else if (id === 'orders' && !S.showOrders) {
+      show('home');   // замовлення вимкнули, а крок у історії лишився
     } else if (id !== 'folder' && id !== 'prep-edit' && $('#s-' + id)) {
+      if (id === 'orders') renderOrders(true);
       if (id === 'base') renderBase();
       if (id === 'expbase') renderExpBase();
       if (id === 'prep') renderPreps();
@@ -1823,6 +1832,7 @@ function renderSidebar() {
   $('#nav-base-count').textContent = S.products.length || '';
   $('#nav-expbase-count').textContent = S.expenseBase.length || '';
   $('#nav-prep-count').textContent = S.preps.length || '';
+  paintOrderCounts();
 }
 
 /* ── Меню на телефоні ──────────────────────────────────────────
@@ -4239,11 +4249,14 @@ function importData(file) {
 
     var n = recipeCount(parsed);
     var k = (parsed.preps && parsed.preps.length) || 0;
+    var m = Array.isArray(parsed.orders)
+      ? parsed.orders.filter(function (o) { return o && typeof o === 'object'; }).length : 0;
     ask({
       title: 'Відновити з файла?',
       sub: 'З файла прийде ' + parsed.products.length + ' ' +
            plural(parsed.products.length, 'продукт', 'продукти', 'продуктів') +
            (k ? ', ' + k + ' ' + plural(k, 'напівфабрикат', 'напівфабрикати', 'напівфабрикатів') : '') +
+           (m ? ', ' + m + ' ' + plural(m, 'замовлення', 'замовлення', 'замовлень') : '') +
            ' і ' + n + ' ' + plural(n, 'калькуляція', 'калькуляції', 'калькуляцій') +
            '. Поточні дані буде замінено — якщо вони потрібні, спершу збережіть їх у файл.',
       input: false, ok: 'Відновити', danger: true
@@ -4257,6 +4270,585 @@ function importData(file) {
   };
   reader.onerror = function () { toast('Не вдалося прочитати файл'); };
   reader.readAsText(file);
+}
+
+/* ═════════════════ 15a. Замовлення ═════════════════
+   Вмикаються в налаштуваннях. Позиція замовлення бере з калькуляції лише
+   назву й ціну на момент вибору — як інгредієнт бере ціну з бази: ціна,
+   названа клієнту, не має мінятись заднім числом.
+   order = { id, client, phone, date, time, delivery, address, items[], prepaid, note, done }
+     date 'РРРР-ММ-ДД' | '', time 'ГГ:ХХ' | '', item = { name, qty, price } */
+
+var ORD_MONTHS = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня',
+  'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+var ORD_DAYS = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'Пʼятниця', 'Субота'];
+var ICON_PHONE = '<svg viewBox="0 0 24 24"><path d="M6 3.5h3l1.6 4.4-2.2 1.4a11.5 11.5 0 0 0 6.3 6.3l1.4-2.2 4.4 1.6v3A2 2 0 0 1 18.3 20 15.8 15.8 0 0 1 4 5.7a2 2 0 0 1 2-2.2z"/></svg>';
+
+var ordView = 'active';   // 'active' | 'done'
+var ordOpen = {};         // id → картка розкрита
+var ordFresh = null;      // щойно створене: стоїть угорі, доки його не згорнули
+
+function normalizeOrder(o) {
+  if (!o.id) o.id = uid('o');
+  ['client', 'phone', 'date', 'time', 'address', 'note'].forEach(function (k) {
+    if (typeof o[k] !== 'string') o[k] = '';
+  });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date)) o.date = '';
+  if (!/^\d{2}:\d{2}$/.test(o.time)) o.time = '';
+  o.delivery = !!o.delivery;
+  o.done = !!o.done;
+  o.prepaid = num(o.prepaid);
+  o.items = (Array.isArray(o.items) ? o.items : []).filter(function (i) {
+    return i && typeof i === 'object';
+  }).map(function (i) {
+    return { name: typeof i.name === 'string' ? i.name : '', qty: num(i.qty) || 1, price: num(i.price) };
+  });
+}
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+function todayIso() {
+  var d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+/** «Сьогодні, 26 вересня», «Пʼятниця, 3 жовтня». Рік — лише коли не цей. */
+function ordDayLabel(iso) {
+  var p = iso.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+  var t = new Date(); t.setHours(0, 0, 0, 0);
+  var diff = Math.round((d - t) / 864e5);
+  var date = d.getDate() + ' ' + ORD_MONTHS[d.getMonth()] +
+    (d.getFullYear() !== t.getFullYear() ? ' ' + d.getFullYear() : '');
+  var day = diff === 0 ? 'Сьогодні' : diff === 1 ? 'Завтра' : diff === -1 ? 'Вчора' : ORD_DAYS[d.getDay()];
+  return day + ', ' + date;
+}
+
+function orderTotal(o) {
+  return o.items.reduce(function (a, i) { return a + i.qty * i.price; }, 0);
+}
+
+/** Відкрили «+ Нове замовлення» й нічого не вписали — такого запису не лишаємо. */
+function orderEmpty(o) {
+  return !o.client.trim() && !o.phone.trim() && !o.address.trim() && !o.note.trim() && !o.prepaid &&
+    !o.items.some(function (i) { return i.name.trim() || i.price; });
+}
+
+function allRecipes() {
+  var out = [];
+  S.folders.forEach(function (f) { f.recipes.forEach(function (r) { out.push(r); }); });
+  return out;
+}
+
+/** Ціна з картки калькуляції — та, що з округленням, її й називають клієнту. */
+function recipeSalePrice(r) { return totals(r).round; }
+
+/** Останнє інше замовлення цього ж клієнта — звідти беремо телефон і адресу. */
+function clientOrders(name, exceptId) {
+  var k = nameKey(name);
+  if (!k) return [];
+  return S.orders.filter(function (o) { return o.id !== exceptId && nameKey(o.client) === k; });
+}
+
+function paintOrderLists() {
+  $('#dl-recipes').innerHTML = allRecipes().map(function (r) {
+    return '<option value="' + esc(r.name) + '" label="' + esc(moneyShort(recipeSalePrice(r))) + '">';
+  }).join('');
+  // Свіжіші замовлення першими: у них актуальніший номер
+  var seen = {}, opts = [];
+  S.orders.slice().reverse().forEach(function (o) {
+    var k = nameKey(o.client);
+    if (!k || seen[k]) return;
+    seen[k] = true;
+    opts.push('<option value="' + esc(o.client.trim()) + '"' + (o.phone.trim() ? ' label="' + esc(o.phone.trim()) + '"' : '') + '>');
+  });
+  $('#dl-clients').innerHTML = opts.join('');
+}
+
+function paintOrderCounts() {
+  var act = 0, done = 0;
+  S.orders.forEach(function (o) {
+    if (o.done) done++;
+    else if (!orderEmpty(o)) act++;
+  });
+  $('#nav-orders-count').textContent = act || '';
+  $('[data-ord-n="active"]').textContent = act ? ' ' + act : '';
+  $('[data-ord-n="done"]').textContent = done ? ' ' + done : '';
+}
+
+function applyOrders() {
+  document.documentElement.classList.toggle('orders-on', !!S.showOrders);
+  $$('#seg-orders-on button').forEach(function (b) {
+    b.setAttribute('aria-pressed', (b.getAttribute('data-ord-on') === 'on') === !!S.showOrders ? 'true' : 'false');
+  });
+  paintOrderCounts();
+}
+
+function ordSortKey(o, done) {
+  // Без дати — наприкінці списку в обох вкладках
+  return (o.date || (done ? '0000-00-00' : '9999-99-99')) + ' ' + (o.time || (done ? '00:00' : '99:99'));
+}
+
+function ordMatches(o, q) {
+  if (!q) return true;
+  // Адреса самовивозу схована в картці — знаходити замовлення за нею було б дивно
+  return [o.client, o.phone, o.delivery ? o.address : '', o.note].concat(o.items.map(function (i) { return i.name; }))
+    .join(' ').toLowerCase().indexOf(q) !== -1;
+}
+
+/** fresh — прийшли на екран: прибираємо порожні записи й згортаємо все. */
+function renderOrders(fresh) {
+  if (fresh) {
+    S.orders = S.orders.filter(function (o) { return !orderEmpty(o); });
+    ordOpen = {};
+    ordFresh = null;
+    persist();
+  }
+  paintOrderLists();
+  paintOrderCounts();
+  $$('#seg-ord-view button').forEach(function (b) {
+    b.setAttribute('aria-pressed', b.getAttribute('data-ord-view') === ordView ? 'true' : 'false');
+  });
+
+  var box = $('#ord-list');
+  var q = $('#ord-search').value.trim().toLowerCase();
+  var done = ordView === 'done';
+  var list = S.orders.filter(function (o) {
+    return o.done === done && o.id !== ordFresh && ordMatches(o, q);
+  });
+  list.sort(function (a, b) {
+    var x = ordSortKey(a, done), y = ordSortKey(b, done);
+    return (x < y ? -1 : x > y ? 1 : 0) * (done ? -1 : 1);
+  });
+
+  box.innerHTML = '';
+  var fr = ordFresh ? byId(S.orders, ordFresh) : null;
+  if (fr) box.appendChild(ordGroup('Нове замовлення', false, [fr]));
+
+  var today = todayIso(), groups = [], cur = null;
+  list.forEach(function (o) {
+    if (!cur || cur.date !== o.date) { cur = { date: o.date, items: [] }; groups.push(cur); }
+    cur.items.push(o);
+  });
+  groups.forEach(function (g) {
+    box.appendChild(ordGroup(g.date ? ordDayLabel(g.date) : 'Без дати', !done && !!g.date && g.date < today, g.items));
+  });
+
+  if (!fr && !list.length) box.innerHTML = ordEmptyHtml(q, done);
+}
+
+function ordEmptyHtml(q, done) {
+  var t, s;
+  if (q) {
+    t = 'Нічого не знайшли за запитом «' + q + '»';
+    s = 'Спробуйте імʼя клієнта, телефон або назву виробу.';
+  } else if (done) {
+    t = 'Виконаних замовлень поки немає';
+    s = 'Коли віддасте замовлення, натисніть у ньому «Виконано» — воно переїде сюди.';
+  } else if (S.orders.some(function (o) { return o.done; })) {
+    t = 'Активних замовлень немає';
+    s = 'Усе віддано. Нове додається кнопкою «+ Нове замовлення».';
+  } else {
+    t = 'Замовлень поки немає';
+    s = 'Додайте перше: хто замовив, що саме й на коли.';
+  }
+  return '<div class="panel"><div class="tbl-empty"><b class="empty-t">' + esc(t) + '</b>' + esc(s) + '</div></div>';
+}
+
+function ordGroup(label, late, orders) {
+  var g = document.createElement('div');
+  g.className = 'ord-group';
+  g.innerHTML = '<div class="ord-day' + (late ? ' is-late' : '') + '"><span>' + esc(label) + '</span>' +
+    (late ? '<span class="ord-late">прострочено</span>' : '') + '</div>' +
+    '<div class="panel ord-panel"></div>';
+  var panel = $('.ord-panel', g);
+  orders.forEach(function (o) { panel.appendChild(ordRow(o)); });
+  return g;
+}
+
+function ordRow(o) {
+  var el = document.createElement('div');
+  el.className = 'ord';
+  el.setAttribute('data-id', o.id);
+  el.innerHTML =
+    '<button type="button" class="ord-head" aria-expanded="false">' +
+      '<span class="ord-time"></span>' +
+      '<span class="ord-main"><span class="ord-client"></span><span class="ord-what"></span></span>' +
+      '<span class="ord-money"><span class="ord-sum"></span><span class="ord-pay"></span></span>' +
+      '<svg class="ord-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>' +
+    '</button>' +
+    '<div class="ord-body" hidden></div>';
+  paintOrdHead(el, o);
+  if (ordOpen[o.id]) showOrdBody(el, o, false);
+  return el;
+}
+
+function ordWhat(o) {
+  var names = o.items.filter(function (i) { return i.name.trim(); }).map(function (i) {
+    return i.name.trim() + (i.qty !== 1 ? ' × ' + qtyFmt(i.qty) : '');
+  });
+  return (names.join(', ') || 'Що замовили — ще не вказано') + (o.delivery ? ' · доставка' : '');
+}
+
+/** Оплату показуємо, лише коли вона щось додає: без передоплати сума й так праворуч. */
+function ordPayText(o) {
+  var total = orderTotal(o);
+  if (total > 0 && o.prepaid >= total - 0.005) return { txt: 'Оплачено', paid: true };
+  if (o.prepaid > 0) return { txt: 'Решта ' + money(Math.max(total - o.prepaid, 0)), paid: false };
+  return { txt: '', paid: false };
+}
+
+function paintOrdHead(el, o) {
+  var time = $('.ord-time', el);
+  time.textContent = o.time || '—';
+  time.classList.toggle('is-none', !o.time);
+  var cl = $('.ord-client', el);
+  cl.textContent = o.client.trim() || 'Без імені';
+  cl.classList.toggle('is-none', !o.client.trim());
+  $('.ord-what', el).textContent = ordWhat(o);
+  var total = orderTotal(o);
+  $('.ord-sum', el).textContent = total ? money(total) : '—';
+  var pay = $('.ord-pay', el), p = ordPayText(o);
+  pay.textContent = p.txt;
+  pay.hidden = !p.txt;
+  pay.classList.toggle('is-paid', p.paid);
+}
+
+function ordField(cap, html, extra) {
+  return '<label class="ord-f' + (extra || '') + '"><span class="ord-cap">' + cap + '</span>' + html + '</label>';
+}
+
+function ordBodyHtml() {
+  return '<div class="ord-form">' +
+    '<div class="ord-grid">' +
+      ordField('Клієнт', '<input class="inp ord-inp" data-o="client" list="dl-clients" autocomplete="off" placeholder="Імʼя">' +
+        '<span class="ord-hint" data-o-hist hidden></span>') +
+      ordField('Телефон', '<span class="ord-tel"><input class="inp ord-inp" type="tel" data-o="phone" autocomplete="off" placeholder="+380">' +
+        '<a class="ord-call" data-o-call aria-label="Подзвонити" hidden>' + ICON_PHONE + '</a></span>') +
+      ordField('Дата здачі', '<input class="inp ord-inp" type="date" data-o="date">') +
+      ordField('Час', '<input class="inp ord-inp" type="time" data-o="time">') +
+    '</div>' +
+    '<div class="ord-f"><span class="ord-cap">Отримання</span><div class="ord-deliv">' +
+      '<div class="seg"><button type="button" data-deliv="0">Самовивіз</button><button type="button" data-deliv="1">Доставка</button></div>' +
+      '<input class="inp ord-inp" data-o="address" autocomplete="off" placeholder="Адреса доставки" aria-label="Адреса доставки">' +
+    '</div></div>' +
+    '<div class="ord-f"><span class="ord-cap">Що замовили</span>' +
+      '<div class="ord-lines"></div>' +
+      '<button type="button" class="btn-dash ord-add-line" data-l-add>+ Додати позицію</button>' +
+    '</div>' +
+    '<div class="ord-foot">' +
+      ordField('Передоплата', '<input class="inp ord-inp is-num" data-o="prepaid" inputmode="decimal" autocomplete="off" placeholder="0,00">', ' ord-prepaid') +
+      '<div class="ord-total"><span class="ord-total-lbl">Разом</span><b class="ord-total-val" data-o-total></b><span class="ord-left" data-o-left></span></div>' +
+    '</div>' +
+    ordField('Примітка', '<textarea class="inp ord-inp ord-note" data-o="note" rows="2" placeholder="Напис на торті, побажання, як проїхати"></textarea>') +
+    '<div class="ord-acts">' +
+      '<button type="button" class="btn btn-soft" data-o-done></button>' +
+      '<button type="button" class="btn btn-ghost is-danger" data-o-del>Видалити</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function ordLine(el, item) {
+  var line = document.createElement('div');
+  line.className = 'ord-line';
+  line.innerHTML =
+    '<input class="inp ord-inp" data-l="name" list="dl-recipes" autocomplete="off" placeholder="Калькуляція або своє" aria-label="Що замовили">' +
+    '<span class="qty-wrap"><input class="inp ord-inp is-num" data-l="qty" inputmode="decimal" autocomplete="off" placeholder="1" aria-label="Кількість"><span class="unit-tag">шт</span></span>' +
+    '<input class="inp ord-inp is-num" data-l="price" inputmode="decimal" autocomplete="off" placeholder="Ціна" aria-label="Ціна за штуку">' +
+    '<span class="ord-line-sum"></span>' +
+    '<button type="button" class="icon-btn is-danger" data-l-del aria-label="Прибрати позицію">' + ICON_X + '</button>';
+  if (item) {
+    $('[data-l=name]', line).value = item.name;
+    $('[data-l=qty]', line).value = item.qty !== 1 ? qtyFmt(item.qty) : '';
+    var price = $('[data-l=price]', line);
+    price.value = item.price ? fmt(item.price) : '';
+    // Ціна та сама, що в калькуляції, — значить, підставлена: зміна виробу її замінить
+    var r = byName(allRecipes(), item.name);
+    if (r && item.price && same(item.price, recipeSalePrice(r))) price.setAttribute('data-auto', price.value);
+  }
+  $('.ord-lines', el).appendChild(line);
+  return line;
+}
+
+function fillOrdBody(el, o) {
+  ['client', 'phone', 'date', 'time', 'address', 'note'].forEach(function (k) {
+    $('[data-o=' + k + ']', el).value = o[k];
+  });
+  $('[data-o=prepaid]', el).value = o.prepaid ? fmt(o.prepaid) : '';
+  o.items.forEach(function (i) { ordLine(el, i); });
+  if (!o.items.length) ordLine(el, null);
+  paintDeliv(el, o);
+  paintCall(el, o);
+  paintClientHist(el, o);
+  paintOrdLines(el);
+  paintOrdTotals(el, o);
+  $('[data-o-done]', el).innerHTML = o.done ? 'Повернути в активні' : ICON_TICK + 'Виконано';
+}
+
+function paintDeliv(el, o) {
+  $$('[data-deliv]', el).forEach(function (b) {
+    b.setAttribute('aria-pressed', (b.getAttribute('data-deliv') === '1') === o.delivery ? 'true' : 'false');
+  });
+  $('[data-o=address]', el).hidden = !o.delivery;
+}
+
+function paintCall(el, o) {
+  var a = $('[data-o-call]', el), tel = o.phone.replace(/[^\d+]/g, '');
+  a.hidden = !tel;
+  if (tel) a.href = 'tel:' + tel; else a.removeAttribute('href');
+}
+
+function paintClientHist(el, o) {
+  var n = clientOrders(o.client, o.id).length;
+  var h = $('[data-o-hist]', el);
+  h.hidden = !n;
+  if (n) h.textContent = 'Замовляє вже ' + (n + 1) + '-й раз';
+}
+
+function paintOrdLines(el) {
+  $$('.ord-line', el).forEach(function (line) {
+    var sum = (num($('[data-l=qty]', line).value) || 1) * num($('[data-l=price]', line).value);
+    $('.ord-line-sum', line).textContent = sum ? fmt(sum) : '';
+  });
+}
+
+function paintOrdTotals(el, o) {
+  var total = orderTotal(o);
+  $('[data-o-total]', el).textContent = money(total);
+  var left = $('[data-o-left]', el), p = ordPayText(o);
+  left.textContent = p.paid ? 'Оплачено повністю' : (o.prepaid > 0 ? 'До оплати ' + money(Math.max(total - o.prepaid, 0)) : '');
+  left.classList.toggle('is-paid', p.paid);
+}
+
+/** Таблиця позицій у DOM — єдине джерело правди, як і рядки калькуляції. */
+function syncOrdLines(el, o) {
+  o.items = $$('.ord-line', el).map(function (line) {
+    return {
+      name: $('[data-l=name]', line).value,
+      qty: num($('[data-l=qty]', line).value) || 1,
+      price: num($('[data-l=price]', line).value)
+    };
+  }).filter(function (i) { return i.name.trim() || i.price; });
+  paintOrdLines(el);
+}
+
+/** Вибрали калькуляцію — підставляємо її ціну, але свою, вписану руками, не чіпаємо. */
+function pickOrdRecipe(inp) {
+  var r = byName(allRecipes(), inp.value);
+  if (!r) return;
+  var price = $('[data-l=price]', inp.closest('.ord-line'));
+  var auto = price.getAttribute('data-auto');
+  if (num(price.value) && price.value !== auto) return;
+  var v = fmt(recipeSalePrice(r));
+  price.value = v;
+  price.setAttribute('data-auto', v);
+}
+
+/** Знайомий клієнт — телефон з минулого разу, а адреса — лише коли веземо. */
+function fillFromClient(el, o) {
+  var prev = clientOrders(o.client, o.id).pop();
+  if (!prev) return;
+  var ph = $('[data-o=phone]', el);
+  if (!ph.value.trim() && prev.phone.trim()) { ph.value = o.phone = prev.phone; paintCall(el, o); }
+  if (o.delivery) fillClientAddress(el, o);
+}
+
+function fillClientAddress(el, o) {
+  var ad = $('[data-o=address]', el);
+  if (ad.value.trim()) return;
+  var prev = clientOrders(o.client, o.id).filter(function (x) { return x.address.trim(); }).pop();
+  if (prev) ad.value = o.address = prev.address;
+}
+
+function ordEl(o) { return $('#ord-list .ord[data-id="' + o.id + '"]'); }
+
+/* Картка розкривається так само, як рядок у базі: висота від нуля й назад.
+   seq — щоб кінець скасованої анімації закриття не сховав уже знову відкриту картку. */
+function ordSlide(body, opening, done) {
+  var end = done || function () {};
+  if (calmMotion() || !body.animate) { end(); return; }
+  var h = body.scrollHeight;
+  body.style.overflow = 'hidden';
+  var anim = body.animate([
+    { height: (opening ? 0 : h) + 'px', opacity: opening ? 0 : 1 },
+    { height: (opening ? h : 0) + 'px', opacity: opening ? 1 : 0 }
+  ], ROW_MOTION);
+  onMotionEnd(anim, function () { body.style.overflow = ''; end(); });
+}
+
+function showOrdBody(el, o, animate) {
+  var body = $('.ord-body', el);
+  el.ordSeq = (el.ordSeq || 0) + 1;
+  stopMotion(body);
+  body.innerHTML = ordBodyHtml();
+  fillOrdBody(el, o);
+  el.classList.add('is-open');
+  $('.ord-head', el).setAttribute('aria-expanded', 'true');
+  body.hidden = false;
+  if (animate) ordSlide(body, true);
+}
+
+function hideOrdBody(el, done) {
+  var body = $('.ord-body', el);
+  var seq = el.ordSeq = (el.ordSeq || 0) + 1;
+  stopMotion(body);
+  el.classList.remove('is-open');
+  $('.ord-head', el).setAttribute('aria-expanded', 'false');
+  ordSlide(body, false, function () {
+    if (el.ordSeq !== seq) return;
+    body.hidden = true;
+    body.innerHTML = '';
+    done();
+  });
+}
+
+function toggleOrd(el) {
+  var o = byId(S.orders, el.getAttribute('data-id'));
+  if (!o) return;
+  if (!el.classList.contains('is-open')) {
+    ordOpen[o.id] = true;
+    showOrdBody(el, o, true);
+    return;
+  }
+  delete ordOpen[o.id];
+  // Згорнули — порожня зникає одразу, а картка стає на своє місце за датою,
+  // коли доїде анімація: список під пальцем не має перебудовуватись посеред руху
+  if (ordFresh === o.id) ordFresh = null;
+  if (orderEmpty(o)) S.orders = S.orders.filter(function (x) { return x !== o; });
+  persist();
+  paintOrderCounts();
+  hideOrdBody(el, function () { renderOrders(); });
+}
+
+function addOrder() {
+  var prev = ordFresh ? byId(S.orders, ordFresh) : null;
+  if (prev && orderEmpty(prev)) {
+    var el = ordEl(prev);
+    if (el) { $('[data-o=client]', el).focus(); return; }   // порожня нова вже відкрита — туди й ведемо
+  }
+  var o = { id: uid('o'), client: '', phone: '', date: '', time: '', delivery: false,
+            address: '', items: [], prepaid: 0, note: '', done: false };
+  S.orders.push(o);
+  ordView = 'active';
+  $('#ord-search').value = '';
+  ordFresh = o.id;
+  ordOpen[o.id] = true;
+  renderOrders();
+  persist();
+  var row = ordEl(o);
+  if (row) {
+    row.scrollIntoView({ block: 'nearest' });
+    $('[data-o=client]', row).focus({ preventScroll: true });
+  }
+}
+
+function markOrderDone(o) {
+  o.done = !o.done;
+  delete ordOpen[o.id];
+  if (ordFresh === o.id) ordFresh = null;
+  persist(true);
+  renderOrders();
+  toast(o.done ? 'Виконано — замовлення у вкладці «Виконані»' : 'Замовлення знову серед активних');
+}
+
+function deleteOrder(o) {
+  function drop() {
+    S.orders = S.orders.filter(function (x) { return x !== o; });
+    delete ordOpen[o.id];
+    if (ordFresh === o.id) ordFresh = null;
+    persist(true);
+    renderOrders();
+  }
+  if (orderEmpty(o)) { drop(); return; }
+  ask({
+    title: 'Видалити замовлення?',
+    sub: '«' + (o.client.trim() || 'Без імені') + '» зникне зі списку назавжди.',
+    input: false, ok: 'Видалити', danger: true
+  }, function () {
+    closeAsk();
+    drop();
+    toast('Замовлення видалено');
+  });
+}
+
+function bindOrders() {
+  $('#btn-add-order').addEventListener('click', addOrder);
+  $('#ord-search').addEventListener('input', function () { renderOrders(); });
+  $('#seg-ord-view').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ord-view]');
+    if (!b || b.getAttribute('data-ord-view') === ordView) return;
+    ordView = b.getAttribute('data-ord-view');
+    renderOrders();
+  });
+
+  var list = $('#ord-list');
+  function orderOf(t) {
+    var el = t.closest('.ord');
+    var o = el && byId(S.orders, el.getAttribute('data-id'));
+    return o ? { el: el, o: o } : null;
+  }
+
+  list.addEventListener('click', function (e) {
+    var hit = orderOf(e.target);
+    if (!hit) return;
+    var el = hit.el, o = hit.o;
+    if (e.target.closest('.ord-head')) { toggleOrd(el); return; }
+
+    var dv = e.target.closest('[data-deliv]');
+    if (dv) {
+      o.delivery = dv.getAttribute('data-deliv') === '1';
+      if (o.delivery) fillClientAddress(el, o);
+      paintDeliv(el, o);
+      paintOrdHead(el, o);
+      persist();
+      var ad = $('[data-o=address]', el);
+      if (o.delivery && !ad.value) ad.focus();
+      return;
+    }
+    if (e.target.closest('[data-l-add]')) {
+      $('[data-l=name]', ordLine(el, null)).focus();
+      return;
+    }
+    var del = e.target.closest('[data-l-del]');
+    if (del) {
+      del.closest('.ord-line').remove();
+      if (!$('.ord-line', el)) ordLine(el, null);   // порожній список позицій виглядав би зламаним
+      syncOrdLines(el, o);
+      paintOrdTotals(el, o);
+      paintOrdHead(el, o);
+      paintOrderCounts();
+      persist();
+      return;
+    }
+    if (e.target.closest('[data-o-done]')) { markOrderDone(o); return; }
+    if (e.target.closest('[data-o-del]')) deleteOrder(o);
+  });
+
+  list.addEventListener('input', function (e) {
+    var hit = orderOf(e.target);
+    if (!hit) return;
+    var el = hit.el, o = hit.o, t = e.target;
+    var f = t.getAttribute('data-o');
+    if (f === 'prepaid') o.prepaid = num(t.value);
+    else if (f) o[f] = t.value;
+    else if (t.hasAttribute('data-l')) {
+      if (t.getAttribute('data-l') === 'name') pickOrdRecipe(t);
+      syncOrdLines(el, o);
+    } else return;
+    if (f === 'client') { fillFromClient(el, o); paintClientHist(el, o); }
+    if (f === 'phone') paintCall(el, o);
+    paintOrdTotals(el, o);
+    paintOrdHead(el, o);
+    paintOrderCounts();
+    persist();
+  });
+
+  // Гроші й кількість допрацьовуємо, коли людина вийшла з поля, а не посеред набору
+  list.addEventListener('blur', function (e) {
+    var t = e.target;
+    if (!t.matches || !t.matches('[data-l=price], [data-l=qty], [data-o=prepaid]')) return;
+    var v = num(t.value);
+    if (t.getAttribute('data-l') === 'qty') t.value = v && v !== 1 ? qtyFmt(v) : '';
+    else t.value = v ? fmt(v) : '';
+  }, true);
 }
 
 /* ═════════════════ 16. Налаштування ═════════════════ */
@@ -4325,6 +4917,16 @@ function bindSettings() {
     }
   });
 
+  $('#seg-orders-on').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ord-on]'); if (!b) return;
+    var on = b.getAttribute('data-ord-on') === 'on';
+    if (on === S.showOrders) return;
+    S.showOrders = on;
+    applyOrders();
+    persist(true);
+    if (on) toast('Увімкнено. Вкладка «Замовлення» — у меню');
+  });
+
   $('#btn-export').addEventListener('click', exportData);
   $('#btn-import').addEventListener('click', function () { $('#import-input').click(); });
   $('#import-input').addEventListener('change', function () {
@@ -4358,7 +4960,7 @@ function bindSettings() {
       closeAsk();
       // Налаштування — не дані: людина чистить базу, а не хоче, щоб тема
       // й валюта раптом повернулись до початкових
-      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition };
+      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders };
       S = normalize(emptyState());
       Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
       draftDirty = false;
@@ -4378,6 +4980,7 @@ function bindGlobal() {
     if (sc) {
       var id = sc.getAttribute('data-screen');
       leaveCalc(function () {
+        if (id === 'orders') renderOrders(true);
         if (id === 'base') renderBase();
         if (id === 'expbase') renderExpBase();
         if (id === 'prep') renderPreps();
@@ -4432,6 +5035,7 @@ function bindGlobal() {
 function boot(fresh) {
   applyTheme();
   applyNutrition();
+  applyOrders();
   applyCurrency();
   renderSidebar();
   renderBase();
@@ -4471,6 +5075,8 @@ function boot(fresh) {
     show('calc', null);
   } else if (ui.screen === 'folder' && folderById(ui.folderId)) {
     openFolder(ui.folderId);
+  } else if (ui.screen === 'orders') {
+    if (S.showOrders) { renderOrders(true); show('orders'); } else show('home');
   } else if (ui.screen && $('#s-' + ui.screen)) {
     show(ui.screen);
   } else {
@@ -4494,6 +5100,7 @@ function init() {
   bindCalc();
   bindPhoto();
   bindMethod();
+  bindOrders();
   bindSave();
   bindPdf();
   bindSettings();

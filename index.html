@@ -29,6 +29,10 @@
     <button class="nav-item" data-screen="home">
       <span class="nav-name">Головна</span>
     </button>
+    <button class="nav-item orders-only" data-screen="orders">
+      <span class="nav-name">Замовлення</span>
+      <span class="nav-count" id="nav-orders-count"></span>
+    </button>
     <button class="nav-item" data-screen="base">
       <span class="nav-name">База продуктів</span>
       <span class="nav-count" id="nav-base-count"></span>
@@ -83,6 +87,33 @@
         <button class="btn btn-soft" data-recipe="new">Нова калькуляція</button>
       </div>
     </div>
+  </section>
+
+  <!-- ЗАМОВЛЕННЯ — вмикаються в налаштуваннях. Картки згруповані за датою здачі
+       й розкриваються на місці, як рядки бази: окремого редактора немає -->
+  <section class="screen" id="s-orders">
+    <div class="screen-head with-action">
+      <div>
+        <h1 class="h1">Замовлення</h1>
+        <p class="lede">Хто замовив, що саме, на коли й скільки ще доплатити.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-soft" id="btn-add-order">+ Нове замовлення</button>
+      </div>
+    </div>
+
+    <div class="tools-bar ord-tools">
+      <div class="seg" id="seg-ord-view">
+        <button data-ord-view="active" aria-pressed="true">Активні<span class="seg-n" data-ord-n="active"></span></button>
+        <button data-ord-view="done" aria-pressed="false">Виконані<span class="seg-n" data-ord-n="done"></span></button>
+      </div>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="inp" id="ord-search" placeholder="Клієнт, телефон або виріб" autocomplete="off">
+      </div>
+    </div>
+
+    <div id="ord-list"></div>
   </section>
 
   <!-- БАЗА ПРОДУКТІВ -->
@@ -581,6 +612,16 @@
       </div>
       <div class="set-row">
         <div class="set-row-txt">
+          <span class="h2">Замовлення</span>
+          <span class="set-row-desc">Окрема вкладка в меню: клієнт, що замовили, дата здачі, доставка й передоплата. Вимкнете — записані замовлення нікуди не зникнуть.</span>
+        </div>
+        <div class="seg" id="seg-orders-on">
+          <button data-ord-on="off" aria-pressed="true">Вимк.</button>
+          <button data-ord-on="on" aria-pressed="false">Увімк.</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
           <span class="h2">Тема</span>
           <span class="set-row-desc">Світла або темна — застосовується одразу</span>
         </div>
@@ -707,6 +748,17 @@
           <li><b>Алергени</b> — у списку всі 14 зі стандарту ЄС, той самий перелік, що на етикетках. Можна дописати свій. Якщо алергенів немає, натисніть «Без алергенів»: не вказані алергени й відсутні — це різне.</li>
         </ul>
         <p>Калькуляція рахує КБЖУ на 100&nbsp;г і на весь виріб і показує їх у PDF. «Вагу готового виробу» можна вписати свою — після випікання вона менша.</p>
+      </article>
+
+      <article class="panel help-sec">
+        <h2 class="h2">Замовлення</h2>
+        <p>Вмикаються в Налаштуваннях — тоді в меню зʼявляється вкладка «Замовлення». Кнопка «+ Нове замовлення» відкриває картку, яка зберігається сама, поки ви її заповнюєте.</p>
+        <ul>
+          <li><b>Клієнт і телефон</b> — якщо людина вже замовляла, почніть вводити імʼя: телефон і адреса підтягнуться з минулого замовлення. На телефоні поруч із номером є кнопка, щоб одразу подзвонити.</li>
+          <li><b>Що замовили</b> — почніть вводити назву збереженої калькуляції, і ціна підставиться сама. Можна вписати й своє, з власною ціною.</li>
+          <li><b>Передоплата</b> — застосунок покаже, скільки лишилось доплатити, або «Оплачено».</li>
+        </ul>
+        <p>Список згрупований за датою здачі, прострочені позначені червоним. Коли замовлення віддали, натисніть «Виконано» — воно переїде у вкладку «Виконані». У PDF замовлення не потрапляють.</p>
       </article>
 
       <article class="panel help-sec">
@@ -837,6 +889,8 @@
 
 <datalist id="dl-products"></datalist>
 <datalist id="dl-expenses"></datalist>
+<datalist id="dl-recipes"></datalist>
+<datalist id="dl-clients"></datalist>
 
 <script src="app.js"></script>
 </body>
