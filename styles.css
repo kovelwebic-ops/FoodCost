@@ -606,7 +606,6 @@ html:not(.orders-on) .orders-only { display: none !important; }
    серед підсумків (передоплата), інакше форма перетворюється на стос
    однакових сірих коробок. */
 .inp.ord-inp { height: 40px; padding: 0 12px; }
-.inp.is-bad, .inp.is-bad:focus { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 .ord-note {
   height: auto !important; min-height: 66px; padding: 10px 12px !important;
   border-color: var(--line-2); background: var(--field); line-height: 1.5; resize: vertical;
@@ -687,7 +686,7 @@ html:not(.orders-on) .orders-only { display: none !important; }
   border: 1px solid var(--line-2); border-radius: var(--r-l); background: var(--panel);
   box-shadow: 0 22px 44px -22px var(--modal-shadow), 0 2px 8px -4px var(--card-shadow);
 }
-.pop-time { width: 292px; }
+.pop.pop-time { width: 200px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .cal-title { font-size: 15px; font-weight: 600; color: var(--fg); }
 .cal-nav {
@@ -708,15 +707,24 @@ html:not(.orders-on) .orders-only { display: none !important; }
 .cal-d.is-sel, .cal-d.is-sel:hover { background: var(--accent); box-shadow: none; color: var(--on-accent); font-weight: 600; }
 .pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .pop-quick { display: flex; gap: 6px; }
-.pop-t { margin-bottom: 10px; font-size: 15px; font-weight: 600; color: var(--fg); }
-.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.slot {
-  height: 34px; border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--panel);
-  font-family: var(--num); font-size: 13px; color: var(--fg-2); cursor: pointer;
+/* Час — дві вузькі колонки простим текстом, без рамок у кожної цифри */
+.pop-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.pop-t { font-size: 15px; font-weight: 600; color: var(--fg); }
+.wheels { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.wheel { display: flex; flex-direction: column; gap: 2px; width: 64px; }
+/* Години гортаються; краї тануть — видно, що там є ще */
+.wheel[data-wheel-h] {
+  max-height: 212px; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(transparent, #000 18px, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(transparent, #000 18px, #000 calc(100% - 18px), transparent);
 }
-.slot:hover { border-color: var(--edge-2); color: var(--fg); }
-.slot.is-sel, .slot.is-sel:hover { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
-.inp.pop-own { flex: 1; width: auto; height: 36px; font-family: var(--num); font-size: 14px; }
+.wheel-sep { font-family: var(--num); font-size: 15px; color: var(--muted); }
+.wheel-v {
+  flex: 0 0 auto; height: 36px; border: 0; border-radius: var(--r-s); background: transparent;
+  font-family: var(--num); font-size: 15px; color: var(--fg-2); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.wheel-v:hover { background: var(--side-hov); color: var(--fg); }
+.wheel-v.is-sel, .wheel-v.is-sel:hover { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 
 .calc-mid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 24px 0; }
 /* 480, не 360: рядок витрати тепер має ще й тип+вартість поруч з назвою.
@@ -1461,7 +1469,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .ord-prepaid { width: 150px; }
   .pop { width: calc(100vw - 16px); max-width: 340px; }
   .cal-d { height: 40px; }
-  .slot { height: 40px; }
+  .wheel-v { height: 42px; }
+  .wheel { width: 72px; }
+  .wheel[data-wheel-h] { max-height: 236px; }
 
   /* ── Папка ── */
   .folder-tools { flex-direction: column; align-items: stretch; }

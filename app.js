@@ -4318,16 +4318,6 @@ function pad2(n) { return (n < 10 ? '0' : '') + n; }
 function isoOf(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 function todayIso() { return isoOf(new Date()); }
 
-/** «19:45», «1945», «945», «7» → «ГГ:ХХ»; нерозбірливе — ''. На телефонній цифровій клавіатурі двокрапки немає. */
-function parseTime(raw) {
-  var p = String(raw || '').trim().split(/\D+/).filter(Boolean), h, m;
-  if (p.length === 1 && p[0].length <= 2) { h = +p[0]; m = 0; }
-  else if (p.length === 1 && p[0].length <= 4) { h = +p[0].slice(0, -2); m = +p[0].slice(-2); }
-  else if (p.length === 2 && p[1].length <= 2) { h = +p[0]; m = +(p[1].length === 1 ? p[1] + '0' : p[1]); }
-  else return '';
-  return h < 24 && m < 60 ? pad2(h) + ':' + pad2(m) : '';
-}
-
 /** «27.04» для вузького поля кнопки на телефоні. Рік дописуємо, лише коли не цей. */
 function ordDateShort(iso) {
   var p = iso.split('-'), y = +p[0];
@@ -4733,19 +4723,6 @@ function popBox() {
   popEl.hidden = true;
   document.body.appendChild(popEl);
   popEl.addEventListener('click', onPopClick);
-  popEl.addEventListener('keydown', function (e) {
-    var ci = e.target.closest('[data-pop-time]');
-    if (ci && e.key === 'Enter') {
-      e.preventDefault();
-      var v = parseTime(ci.value);
-      if (v) setPick(v); else ci.classList.add('is-bad');
-    }
-  });
-  popEl.addEventListener('input', function (e) {
-    if (!e.target.closest('[data-pop-time]')) return;
-    pop.typed = true;
-    e.target.classList.remove('is-bad');
-  });
   // Клік повз вікно закриває його; по кнопці, що відкрила, — вона сама перемкне
   document.addEventListener('pointerdown', function (e) {
     if (pop && !popEl.contains(e.target) && !pop.anchor.contains(e.target)) closePop();
@@ -4759,7 +4736,8 @@ function openPop(kind, el, o, anchor, byKeyboard) {
   if (pop && pop.anchor === anchor) { closePop(); return; }
   closePop();
   var base = (o.date || todayIso()).split('-');
-  pop = { kind: kind, el: el, o: o, anchor: anchor, y: +base[0], m: +base[1] - 1, typed: false };
+  var tm = o.time ? o.time.split(':') : ['', ''];
+  pop = { kind: kind, el: el, o: o, anchor: anchor, y: +base[0], m: +base[1] - 1, th: tm[0], tmin: tm[1] };
   anchor.setAttribute('aria-expanded', 'true');
   anchor.classList.add('is-on');
   var box = popBox();
@@ -4768,22 +4746,21 @@ function openPop(kind, el, o, anchor, byKeyboard) {
   paintPop();
   box.hidden = false;
   placePop();
+  if (kind === 'time') centerHour();
   if (byKeyboard) {
-    var f = $('.is-sel', box) || $('.is-today', box) || $('button', box);
-    if (f) f.focus();
+    // Для часу — година посередині колонки: перша кнопка («06») прокрутила б її назад догори
+    var f = $('.is-sel', box) || $('.is-today', box) || $(kind === 'time' ? '[data-h="12"]' : 'button', box);
+    if (f) f.focus({ preventScroll: true });
   }
 }
 
-/** Свій час, вписаний без Enter, не пропадає: закриття його й зберігає. */
 function closePop() {
   if (!pop) return;
-  var p = pop, ci = popEl && $('[data-pop-time]', popEl);
-  var typed = p.kind === 'time' && p.typed && ci ? parseTime(ci.value) : '';
+  var p = pop;
   pop = null;
   popEl.hidden = true;
   p.anchor.setAttribute('aria-expanded', 'false');
   p.anchor.classList.remove('is-on');
-  if (typed && typed !== p.o.time) applyPick(p, typed);
 }
 
 function placePop() {
@@ -4823,18 +4800,35 @@ function calHtml() {
     (sel ? '<button type="button" class="link-btn" data-pop-clear>Прибрати</button>' : '') + '</div>';
 }
 
-/* Пів години — крок, яким зазвичай і домовляються. Інший час — полем унизу */
+/* Дві колонки простим текстом — години й хвилини з кроком 15: година лишає
+   вікно відкритим, хвилини завершують вибір. Години — з 6 до 23, раніше
+   замовлення не віддають. */
 function slotsHtml() {
-  var cur = pop.o.time, h = '<div class="pop-t">Час здачі</div><div class="slots">', inGrid = false;
-  for (var t = 8 * 60; t <= 21 * 60 + 30; t += 30) {
-    var v = pad2(Math.floor(t / 60)) + ':' + pad2(t % 60);
-    if (v === cur) inGrid = true;
-    h += '<button type="button" class="slot' + (v === cur ? ' is-sel' : '') + '" data-slot="' + v + '">' + v + '</button>';
+  var h = '<div class="pop-top"><span class="pop-t">Час здачі</span>' +
+    (pop.o.time ? '<button type="button" class="link-btn" data-pop-clear>Прибрати</button>' : '') +
+    '</div><div class="wheels"><div class="wheel" data-wheel-h>';
+  for (var i = 6; i <= 23; i++) {
+    var v = pad2(i);
+    h += '<button type="button" class="wheel-v' + (v === pop.th ? ' is-sel' : '') + '" data-h="' + v + '">' + v + '</button>';
   }
-  return h + '</div><div class="pop-foot">' +
-    '<input class="inp ord-inp pop-own" data-pop-time inputmode="numeric" autocomplete="off" maxlength="5" ' +
-      'placeholder="Свій, напр. 19:45" aria-label="Свій час" value="' + (cur && !inGrid ? cur : '') + '">' +
-    (cur ? '<button type="button" class="link-btn" data-pop-clear>Прибрати</button>' : '') + '</div>';
+  h += '</div><span class="wheel-sep">:</span><div class="wheel">';
+  ['00', '15', '30', '45'].forEach(function (v) {
+    h += '<button type="button" class="wheel-v' + (v === pop.tmin ? ' is-sel' : '') + '" data-min="' + v + '">' + v + '</button>';
+  });
+  return h + '</div></div>';
+}
+
+/** Вибрана година — посередині колонки, а не десь унизу за краєм. */
+function centerHour() {
+  var col = $('[data-wheel-h]', popEl);
+  var b = $('.is-sel', col) || $('[data-h="12"]', col);
+  // offsetTop рахується від вікна, а не від колонки — віднімаємо заголовок над нею
+  col.scrollTop = b.offsetTop - col.offsetTop - (col.clientHeight - b.offsetHeight) / 2;
+}
+
+function paintWheels() {
+  $$('[data-h]', popEl).forEach(function (b) { b.classList.toggle('is-sel', b.getAttribute('data-h') === pop.th); });
+  $$('[data-min]', popEl).forEach(function (b) { b.classList.toggle('is-sel', b.getAttribute('data-min') === pop.tmin); });
 }
 
 function onPopClick(e) {
@@ -4856,14 +4850,33 @@ function onPopClick(e) {
     setPick(isoOf(d));
     return;
   }
-  var sl = t.closest('[data-slot]');
-  if (sl) { setPick(sl.getAttribute('data-slot')); return; }
+  // Година одразу записується (хвилини — ті, що були, або :00) і вікно лишається;
+  // хвилини без години лише позначаються й чекають на неї
+  var hb = t.closest('[data-h]');
+  if (hb) {
+    pop.th = hb.getAttribute('data-h');
+    if (!pop.tmin) pop.tmin = '00';
+    paintWheels();
+    applyPick(pop, pop.th + ':' + pop.tmin);
+    if (!$('[data-pop-clear]', popEl)) paintClearLink();
+    return;
+  }
+  var mb = t.closest('[data-min]');
+  if (mb) {
+    pop.tmin = mb.getAttribute('data-min');
+    if (pop.th) { setPick(pop.th + ':' + pop.tmin); return; }
+    paintWheels();
+    return;
+  }
   if (t.closest('[data-pop-clear]')) setPick('');
+}
+
+function paintClearLink() {
+  $('.pop-top', popEl).insertAdjacentHTML('beforeend', '<button type="button" class="link-btn" data-pop-clear>Прибрати</button>');
 }
 
 function setPick(v) {
   var p = pop;
-  p.typed = false;
   closePop();
   applyPick(p, v);
   p.anchor.focus({ preventScroll: true });
