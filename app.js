@@ -4503,11 +4503,11 @@ function ordWhat(o) {
 }
 
 /** Оплату в рядку показуємо, лише коли вона щось додає: без передоплати сума й так праворуч.
-    Без слова «Решта» — саме число вужче й не тіснить назву страви на телефоні. */
+    Під сумою — мінус внесена передоплата, як у чеку. */
 function ordPayText(o) {
   var total = orderTotal(o);
   if (total > 0 && o.prepaid >= total - 0.005) return { txt: 'Оплачено', paid: true };
-  if (o.prepaid > 0) return { txt: '– ' + money(Math.max(total - o.prepaid, 0)), paid: false };
+  if (o.prepaid > 0) return { txt: '– ' + money(o.prepaid), paid: false };
   return { txt: '', paid: false };
 }
 
