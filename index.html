@@ -454,6 +454,20 @@
       </div>
     </div>
 
+    <!-- Рецепт — лише для себе, у PDF не йде. Згорнутий, щоб не відсувати
+         витрати й підсумок; у шапці видно перший рядок тексту -->
+    <div class="panel panel-method" id="calc-method">
+      <button type="button" class="method-head" id="method-toggle" aria-expanded="false" aria-controls="method-body">
+        <span class="h2">Рецепт</span>
+        <span class="method-peek" id="method-peek"></span>
+        <svg class="method-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="method-body" id="method-body" hidden>
+        <textarea class="inp method-inp" id="calc-method-txt" rows="5" placeholder="Як готувати: кроки, температура, час…" aria-label="Рецепт"></textarea>
+        <p class="method-note">Бачите лише ви — у PDF рецепт не потрапляє.</p>
+      </div>
+    </div>
+
     <div class="calc-mid">
       <div class="panel panel-scroll">
         <div class="panel-head">

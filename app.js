@@ -118,7 +118,8 @@ var draftDirty = false;
  *   expense = { name, mode, value }   mode: 'sum' (валюта) | 'pct' (% від собівартості)
  *   prep = { id, name, ing[], yield, unit }            ← напівфабрикат (тісто, крем)
  *   group = { id, prepId, name, take, of, unit }       ← напівфабрикат у рецепті
- *   recipe = { id, name, photo, margin, ing[], exp[], groups[], outWeight }
+ *   recipe = { id, name, photo, margin, ing[], exp[], groups[], outWeight, method }
+ *     method = текст рецепта для себе ('' — немає), у PDF не йде
  *   folder = { id, title, recipes[] }
  *
  * Ціна в рецепті — копія, а КБЖУ й алергени — ні: їх беремо з бази за назвою
@@ -216,6 +217,7 @@ function normalize(s) {
       if (!r.exp) r.exp = [];
       if (!r.groups) r.groups = [];
       r.outWeight = num(r.outWeight);
+      if (typeof r.method !== 'string') r.method = '';
       migrateExpenseList(r.exp);
     });
   });
@@ -223,6 +225,7 @@ function normalize(s) {
     migrateExpenseList(s.draft.exp);
     if (!s.draft.groups) s.draft.groups = [];
     s.draft.outWeight = num(s.draft.outWeight);
+    if (typeof s.draft.method !== 'string') s.draft.method = '';
   }
   return s;
 }
@@ -2968,6 +2971,7 @@ function readCalc() {
     // Підставлена сума інгредієнтів — не значення рецепта: 0 означає «рахувати самим».
     // У полі кілограми, у рецепті — грами, як і всі ваги застосунку
     outWeight: $('#calc-outw').dataset.manual ? Math.round(num($('#calc-outw').value) * 1000) : 0,
+    method: $('#calc-method-txt').value,
     ing: ingRows().map(function (tr) {
       var g = tr.getAttribute('data-g');
       var o = {
@@ -3008,6 +3012,7 @@ function cleanRecipe(d) {
     photo: d.photo,
     margin: d.margin,
     outWeight: num(d.outWeight),
+    method: String(d.method || '').trim(),
     ing: ing,
     // Група без жодного складника не має сенсу: рядки могли прибрати вручну
     groups: (d.groups || []).filter(function (g) {
@@ -3156,6 +3161,7 @@ function loadCalc(rec, crumb) {
   closeScalePanel();
 
   setPhoto(rec.photo || null);
+  setMethod(rec.method);
 
   var ib = $('#ing-body'); ib.innerHTML = '';
   var ing = (rec.ing || []).slice();
@@ -3278,7 +3284,7 @@ function calcDiffers(d) {
 function calcUnsaved() {
   if (S.ui.screen !== 'calc') return false;
   var d = cleanRecipe(readCalc());
-  if (!S.ui.editing) return !!(d.name || d.photo || d.ing.length || d.exp.length);
+  if (!S.ui.editing) return !!(d.name || d.photo || d.method || d.ing.length || d.exp.length);
   return calcDiffers(d);
 }
 
@@ -3695,6 +3701,59 @@ function bindPrepPick() {
   });
 }
 
+/* ═════════════════ 11a. Рецепт ═════════════════ */
+
+var methodAnim = null;
+
+function paintMethodPeek() {
+  var first = $('#calc-method-txt').value.split('\n')
+    .map(function (l) { return l.trim(); }).filter(Boolean)[0];
+  var peek = $('#method-peek');
+  peek.textContent = first || '+ Додати спосіб приготування';
+  peek.classList.toggle('is-empty', !first);
+}
+
+function fitMethod() {
+  var t = $('#calc-method-txt');
+  t.style.height = 'auto';
+  t.style.height = (t.scrollHeight + 2) + 'px';
+}
+
+function setMethodOpen(open, animate) {
+  var body = $('#method-body');
+  $('#method-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  $('#calc-method').classList.toggle('is-open', open);
+  if (methodAnim) { methodAnim.cancel(); methodAnim = null; }
+  if (open) { body.hidden = false; fitMethod(); }
+  if (!animate || calmMotion() || !body.animate) { body.hidden = !open; return; }
+  var h = body.scrollHeight;
+  methodAnim = body.animate([
+    { height: (open ? 0 : h) + 'px', opacity: open ? 0 : 1 },
+    { height: (open ? h : 0) + 'px', opacity: open ? 1 : 0 }
+  ], ROW_MOTION);
+  methodAnim.onfinish = function () { methodAnim = null; if (!open) body.hidden = true; };
+}
+
+/** Інша калькуляція — рецепт знову згорнутий. */
+function setMethod(text) {
+  $('#calc-method-txt').value = text || '';
+  setMethodOpen(false);
+  paintMethodPeek();
+}
+
+function bindMethod() {
+  $('#method-toggle').addEventListener('click', function () {
+    var open = this.getAttribute('aria-expanded') !== 'true';
+    setMethodOpen(open, true);
+    if (open && !$('#calc-method-txt').value) $('#calc-method-txt').focus({ preventScroll: true });
+  });
+  $('#calc-method-txt').addEventListener('input', function () {
+    fitMethod();
+    paintMethodPeek();
+    recalc();
+  });
+}
+
 /* ═════════════════ 12. Фото ═════════════════ */
 
 function setPhoto(dataUrl) {
@@ -3862,7 +3921,7 @@ function bindSave() {
       var idx = old ? old.recipes.map(function (r) { return r.id; }).indexOf(ed.recipeId) : -1;
       var rec = (idx > -1) ? old.recipes[idx] : { id: ed.recipeId };
       rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin;
-      rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups; rec.outWeight = d.outWeight;
+      rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups; rec.outWeight = d.outWeight; rec.method = d.method;
       if (old && old.id !== target.id && idx > -1) {   // перенесли в іншу папку
         old.recipes.splice(idx, 1);
         target.recipes.push(rec);
@@ -3872,7 +3931,7 @@ function bindSave() {
       S.ui.editing = { folderId: target.id, recipeId: rec.id };
       toast('Оновлено — папка «' + target.title + '»');
     } else {
-      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight };
+      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method };
       target.recipes.push(fresh);
       S.ui.editing = { folderId: target.id, recipeId: fresh.id };
       toast('Збережено в папку «' + target.title + '»');
@@ -4434,6 +4493,7 @@ function init() {
   bindFolder();
   bindCalc();
   bindPhoto();
+  bindMethod();
   bindSave();
   bindPdf();
   bindSettings();

@@ -55,6 +55,9 @@ html[data-theme="dark"] {
 /* Явний display у компонентах інакше перебиває атрибут hidden */
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
+/* Смуги прокрутки ховаємо скрізь — гортається все як і раніше */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
 body {
   display: flex; min-height: 100vh; background: var(--bg); color: var(--fg);
   font-family: var(--ui); font-size: 15px; -webkit-font-smoothing: antialiased;
@@ -523,6 +526,32 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .photo-box { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .photo-box img { width: 72px; height: 54px; object-fit: cover; border-radius: var(--r-s); border: 1px solid var(--line-2); display: block; }
 .photo-acts { display: flex; flex-direction: column; gap: 4px; }
+
+.panel-method { margin-top: 20px; }
+.method-head {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 10px 20px;
+  border: 0; background: transparent; text-align: left; cursor: pointer;
+}
+.method-head:hover { background: var(--row-hov); }
+.method-head .h2 { flex: 0 0 auto; }
+.method-peek {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14px; color: var(--fg-3);
+}
+.method-peek.is-empty { color: var(--accent-2); }
+.panel-method.is-open .method-peek { visibility: hidden; }
+.method-chev {
+  flex: 0 0 auto; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 2.1;
+  stroke-linecap: round; stroke-linejoin: round; transition: transform .17s ease;
+}
+.panel-method.is-open .method-chev { transform: rotate(180deg); }
+/* overflow — щоб анімація висоти обрізала вміст; падінг лишає місце рамці фокуса */
+.method-body { overflow: hidden; padding: 2px 16px 14px; }
+.method-inp {
+  display: block; min-height: 120px; padding: 10px 12px; resize: none;
+  border-color: var(--line-2); background: var(--field); line-height: 1.55; white-space: pre-wrap;
+}
+.method-note { margin: 8px 4px 0; font-size: 12.5px; color: var(--muted); }
 
 .calc-mid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 24px 0; }
 /* 480, не 360: рядок витрати тепер має ще й тип+вартість поруч з назвою.
@@ -1226,6 +1255,12 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .scale-to { flex: 1 1 0; }
   .scale-panel .btn-row .btn { flex: 1; height: 42px; }
   .panel-foot { padding: 12px 14px; }
+  .panel-method { margin-top: 16px; }
+  .method-head { gap: 12px; padding: 12px 14px; background: var(--seg-bg); }
+  .method-head .h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
+  .panel-method.is-open .method-head { border-bottom: 1px solid var(--line); }
+  .method-body { padding: 12px 12px 12px; }
+  .method-inp { font-size: 16px; }
 
   /* ── Папка ── */
   .folder-tools { flex-direction: column; align-items: stretch; }
