@@ -4411,7 +4411,7 @@ function labelHtml(d) {
               '<div class="lbl-fr' + (i ? '' : ' is-kcal') + '"><span>' + c.label + '</span><b>' + c.one + '</b></div>';
           }).join('')
         : '') +
-      (al ? '<div class="lbl-bar"></div><div class="lbl-facts-al"><span class="lbl-k">Алергени:</span> ' + esc(al) + '</div>' : '') +
+      (al ? '<div class="lbl-bar is-al"></div><div class="lbl-facts-al"><span class="lbl-k">Алергени:</span> ' + esc(al) + '</div>' : '') +
     '</div>';
   }
 
@@ -4441,11 +4441,15 @@ function todayDots() {
 
 /** Зменшує кегль, поки текст не влізе в наліпку. false — не влазить і на найменшому. */
 function fitLabel(one, F) {
-  var facts = $('.lbl-facts', one);
+  var facts = $('.lbl-facts', one), left = $('.lbl-left', one);
   for (var fs = F.max; fs >= 5; fs -= 0.25) {
     one.style.fontSize = fs + 'px';
     // Табличка — ще й по ширині: «347 ккал» не переноситься і вилазив би за рамку
     if (facts && facts.scrollWidth > facts.clientWidth + 1) continue;
+    // Колонки розтягнуті на висоту наліпки, тож їхній вміст може залізти в нижній
+    // відступ, не збільшивши scrollHeight самої наліпки — міряємо й їх
+    if (left.scrollHeight > left.clientHeight + 1) continue;
+    if (facts && facts.scrollHeight > facts.clientHeight + 1) continue;
     if (one.scrollHeight <= one.clientHeight + 1) return true;
   }
   return false;

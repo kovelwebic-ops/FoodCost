@@ -1122,7 +1122,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
 /* Лінія різу для звичайного паперу; на готових наліпках її майже не видно */
 .is-sheet .lbl { outline: 1px dashed #cfcfcf; outline-offset: -.5px; }
 .lbl-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
-.lbl-right { flex: 0 0 41%; min-width: 0; }
+/* Табличка тягнеться на всю висоту наліпки — низ рівно з вагою ліворуч */
+.lbl-right { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; }
 .lbl-name { font-size: 1.8em; font-weight: 800; line-height: 1.05; letter-spacing: -.015em; }
 .lbl-row { margin-top: .25em; }
 .lbl-comp { margin-top: .45em; }
@@ -1132,8 +1133,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .lbl-w { margin-top: .3em; font-size: 1.5em; font-weight: 800; line-height: 1.05; }
 
 /* Табличка на зразок «Nutrition Facts»: рамка, жирний заголовок, товсті смуги */
-.lbl-facts { border: 1px solid #000; padding: .3em .45em .35em; }
-.lbl-facts-t { font-size: 1.35em; font-weight: 800; line-height: 1.02; letter-spacing: -.01em; }
+.lbl-facts { flex: 1 1 auto; display: flex; flex-direction: column; border: 1px solid #000; padding: .35em .5em .4em; }
+.lbl-facts-t { font-size: 1.2em; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; white-space: nowrap; }
 .lbl-facts-s { font-size: .92em; }
 .lbl-bar { margin: .22em 0 .1em; border-top: .5em solid #000; }
 .lbl-bar.is-mid { margin: .12em 0 0; border-top-width: .25em; }
@@ -1141,11 +1142,13 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .lbl-bar + .lbl-fr { border-top: 0; }
 .lbl-fr b { flex: 0 0 auto; font-weight: 700; white-space: nowrap; }
 .lbl-fr.is-kcal { font-weight: 800; }
+/* Алергени — внизу таблички: вільне місце йде між КБЖУ й ними, а не під рамкою */
 .lbl-facts-al { padding-top: .1em; }
+.lbl-facts .lbl-bar.is-al { margin-top: auto; }
 .lbl-hand { display: flex; align-items: flex-end; gap: .4em; margin-top: .35em; }
 .lbl-hand .lbl-k { flex: 0 0 auto; }
-/* Місце під ручку: висота рядка з запасом, щоб дата влізла від руки */
-.lbl-hand i { flex: 1; min-height: 1.7em; border-bottom: 1px solid #000; }
+/* Місце під ручку — без риски, просто вільне поле з запасом по висоті */
+.lbl-hand i { flex: 1; min-height: 1.7em; }
 .pdf-rule { height: 3px; margin: .5em 1em; border-top: 1px solid #1b1a17; border-bottom: 1px solid #1b1a17; }
 .pdf-price { display: flex; justify-content: space-between; align-items: baseline; gap: 1em; padding: .33em 1em .83em; }
 .pdf-price .l { font-size: 1.04em; font-weight: 700; letter-spacing: .02em; }
