@@ -106,6 +106,7 @@
       <div class="seg" id="seg-ord-view">
         <button data-ord-view="active" aria-pressed="true">Активні<span class="seg-n" data-ord-n="active"></span></button>
         <button data-ord-view="done" aria-pressed="false">Виконані<span class="seg-n" data-ord-n="done"></span></button>
+        <button data-ord-view="sum" aria-pressed="false">Підсумки</button>
       </div>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -114,6 +115,7 @@
     </div>
 
     <div id="ord-list"></div>
+    <div id="ord-sum" hidden></div>
   </section>
 
   <!-- БАЗА ПРОДУКТІВ -->
@@ -775,6 +777,7 @@
           <li><b>Передоплата</b> — застосунок покаже, скільки лишилось доплатити, або «Оплачено».</li>
         </ul>
         <p>Список згрупований за датою здачі, прострочені позначені червоним. Коли замовлення віддали, натисніть «Виконано» — воно переїде у вкладку «Виконані». У PDF замовлення не потрапляють.</p>
+        <p>«Підсумки» — цифри місяця за датою здачі: скільки виконано замовлень, виручка, прибуток і середній чек, а ще виручка за пів року й що замовляли найчастіше. Прибуток рахується за собівартістю калькуляції з такою ж назвою, тож позиції, вписані вручну, у нього не входять. Ще не виконані замовлення показані окремо — «ще заплановано».</p>
       </article>
 
       <article class="panel help-sec">

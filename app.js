@@ -4213,8 +4213,8 @@ function buildPdfDoc(d, t) {
     '</section>' +
 
     // КБЖУ й підсумок — дві колонки поруч: одне під одним вони забирали чверть аркуша.
-    // Підсумок завжди праворуч, як у чеку; собівартість — його перший рядок
-    '<div class="pdf-cols">' + (nut || '<div></div>') + summary + '</div>';
+    // Підсумок праворуч, як у чеку; без КБЖУ — на всю ширину, а не з діркою зліва
+    '<div class="pdf-cols">' + nut + summary + '</div>';
 
   return wrap;
 }
@@ -4438,7 +4438,10 @@ function todayDots() {
 /** Зменшує кегль, поки текст не влізе в наліпку. false — не влазить і на найменшому. */
 function fitLabel(one, F) {
   var facts = $('.lbl-facts', one), left = $('.lbl-left', one);
-  for (var fs = F.max; fs >= 5; fs -= 0.25) {
+  // Без таблички КБЖУ текст займає всю ширину й виходить удвічі коротшим —
+  // стартуємо з більшого кегля, інакше посеред наліпки лишається дірка
+  var max = facts ? F.max : F.max * 1.5;
+  for (var fs = max; fs >= 5; fs -= 0.25) {
     one.style.fontSize = fs + 'px';
     // Табличка — ще й по ширині: «347 ккал» не переноситься і впирався б у рамку.
     // Міряємо кожен рядок: переповнений рядок ховається в падінгу таблички
@@ -4860,6 +4863,12 @@ function renderOrders(fresh) {
     b.setAttribute('aria-pressed', b.getAttribute('data-ord-view') === ordView ? 'true' : 'false');
   });
 
+  var sum = ordView === 'sum';
+  $('#s-orders').classList.toggle('is-sum', sum);
+  $('#ord-list').hidden = sum;
+  $('#ord-sum').hidden = !sum;
+  if (sum) { renderOrdSum(); return; }
+
   var box = $('#ord-list');
   var q = $('#ord-search').value.trim().toLowerCase();
   var done = ordView === 'done';
@@ -4885,6 +4894,135 @@ function renderOrders(fresh) {
   });
 
   if (!fr && !list.length) box.innerHTML = ordEmptyHtml(q, done);
+}
+
+/* ── Підсумки місяця ──────────────────────────────────────────
+   Виручка й прибуток — лише з виконаних замовлень за датою здачі; ще не
+   виконані показуємо окремо як «заплановано». Собівартість позиції береться
+   з калькуляції з такою ж назвою (собівартість + витрати): у самому
+   замовленні її немає. Позиції без калькуляції в прибуток не йдуть — і про
+   це чесно написано, щоб «прибуток» не виглядав більшим, ніж є. */
+
+var MONTHS_NOM = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+                  'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
+var MONTHS_SHORT = ['січ', 'лют', 'бер', 'кві', 'тра', 'чер', 'лип', 'сер', 'вер', 'жов', 'лис', 'гру'];
+var ordMonth = null;   // 'YYYY-MM', що показуємо в підсумках; живе, поки відкрита сторінка
+
+function monthShift(ym, d) {
+  var p = ym.split('-'), dt = new Date(+p[0], +p[1] - 1 + d, 1);
+  return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1);
+}
+
+function monthTitle(ym) {
+  var p = ym.split('-');
+  return MONTHS_NOM[+p[1] - 1] + ' ' + p[0];
+}
+
+/** Собівартість одиниці за назвою калькуляції: null — такої калькуляції немає. */
+function recipeCostIndex() {
+  var idx = {};
+  allRecipes().forEach(function (r) {
+    var k = nameKey(r.name);
+    if (k && !idx.hasOwnProperty(k)) idx[k] = totals(r).sub;
+  });
+  return function (name) { var k = nameKey(name); return idx.hasOwnProperty(k) ? idx[k] : null; };
+}
+
+function monthStats(ym, costOf) {
+  var s = { done: 0, revenue: 0, profit: 0, costed: 0, uncosted: 0, plan: 0, planSum: 0, items: {} };
+  S.orders.forEach(function (o) {
+    if (orderEmpty(o) || o.date.slice(0, 7) !== ym) return;
+    var total = orderTotal(o);
+    if (!o.done) { s.plan++; s.planSum += total; return; }
+    s.done++;
+    s.revenue += total;
+    o.items.forEach(function (i) {
+      var name = i.name.trim();
+      if (!name && !i.price) return;
+      var sum = i.qty * i.price, cost = name ? costOf(name) : null;
+      if (cost == null) s.uncosted++;
+      else { s.costed++; s.profit += sum - cost * i.qty; }
+      var k = nameKey(name) || '—';
+      if (!s.items[k]) s.items[k] = { name: name || 'Без назви', qty: 0, sum: 0 };
+      s.items[k].qty += i.qty;
+      s.items[k].sum += sum;
+    });
+  });
+  return s;
+}
+
+function renderOrdSum() {
+  if (!ordMonth) ordMonth = todayIso().slice(0, 7);
+  var costOf = recipeCostIndex();
+  var s = monthStats(ordMonth, costOf);
+  var undated = S.orders.filter(function (o) { return o.done && !o.date && !orderEmpty(o); }).length;
+
+  var kpi = function (label, value, note) {
+    return '<div class="osum-kpi"><span class="osum-kpi-l">' + label + '</span>' +
+      '<b class="osum-kpi-v">' + value + '</b>' + (note ? '<span class="osum-kpi-n">' + note + '</span>' : '') + '</div>';
+  };
+  var profitNote = !s.done ? ''
+    : s.uncosted
+      ? 'без ' + s.uncosted + ' ' + plural(s.uncosted, 'позиції, для якої', 'позицій, для яких', 'позицій, для яких') + ' немає калькуляції'
+      : 'за собівартістю калькуляцій';
+
+  // Пів року до вибраного місяця включно: видно, росте справа чи ні
+  var months = [];
+  for (var i = 5; i >= 0; i--) {
+    var ym = monthShift(ordMonth, -i), st = monthStats(ym, costOf);
+    months.push({ ym: ym, rev: st.revenue, n: st.done });
+  }
+  var max = Math.max.apply(null, months.map(function (m) { return m.rev; }));
+  var bars = months.map(function (m) {
+    var mi = +m.ym.split('-')[1] - 1;
+    var full = moneyShort(m.rev) + ', ' + m.n + ' ' + plural(m.n, 'замовлення', 'замовлення', 'замовлень');
+    // Над вузьким стовпчиком — коротко: «12,4 тис»
+    var tip = m.rev >= 1000 ? qtyFmt(Math.round(m.rev / 100) / 10) + ' тис' : String(Math.round(m.rev));
+    return '<button type="button" class="osum-bar' + (m.ym === ordMonth ? ' is-sel' : '') + '" data-sum-ym="' + m.ym + '"' +
+        ' aria-label="' + esc(monthTitle(m.ym) + ': ' + full) + '" title="' + esc(full) + '">' +
+      '<span class="osum-bar-tip">' + esc(tip) + '</span>' +
+      '<span class="osum-bar-col"><span class="osum-bar-fill" style="height:' +
+        (max > 0 && m.rev > 0 ? Math.max(3, Math.round(m.rev / max * 100)) : 0) + '%"></span></span>' +
+      '<span class="osum-bar-m">' + MONTHS_SHORT[mi] + '</span>' +
+    '</button>';
+  }).join('');
+
+  var top = Object.keys(s.items).map(function (k) { return s.items[k]; })
+    .sort(function (a, b) { return b.sum - a.sum || b.qty - a.qty; }).slice(0, 5);
+  var topMax = top.length ? top[0].sum : 0;
+  var topHtml = top.length
+    ? '<ol class="osum-top">' + top.map(function (t) {
+        return '<li><div class="osum-top-row"><span class="osum-top-n">' + esc(t.name) + '</span>' +
+          '<span class="osum-top-v">×' + qtyFmt(t.qty) + ' · ' + moneyShort(t.sum) + '</span></div>' +
+          '<div class="osum-top-bar"><i style="width:' + (topMax > 0 ? Math.max(2, Math.round(t.sum / topMax * 100)) : 0) + '%"></i></div></li>';
+      }).join('') + '</ol>'
+    : '<p class="osum-empty">Виконаних замовлень за цей місяць ще немає.</p>';
+
+  $('#ord-sum').innerHTML =
+    '<div class="osum-nav">' +
+      '<button type="button" class="cal-nav" data-sum-shift="-1" aria-label="Попередній місяць"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>' +
+      '<div class="osum-title">' + monthTitle(ordMonth) + '</div>' +
+      '<button type="button" class="cal-nav" data-sum-shift="1" aria-label="Наступний місяць"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>' +
+    '</div>' +
+    '<div class="osum-kpis">' +
+      kpi('Виконано замовлень', String(s.done)) +
+      kpi('Виручка', s.done ? moneyShort(s.revenue) : '—') +
+      kpi('Прибуток', s.costed ? '≈ ' + moneyShort(s.profit) : '—', profitNote) +
+      kpi('Середній чек', s.done ? moneyShort(s.revenue / s.done) : '—') +
+    '</div>' +
+    (s.plan
+      ? '<p class="osum-plan">Ще заплановано: ' + s.plan + ' ' + plural(s.plan, 'замовлення', 'замовлення', 'замовлень') +
+        ' на ' + moneyShort(s.planSum) + '</p>'
+      : '') +
+    // Місяць береться з дати здачі — без неї виконане замовлення тихо випало б з підсумків
+    (undated
+      ? '<p class="osum-plan is-warn">' + undated + ' ' + plural(undated, 'виконане замовлення', 'виконані замовлення', 'виконаних замовлень') +
+        ' без дати здачі — у підсумки не ' + (undated === 1 ? 'входить' : 'входять') + '. Вкажіть дату в картці.</p>'
+      : '') +
+    '<div class="osum-grid">' +
+      '<section class="panel osum-card"><h2 class="h2">Виручка за пів року</h2><div class="osum-bars">' + bars + '</div></section>' +
+      '<section class="panel osum-card"><h2 class="h2">Що замовляли</h2>' + topHtml + '</section>' +
+    '</div>';
 }
 
 function ordEmptyHtml(q, done) {
@@ -5453,6 +5591,13 @@ function bindOrders() {
     if (!b || b.getAttribute('data-ord-view') === ordView) return;
     ordView = b.getAttribute('data-ord-view');
     renderOrders();
+  });
+  $('#ord-sum').addEventListener('click', function (e) {
+    var sh = e.target.closest('[data-sum-shift]'), bar = e.target.closest('[data-sum-ym]');
+    if (sh) ordMonth = monthShift(ordMonth, +sh.getAttribute('data-sum-shift'));
+    else if (bar) ordMonth = bar.getAttribute('data-sum-ym');
+    else return;
+    renderOrdSum();
   });
 
   var list = $('#ord-list');
