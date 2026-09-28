@@ -1124,7 +1124,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .lbl-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 /* Табличка тягнеться на всю висоту наліпки — низ рівно з вагою ліворуч */
 .lbl-right { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; }
-.lbl-name { font-size: 1.8em; font-weight: 800; line-height: 1.05; letter-spacing: -.015em; }
+.lbl-name { font-size: 2.4em; font-weight: 800; line-height: 1.02; letter-spacing: -.02em; }
 .lbl-row { margin-top: .25em; }
 /* Назва й вага — головне; решта на крок дрібніша */
 .lbl-comp { margin-top: .5em; font-size: .88em; line-height: 1.35; }
