@@ -616,6 +616,11 @@ function seed() {
   ];
 
   s.orders = demoOrders();
+  // Демо показує все, що вміє застосунок: КБЖУ й замовлення одразу ввімкнені.
+  // «Очистити все» лишає ці налаштування як є, вимкнути — у «Налаштуваннях»
+  s.showNutrition = true;
+  s.nutAsked = true;
+  s.showOrders = true;
   return s;
 }
 
@@ -4578,6 +4583,7 @@ function openLabel() {
   $('#lbl-date').value = labelDate;
   paintLabelFormat();
   $('#lbl-body').scrollTop = 0;
+  $('.lbl-modal').scrollTop = 0;   // на телефоні гортається вся шторка
   $('#lbl-overlay').classList.add('is-on');   // міряти текст можна лише на видимому
   renderLabel();
 }
@@ -4627,6 +4633,7 @@ function downloadLabel() {
   stage.style.marginLeft = '';
   stage.style.marginBottom = '';
   $('#lbl-body').scrollTop = 0;
+  modal.scrollTop = 0;
   btn.disabled = true;
   btn.textContent = 'Готуємо…';
 
