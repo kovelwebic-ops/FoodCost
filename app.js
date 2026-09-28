@@ -152,6 +152,7 @@ function emptyState() {
     showOrders: false,                             // вкладка «Замовлення» — теж не всім
     showMethod: true,                              // блок «Рецепт» у калькуляції
     labelFormat: 'a4',                             // на чому друкують етикетки — у кожного свій принтер
+    laborRate: 0,                                  // ставка за годину праці; 0 — працю не рахуємо
     products: [],
     expenseBase: [],
     preps: [],
@@ -222,6 +223,7 @@ function normalize(s) {
   // До появи перемикача «Рецепт» був завжди — лишаємо його тим, хто вже ним користувався
   if (typeof s.showMethod !== 'boolean') s.showMethod = true;
   if (!LABEL_FORMATS.hasOwnProperty(s.labelFormat)) s.labelFormat = 'a4';
+  s.laborRate = num(s.laborRate);   // до появи оплати праці поля не було — 0, тобто «не рахувати»
   // До появи замовлень поля не було; з файла копії може прийти будь-що
   s.orders = (Array.isArray(s.orders) ? s.orders : []).filter(function (o) { return o && typeof o === 'object'; });
   s.orders.forEach(normalizeOrder);
@@ -257,6 +259,7 @@ function normalize(s) {
    зберігання. До появи етикетки полів не було — старим рецептам дістаються
    типові +2…+6 °C, порожній рядок лишається свідомим «не друкувати» */
 function normalizeLabelFields(r) {
+  r.laborHours = num(r.laborHours);   // час роботи, год — поруч, бо так само новий і так само в кожному рецепті
   r.shelfLife = Math.round(num(r.shelfLife));
   if (typeof r.storage !== 'string') r.storage = DEFAULT_STORAGE;
 }
@@ -698,16 +701,22 @@ function expenseCost(e, cost) {
   return e.mode === 'pct' ? cost * (num(e.value) / 100) : num(e.value);
 }
 
+/**
+ * Праця = години рецепта × ставка з налаштувань. Ставка не копіюється в рецепт:
+ * це «скільки я беру за годину», і після її зміни ціни всіх калькуляцій мають
+ * перерахуватись самі. Маржа йде поверх праці — це вже прибуток справи.
+ */
 function totals(r) {
   var cost = 0, extra = 0, i;
   for (i = 0; i < r.ing.length; i++) cost += ingCost(r.ing[i]);
   for (i = 0; i < r.exp.length; i++) extra += expenseCost(r.exp[i], cost);
-  var sub = cost + extra;
+  var labor = num(r.laborHours) * num(S.laborRate);
+  var sub = cost + extra + labor;
   var margin = sub * (num(r.margin) / 100);
   var price = sub + margin;
   var step = S.round || 1;
   return {
-    cost: cost, extra: extra, sub: sub, margin: margin, price: price,
+    cost: cost, extra: extra, labor: labor, sub: sub, margin: margin, price: price,
     round: step > 1 ? Math.ceil(price / step) * step : price
   };
 }
@@ -3160,6 +3169,7 @@ function readCalc() {
     // У полі кілограми, у рецепті — грами, як і всі ваги застосунку
     outWeight: $('#calc-outw').dataset.manual ? Math.round(num($('#calc-outw').value) * 1000) : 0,
     method: $('#calc-method-txt').value,
+    laborHours: num($('#labor-inp').value),
     shelfLife: calcLabel.shelfLife,
     storage: calcLabel.storage,
     ing: ingRows().map(function (tr) {
@@ -3203,6 +3213,7 @@ function cleanRecipe(d) {
     margin: d.margin,
     outWeight: num(d.outWeight),
     method: String(d.method || '').trim(),
+    laborHours: num(d.laborHours),
     shelfLife: Math.round(num(d.shelfLife)),
     storage: typeof d.storage === 'string' ? d.storage.trim() : DEFAULT_STORAGE,
     ing: ing,
@@ -3217,7 +3228,7 @@ function cleanRecipe(d) {
 /* Цифри в підсумку доїжджають до нового значення, а не стрибають:
    так видно, що саме змінилося після правки рядка. */
 var disp = null, tweenRaf = null;
-var TWEEN_KEYS = ['cost', 'extra', 'sub', 'margin', 'price'];
+var TWEEN_KEYS = ['cost', 'extra', 'labor', 'sub', 'margin', 'price'];
 
 function calmMotion() {
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -3226,6 +3237,7 @@ function calmMotion() {
 function writeNumbers(v, t, m) {
   $('#r-cost').textContent = money(v.cost);
   $('#r-exp').textContent = '+ ' + money(v.extra);
+  $('#r-labor').textContent = '+ ' + money(v.labor);
   $('#r-sub').textContent = money(v.sub);
   $('#r-mlbl').textContent = 'Маржа ' + qtyFmt(m) + '%';
   $('#r-margin').textContent = '+ ' + money(v.margin);
@@ -3236,7 +3248,13 @@ function writeNumbers(v, t, m) {
 }
 
 function paintReceipt(t, m) {
-  var target = { cost: t.cost, extra: t.extra, sub: t.sub, margin: t.margin, price: t.price };
+  var target = { cost: t.cost, extra: t.extra, labor: t.labor, sub: t.sub, margin: t.margin, price: t.price };
+
+  var rate = num(S.laborRate), hours = num($('#labor-inp').value);
+  $('#r-sublbl').textContent = rate > 0 ? 'Разом з витратами й працею' : 'Разом з витратами';
+  $('#labor-sum').textContent = rate > 0
+    ? '× ' + moneyShort(rate) + (hours > 0 ? ' = ' + money(t.labor) : ' за годину')
+    : '—';
 
   var showNote = (S.round || 1) > 1 && t.price > 0;
   $('#r-note').hidden = !showNote;
@@ -3354,6 +3372,7 @@ function loadCalc(rec, crumb) {
 
   setPhoto(rec.photo || null);
   setMethod(rec.method);
+  $('#labor-inp').value = num(rec.laborHours) ? qtyFmt(num(rec.laborHours)) : '';
   calcLabel = {
     shelfLife: Math.round(num(rec.shelfLife)),
     storage: typeof rec.storage === 'string' ? rec.storage : DEFAULT_STORAGE
@@ -3629,6 +3648,8 @@ function bindCalc() {
   $('#margin-inp').addEventListener('blur', function () {
     this.value = qtyFmt(num(this.value)) || '0';
   });
+  $('#labor-inp').addEventListener('input', recalc);
+  $('#labor-inp').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
   // Вага готового виробу: своє число — ручне значення, порожнє поле — знову сума інгредієнтів
   var ow = $('#calc-outw');
   ow.addEventListener('focus', function () {
@@ -4136,7 +4157,7 @@ function bindSave() {
       var rec = (idx > -1) ? old.recipes[idx] : { id: ed.recipeId };
       rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin;
       rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups; rec.outWeight = d.outWeight; rec.method = d.method;
-      rec.shelfLife = d.shelfLife; rec.storage = d.storage;
+      rec.shelfLife = d.shelfLife; rec.storage = d.storage; rec.laborHours = d.laborHours;
       if (old && old.id !== target.id && idx > -1) {   // перенесли в іншу папку
         old.recipes.splice(idx, 1);
         target.recipes.push(rec);
@@ -4146,7 +4167,7 @@ function bindSave() {
       S.ui.editing = { folderId: target.id, recipeId: rec.id };
       toast('Оновлено — папка «' + target.title + '»');
     } else {
-      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method, shelfLife: d.shelfLife, storage: d.storage };
+      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method, shelfLife: d.shelfLife, storage: d.storage, laborHours: d.laborHours };
       target.recipes.push(fresh);
       S.ui.editing = { folderId: target.id, recipeId: fresh.id };
       toast('Збережено в папку «' + target.title + '»');
@@ -4248,7 +4269,14 @@ function buildPdfDoc(d, t) {
       '<h2 class="pdf-sec">Підсумок</h2>' +
       '<div class="pdf-line"><span>Собівартість</span><span class="v">' + money(t.cost) + '</span></div>' +
       expLines +
-      (d.exp.length ? '<div class="pdf-line is-sum"><span>Разом з витратами</span><span class="v">' + money(t.sub) + '</span></div>' : '') +
+      (t.labor > 0
+        ? '<div class="pdf-line"><span>Праця, ' + qtyFmt(num(d.laborHours)) + ' год × ' + esc(moneyShort(num(S.laborRate))) +
+          '</span><span class="v">+ ' + money(t.labor) + '</span></div>'
+        : '') +
+      (d.exp.length || t.labor > 0
+        ? '<div class="pdf-line is-sum"><span>' + (t.labor > 0 ? 'Разом з витратами й працею' : 'Разом з витратами') +
+          '</span><span class="v">' + money(t.sub) + '</span></div>'
+        : '') +
       '<div class="pdf-line"><span>Маржа ' + qtyFmt(d.margin) + '%</span><span class="v">+ ' + money(t.margin) + '</span></div>' +
       '<div class="pdf-rule"></div>' +
       '<div class="pdf-price"><span class="l">ЦІНА ПРОДАЖУ</span><span class="v">' + money(t.price) + '</span></div>' +
@@ -4881,6 +4909,15 @@ function paintOrderCounts() {
   $('#nav-orders-count').textContent = act || '';
   $('[data-ord-n="active"]').textContent = act ? ' ' + act : '';
   $('[data-ord-n="done"]').textContent = done ? ' ' + done : '';
+}
+
+/* Ставка праці: 0 — блок годин і рядок «Праця» сховані, години в рецептах лишаються */
+function applyLabor() {
+  var rate = num(S.laborRate);
+  document.documentElement.classList.toggle('labor-on', rate > 0);
+  var f = $('#set-labor');
+  if (document.activeElement !== f) f.value = rate ? qtyFmt(rate) : '';
+  $('#set-labor-unit').textContent = S.currency + '/год';
 }
 
 /* Вимкнений «Рецепт» лише ховає блок — уже написані тексти лишаються в калькуляціях */
@@ -5835,6 +5872,7 @@ function applyCurrency() {
   });
   // «₴»-варіант типу витрати показує символ валюти прямо в тексті опції — оновлюємо на вже відкритих рядках
   $$('[data-f=mode] option[value=sum]').forEach(function (o) { o.textContent = S.currency; });
+  $('#set-labor-unit').textContent = S.currency + '/год';
 }
 
 /** Після зміни валюти/округлення перемальовуємо все, де є гроші. */
@@ -5900,6 +5938,15 @@ function bindSettings() {
     if (on) toast('Увімкнено. Вкладка «Замовлення» — у меню');
   });
 
+  $('#set-labor').addEventListener('input', function () {
+    S.laborRate = num(this.value);
+    applyLabor();
+    // Калькуляція в пам'яті (відкрита чи чернетка) — одразу з новою ставкою
+    if (S.draft) recalc();
+    persist();
+  });
+  $('#set-labor').addEventListener('blur', function () { applyLabor(); });
+
   $('#seg-method').addEventListener('click', function (e) {
     var b = e.target.closest('[data-method-val]'); if (!b) return;
     var on = b.getAttribute('data-method-val') === 'on';
@@ -5942,7 +5989,7 @@ function bindSettings() {
       closeAsk();
       // Налаштування — не дані: людина чистить базу, а не хоче, щоб тема
       // й валюта раптом повернулись до початкових
-      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders, showMethod: S.showMethod, labelFormat: S.labelFormat };
+      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders, showMethod: S.showMethod, labelFormat: S.labelFormat, laborRate: S.laborRate };
       S = normalize(emptyState());
       Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
       draftDirty = false;
@@ -6019,6 +6066,7 @@ function boot(fresh) {
   applyNutrition();
   applyOrders();
   applyMethod();
+  applyLabor();
   applyCurrency();
   renderSidebar();
   renderBase();

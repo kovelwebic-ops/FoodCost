@@ -523,6 +523,17 @@
       </div>
 
       <div class="panel panel-margin">
+        <!-- Праця — лише коли в налаштуваннях вписана ставка за годину -->
+        <div class="labor-block labor-only">
+          <h2 class="h2">Оплата праці</h2>
+          <div class="margin-row">
+            <span class="margin-field">
+              <input class="inp is-num" id="labor-inp" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Час роботи в годинах">
+              <span class="suffix">год</span>
+            </span>
+            <span id="labor-sum">—</span>
+          </div>
+        </div>
         <h2 class="h2">Маржа</h2>
         <div class="margin-row">
           <span class="margin-field">
@@ -552,7 +563,8 @@
       <div class="receipt">
         <div class="receipt-row"><span class="lbl">Собівартість</span><span class="val" id="r-cost">0,00 ₴</span></div>
         <div class="receipt-row"><span class="lbl">Додаткові витрати</span><span class="val" id="r-exp">+ 0,00 ₴</span></div>
-        <div class="receipt-row is-sub"><span class="lbl">Разом з витратами</span><span class="val" id="r-sub">0,00 ₴</span></div>
+        <div class="receipt-row labor-only"><span class="lbl">Праця</span><span class="val" id="r-labor">+ 0,00 ₴</span></div>
+        <div class="receipt-row is-sub"><span class="lbl" id="r-sublbl">Разом з витратами</span><span class="val" id="r-sub">0,00 ₴</span></div>
         <div class="receipt-row is-margin"><span class="lbl" id="r-mlbl">Маржа 50%</span><span class="val" id="r-margin">+ 0,00 ₴</span></div>
       </div>
       <div class="total-bar">
@@ -638,6 +650,16 @@
       </div>
       <div class="set-row">
         <div class="set-row-txt">
+          <span class="h2">Оплата праці</span>
+          <span class="set-row-desc">Ваша ставка за годину. У калькуляції зʼявиться «Час роботи», і праця піде окремим рядком підсумку — тоді маржа вже прибуток справи, а не зарплата. Порожнє поле — працю не рахувати.</span>
+        </div>
+        <span class="margin-field set-rate">
+          <input class="inp is-num" id="set-labor" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Ставка за годину">
+          <span class="suffix" id="set-labor-unit">₴/год</span>
+        </span>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
           <span class="h2">Тема</span>
           <span class="set-row-desc">Світла або темна — застосовується одразу</span>
         </div>
@@ -713,6 +735,7 @@
           <li><b>Разовий продукт</b>, якого немає в базі, — впишіть назву, ціну й упаковку в рядку вручну. Його не оновить «Перерахувати», і КБЖУ для нього не буде.</li>
           <li><b>Додаткові витрати</b> — так само, з бази витрат.</li>
           <li><b>Маржа</b> — скільки заробити зверху, у відсотках.</li>
+          <li><b>Оплата праці</b> — впишіть у «Налаштуваннях» свою ставку за годину, і над маржею зʼявиться «Час роботи». Праця піде окремим рядком підсумку, а маржа поверх неї — це вже прибуток справи, а не зарплата. Змінили ставку — ціни всіх калькуляцій перерахуються самі.</li>
           <li><b>Вага виробу</b> — під назвою, у кілограмах. Порожнє поле — застосунок бере суму інгредієнтів, але після випікання виріб легший, тож краще вписати свою.</li>
           <li><b>Перерахувати на іншу вагу</b> — торт на 1&nbsp;кг, а замовили 2,5&nbsp;кг: впишіть нову вагу в полі «Стане», і всі грамовки й ціна зміняться пропорційно, округлені до зручних чисел. Фіксовані витрати (коробка, доставка) лишаться як є. Не те — «Відмінити» поверне як було. Збережену калькуляцію можна «Зберегти як нову» — базова лишиться в папці.</li>
           <li><b>Рецепт</b> — під інгредієнтами: кроки, температура, час. Бачите лише ви, у PDF він не потрапляє. Не потрібен — вимкніть у «Налаштуваннях», написане не зникне.</li>
