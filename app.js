@@ -3688,13 +3688,25 @@ function deleteGroup(gtr) {
 
 /* ── Модалка вставки ────────────────────────────────────────── */
 
-function pickedPrep() { return prepById($('#prep-pick').value); }
+var pickedPrepId = null;
+
+function pickedPrep() { return prepById(pickedPrepId); }
+
+/* Замість браузерного <select> — видимий список, як вибір папки при збереженні:
+   напівфабрикатів зазвичай кілька, а вихід і ціна замісу видно одразу в рядку */
+function paintPrepPick(ready) {
+  $('#prep-pick').innerHTML = ready.map(function (p) {
+    return '<button type="button" class="folder-opt" data-prep-opt="' + esc(p.id) + '" aria-pressed="' + (p.id === pickedPrepId) + '">' +
+      '<span>' + esc(p.name || 'Без назви') + '</span>' +
+      '<span class="prep-opt-meta">' + qtyFmt(num(p['yield'])) + ' ' + esc(p.unit) + ' · ' + money(prepCost(p)) + '</span>' +
+      ICON_TICK +
+    '</button>';
+  }).join('');
+}
 
 function syncPrepPickMeta(resetTake) {
   var p = pickedPrep(); if (!p) return;
   var y = num(p['yield']);
-  $('#prep-pick-meta').textContent = 'Заміс ' + qtyFmt(y) + ' ' + p.unit + ' · ' + money(prepCost(p)) +
-    ' · ' + p.ing.length + ' ' + plural(p.ing.length, 'складник', 'складники', 'складників');
   $('#prep-take-unit').textContent = p.unit;
   if (resetTake) $('#prep-take').value = qtyFmt(y);
   syncPrepTakeHint();
@@ -3721,9 +3733,8 @@ function openPrepPick() {
       : 'Спершу створіть напівфабрикат у розділі «Напівфабрикати»');
     return;
   }
-  $('#prep-pick').innerHTML = ready.map(function (p) {
-    return '<option value="' + esc(p.id) + '">' + esc(p.name || 'Без назви') + '</option>';
-  }).join('');
+  pickedPrepId = ready[0].id;
+  paintPrepPick(ready);
   syncPrepPickMeta(true);
   $('#prep-overlay').classList.add('is-on');
   $('#prep-take').focus();
@@ -3774,7 +3785,14 @@ function insertPrepGroup(p, take) {
 }
 
 function bindPrepPick() {
-  $('#prep-pick').addEventListener('change', function () { syncPrepPickMeta(true); });
+  $('#prep-pick').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-prep-opt]'); if (!b) return;
+    pickedPrepId = b.getAttribute('data-prep-opt');
+    $$('#prep-pick [data-prep-opt]').forEach(function (x) {
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    });
+    syncPrepPickMeta(true);
+  });
   $('#prep-take').addEventListener('input', syncPrepTakeHint);
   $('#prep-take').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
 
