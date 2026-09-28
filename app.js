@@ -4383,10 +4383,8 @@ function labelHtml(d) {
   var g = num(d.outWeight), approx = false;
   if (!(g > 0)) { g = nu.mass; approx = true; }
 
-  // Продукти з алергенами — жирним, як прийнято на етикетках
-  var comp = labelComposition(d).map(function (c) {
-    return withNut && c.al ? '<b>' + esc(c.name) + '</b>' : esc(c.name);
-  }).join(', ');
+  // Склад — звичайним текстом: алергени й так стоять окремо в табличці
+  var comp = labelComposition(d).map(function (c) { return esc(c.name); }).join(', ');
 
   var al = '';
   if (withNut && nu.allergens.length) {
@@ -4444,8 +4442,9 @@ function fitLabel(one, F) {
   var facts = $('.lbl-facts', one), left = $('.lbl-left', one);
   for (var fs = F.max; fs >= 5; fs -= 0.25) {
     one.style.fontSize = fs + 'px';
-    // Табличка — ще й по ширині: «347 ккал» не переноситься і вилазив би за рамку
-    if (facts && facts.scrollWidth > facts.clientWidth + 1) continue;
+    // Табличка — ще й по ширині: «347 ккал» не переноситься і впирався б у рамку.
+    // Міряємо кожен рядок: переповнений рядок ховається в падінгу таблички
+    if (facts && $$('.lbl-fr, .lbl-facts-t', facts).some(function (r) { return r.scrollWidth > r.clientWidth + 1; })) continue;
     // Колонки розтягнуті на висоту наліпки, тож їхній вміст може залізти в нижній
     // відступ, не збільшивши scrollHeight самої наліпки — міряємо й їх
     if (left.scrollHeight > left.clientHeight + 1) continue;

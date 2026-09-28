@@ -1040,7 +1040,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 /* Назва й бренд в одному рядку — окремий рядок «FoodCost» з відступом до назви
    коштував великій калькуляції кегля */
 .pdf-head {
-  display: flex; justify-content: space-between; align-items: flex-end; gap: 1em;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1em;
   margin-bottom: 1.1em;
 }
 .pdf-brand { flex: 0 0 auto; font-size: 1.5em; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
@@ -1126,14 +1126,14 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .lbl-right { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; }
 .lbl-name { font-size: 1.8em; font-weight: 800; line-height: 1.05; letter-spacing: -.015em; }
 .lbl-row { margin-top: .25em; }
-.lbl-comp { margin-top: .45em; }
+/* Назва й вага — головне; решта на крок дрібніша */
+.lbl-comp { margin-top: .5em; font-size: .88em; line-height: 1.35; }
 .lbl-k { font-weight: 700; }
-.lbl-comp b { font-weight: 700; text-decoration: underline; text-underline-offset: .12em; }
-.lbl-foot { margin-top: auto; padding-top: .45em; }
+.lbl-foot { margin-top: auto; padding-top: .45em; font-size: .88em; }
 .lbl-w { margin-top: .3em; font-size: 1.5em; font-weight: 800; line-height: 1.05; }
 
 /* Табличка на зразок «Nutrition Facts»: рамка, жирний заголовок, товсті смуги */
-.lbl-facts { flex: 1 1 auto; display: flex; flex-direction: column; border: 1px solid #000; padding: .35em .5em .4em; }
+.lbl-facts { flex: 1 1 auto; display: flex; flex-direction: column; border: 1px solid #000; padding: .35em .5em .4em; font-size: .88em; }
 .lbl-facts-t { font-size: 1.2em; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; white-space: nowrap; }
 .lbl-facts-s { font-size: .92em; }
 .lbl-bar { margin: .22em 0 .1em; border-top: .5em solid #000; }
