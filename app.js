@@ -4117,17 +4117,34 @@ function buildPdfDoc(d, t) {
 
   var rows = pdfIngBody(d);
 
-  var expRows = d.exp.map(function (e) {
-    var label = e.mode === 'pct' ? (e.name || '—') + ' (' + qtyFmt(e.value) + '% від собівартості)' : (e.name || '—');
-    return '<tr><td>' + esc(label) + '</td><td class="r b">' + fmt(expenseCost(e, t.cost)) + '</td></tr>';
+  // Витрати — рядками в підсумку, а не окремим блоком зі своєю шапкою й підсумком:
+  // на великій калькуляції це різниця між одним аркушем і дрібним кеглем
+  var expLines = d.exp.map(function (e) {
+    var label = (e.name || '—') + (e.mode === 'pct' ? ', ' + qtyFmt(e.value) + '%' : '');
+    return '<div class="pdf-line"><span>' + esc(label) + '</span><span class="v">+ ' + money(expenseCost(e, t.cost)) + '</span></div>';
   }).join('');
 
-  wrap.innerHTML =
-    '<div class="pdf-head"><span class="pdf-brand">FoodCost</span></div>' +
+  var summary =
+    '<section class="pdf-block">' +
+      '<h2 class="pdf-sec">Підсумок</h2>' +
+      '<div class="pdf-line"><span>Собівартість</span><span class="v">' + money(t.cost) + '</span></div>' +
+      expLines +
+      (d.exp.length ? '<div class="pdf-line is-sum"><span>Разом з витратами</span><span class="v">' + money(t.sub) + '</span></div>' : '') +
+      '<div class="pdf-line"><span>Маржа ' + qtyFmt(d.margin) + '%</span><span class="v">+ ' + money(t.margin) + '</span></div>' +
+      '<div class="pdf-rule"></div>' +
+      '<div class="pdf-price"><span class="l">ЦІНА ПРОДАЖУ</span><span class="v">' + money(t.price) + '</span></div>' +
+      ((S.round || 1) > 1
+        ? '<div class="pdf-note">До прайсу зручно округлити вгору до ' + moneyShort(t.round) + '</div>'
+        : '') +
+    '</section>';
+  var nut = pdfNutBlock(d);
 
+  wrap.innerHTML =
     // Фото поки свідомо не йде в експорт — повернемо пізніше
-    '<h1 class="pdf-title">' + esc(d.name || 'Калькуляція') + '</h1>' +
-    pdfWeightLine(d) +
+    '<div class="pdf-head">' +
+      '<div><h1 class="pdf-title">' + esc(d.name || 'Калькуляція') + '</h1>' + pdfWeightLine(d) + '</div>' +
+      '<span class="pdf-brand">FoodCost</span>' +
+    '</div>' +
 
     '<section class="pdf-block">' +
       '<h2 class="pdf-sec">Інгредієнти</h2>' +
@@ -4135,32 +4152,11 @@ function buildPdfDoc(d, t) {
         '<th>Назва</th><th class="r">Ціна упаковки</th>' +
         '<th class="r">В упаковці</th><th class="r">У страві</th><th class="r">Вартість</th>' +
       '</tr></thead>' + rows + '</table>' +
-      '<div class="pdf-subtotal"><span>Собівартість</span><b>' + money(t.cost) + '</b></div>' +
     '</section>' +
 
-    (d.exp.length
-      ? '<section class="pdf-block">' +
-          '<h2 class="pdf-sec">Додаткові витрати</h2>' +
-          '<table class="pdf-tbl"><thead><tr><th>Назва</th><th class="r">Сума, ' + esc(S.currency) + '</th></tr></thead>' +
-          '<tbody>' + expRows + '</tbody></table>' +
-          '<div class="pdf-subtotal"><span>Всього витрат</span><b>' + money(t.extra) + '</b></div>' +
-        '</section>'
-      : '') +
-
-    // Собівартість і витрати вже стоять підсумками у своїх блоках — тут не дублюємо
-    '<section class="pdf-block">' +
-      '<h2 class="pdf-sec">Підсумок</h2>' +
-      '<div class="pdf-line"><span>Разом з витратами</span><span class="v">' + money(t.sub) + '</span></div>' +
-      '<div class="pdf-line"><span>Маржа ' + qtyFmt(d.margin) + '%</span><span class="v">+ ' + money(t.margin) + '</span></div>' +
-      '<div class="pdf-rule"></div>' +
-      '<div class="pdf-price"><span class="l">ЦІНА ПРОДАЖУ</span><span class="v">' + money(t.price) + '</span></div>' +
-      ((S.round || 1) > 1
-        ? '<div class="pdf-note">До прайсу зручно округлити вгору до ' + moneyShort(t.round) + '</div>'
-        : '') +
-    '</section>' +
-
-    // Додаток після ціни: собівартість і ціна лишаються головним у техкарті
-    pdfNutBlock(d);
+    // КБЖУ й підсумок — дві колонки поруч: одне під одним вони забирали чверть аркуша.
+    // Підсумок завжди праворуч, як у чеку; собівартість — його перший рядок
+    '<div class="pdf-cols">' + (nut || '<div></div>') + summary + '</div>';
 
   return wrap;
 }
@@ -4269,7 +4265,7 @@ function downloadPdf() {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     // tbody — це цілий напівфабрикат: розрив сторінки посеред складу тіста
     // перетворює техкарту на ребус, тому такі блоки переносимо цілком
-    pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block'] }
+    pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block', '.pdf-cols'] }
   }).from(doc).save().then(function () {
     done('PDF збережено');
   })['catch'](function (err) {

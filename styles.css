@@ -1027,28 +1027,32 @@ html:not(.nut-on) .nut-only { display: none !important; }
    так документ стискається під одну сторінку зміною одного числа. */
 
 .pdf-doc { width: 700px; background: #fff; color: #1b1a17; font-family: var(--ui); font-size: 12px; padding: 2px 6px; }
-.pdf-head { padding-bottom: .66em; border-bottom: 2px solid #1b1a17; }
-.pdf-brand { font-size: 1.17em; font-weight: 700; letter-spacing: -.01em; }
-.pdf-title { font-size: 1.92em; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin: 1.66em 0 1.5em; }
-/* Від'ємний верх — рядок ваги стоїть під назвою, а не на відстані цілого блоку */
-.pdf-weight { margin: -1.1em 0 1.5em; font-size: 1.04em; color: #55524b; }
+/* Назва й бренд в одному рядку — окремий рядок «FoodCost» з відступом до назви
+   коштував великій калькуляції кегля */
+.pdf-head {
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 1em;
+  padding-bottom: .6em; margin-bottom: 1em; border-bottom: 2px solid #1b1a17;
+}
+.pdf-brand { flex: 0 0 auto; font-size: 1em; font-weight: 700; letter-spacing: -.01em; color: #6d685f; }
+.pdf-title { font-size: 1.92em; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin: 0; }
+.pdf-weight { margin-top: .3em; font-size: 1.04em; color: #55524b; }
 
 /* Рамка блока навмисно важча за внутрішні лінії рядків —
    інакше блоки зливаються з таблицею в суцільну сітку. */
-.pdf-block { border: 1.5px solid #9d968a; margin-bottom: 1.16em; }
+.pdf-block { border: 1.5px solid #9d968a; margin-bottom: 1em; }
 .pdf-sec {
-  margin: 0; padding: .66em 1em; background: #f4f1ec;
+  margin: 0; padding: .5em 1em; background: #f4f1ec;
   border-bottom: 1.5px solid #9d968a; font-size: 1.04em; font-weight: 700;
 }
 
 .pdf-tbl { width: 100%; border-collapse: collapse; }
 .pdf-tbl th {
   font-family: var(--num); font-size: .75em; text-transform: uppercase; letter-spacing: .08em;
-  color: #6d685f; text-align: left; padding: .5em .8em; border-bottom: 1px solid #e4dfd6;
+  color: #6d685f; text-align: left; padding: .45em .8em; border-bottom: 1px solid #e4dfd6;
   font-weight: 500; white-space: nowrap;
 }
 .pdf-tbl th.r { text-align: right; }
-.pdf-tbl td { font-size: .96em; padding: .5em .8em; border-bottom: 1px solid #f2efe9; }
+.pdf-tbl td { font-size: .96em; padding: .34em .8em; border-bottom: 1px solid #f2efe9; }
 .pdf-tbl td.r { text-align: right; font-family: var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pdf-tbl td.b { font-weight: 600; }
 
@@ -1061,10 +1065,14 @@ html:not(.nut-on) .nut-only { display: none !important; }
   content: ''; position: absolute; left: 1.1em; top: 0; bottom: 0; width: 1px; background: #d9d4ca;
 }
 
-.pdf-subtotal { display: flex; justify-content: space-between; gap: 1em; padding: .66em 1em; font-size: 1em; font-weight: 700; }
-.pdf-subtotal b { font-family: var(--num); font-weight: 700; }
-.pdf-line { display: flex; justify-content: space-between; gap: 1em; padding: .5em 1em; font-size: .96em; }
-.pdf-line .v { font-family: var(--num); font-variant-numeric: tabular-nums; }
+.pdf-line { display: flex; justify-content: space-between; gap: 1em; padding: .34em 1em; font-size: .96em; }
+.pdf-line .v { flex: 0 0 auto; font-family: var(--num); font-variant-numeric: tabular-nums; }
+.pdf-line.is-sum { margin-top: .2em; padding-top: .45em; border-top: 1px solid #e4dfd6; font-weight: 600; }
+.pdf-block .pdf-sec + .pdf-line { padding-top: .6em; }
+
+/* КБЖУ ліворуч, підсумок праворуч; рамки блоків — однакової висоти */
+.pdf-cols { display: flex; gap: 1em; align-items: stretch; }
+.pdf-cols > * { flex: 1 1 0; min-width: 0; }
 .pdf-rule { height: 3px; margin: .5em 1em; border-top: 1px solid #1b1a17; border-bottom: 1px solid #1b1a17; }
 .pdf-price { display: flex; justify-content: space-between; align-items: baseline; gap: 1em; padding: .33em 1em .83em; }
 .pdf-price .l { font-size: 1.04em; font-weight: 700; letter-spacing: .02em; }
