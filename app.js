@@ -50,6 +50,16 @@ var OFF_ALLERGENS = {
 var PHOTO_MAX = 720;     // px — до цього розміру стискаємо фото
 var PHOTO_Q = 0.72;      // якість jpeg
 
+/* Етикетка на коробку. Розміри в мм; max — стартовий кегль, з якого текст
+   зменшується, поки не влізе. А4 — аркуш 2×4 наліпок 105×74 (стандартний
+   самоклеючий папір), решта — рулонні наліпки термопринтера */
+var LABEL_FORMATS = {
+  a4: { name: 'А4 · 8 шт', sub: 'Аркуш А4 · 8 етикеток 105×74 мм', w: 105, h: 74, pad: 6, max: 11.5, sheet: true, scale: 3 },
+  '100x70': { name: '100×70', sub: 'Наліпка 100×70 мм', w: 100, h: 70, pad: 4, max: 11.5, scale: 4 },
+  '58x40': { name: '58×40', sub: 'Наліпка 58×40 мм', w: 58, h: 40, pad: 2.5, max: 8.5, scale: 5 }
+};
+var DEFAULT_STORAGE = '+2…+6 °C';
+
 var ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 var ICON_TICK = '<svg class="tick" viewBox="0 0 24 24"><path d="m5 13 4.5 4.5L19 7"/></svg>';
 var ICON_CHEV = '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>';
@@ -141,6 +151,7 @@ function emptyState() {
     nutAsked: false,                               // чи вже пропонували ввімкнути КБЖУ в базі
     showOrders: false,                             // вкладка «Замовлення» — теж не всім
     showMethod: true,                              // блок «Рецепт» у калькуляції
+    labelFormat: 'a4',                             // на чому друкують етикетки — у кожного свій принтер
     products: [],
     expenseBase: [],
     preps: [],
@@ -210,6 +221,7 @@ function normalize(s) {
   if (typeof s.showOrders !== 'boolean') s.showOrders = false;
   // До появи перемикача «Рецепт» був завжди — лишаємо його тим, хто вже ним користувався
   if (typeof s.showMethod !== 'boolean') s.showMethod = true;
+  if (!LABEL_FORMATS.hasOwnProperty(s.labelFormat)) s.labelFormat = 'a4';
   // До появи замовлень поля не було; з файла копії може прийти будь-що
   s.orders = (Array.isArray(s.orders) ? s.orders : []).filter(function (o) { return o && typeof o === 'object'; });
   s.orders.forEach(normalizeOrder);
@@ -227,6 +239,7 @@ function normalize(s) {
       if (!r.groups) r.groups = [];
       r.outWeight = num(r.outWeight);
       if (typeof r.method !== 'string') r.method = '';
+      normalizeLabelFields(r);
       migrateExpenseList(r.exp);
     });
   });
@@ -235,8 +248,17 @@ function normalize(s) {
     if (!s.draft.groups) s.draft.groups = [];
     s.draft.outWeight = num(s.draft.outWeight);
     if (typeof s.draft.method !== 'string') s.draft.method = '';
+    normalizeLabelFields(s.draft);
   }
   return s;
+}
+
+/* Для етикетки: термін придатності в годинах (0 — пишуть від руки) і умови
+   зберігання. До появи етикетки полів не було — старим рецептам дістаються
+   типові +2…+6 °C, порожній рядок лишається свідомим «не друкувати» */
+function normalizeLabelFields(r) {
+  r.shelfLife = Math.round(num(r.shelfLife));
+  if (typeof r.storage !== 'string') r.storage = DEFAULT_STORAGE;
 }
 
 /**
@@ -425,7 +447,8 @@ function seed() {
   function recipe(r) {
     var o = {
       id: uid('r'), name: r.name, photo: r.photo, margin: r.margin,
-      ing: [], exp: [], groups: [], outWeight: r.outWeight, method: r.method.join('\n')
+      ing: [], exp: [], groups: [], outWeight: r.outWeight, method: r.method.join('\n'),
+      shelfLife: r.shelf, storage: DEFAULT_STORAGE
     };
     r.ing.forEach(function (i) {
       if (i[0].charAt(0) !== '@') { o.ing.push(line(i[0], i[1])); return; }
@@ -446,7 +469,7 @@ function seed() {
   s.folders = [
     { id: uid('f'), title: 'Торти', recipes: [
       recipe({
-        name: 'Снікерс', photo: 'demo/snickers.jpg', margin: 100, outWeight: 2100, exp: CAKE,
+        name: 'Снікерс', photo: 'demo/snickers.jpg', margin: 100, outWeight: 2100, shelf: 72, exp: CAKE,
         ing: [
           ['@choc', 760],
           ['Цукор білий', 150], ['Вершки 33%', 150], ['Масло вершкове 82%', 50], ['Сіль', 2],
@@ -473,7 +496,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Фісташка–малина', photo: 'demo/pistachio-raspberry.jpg', margin: 100, outWeight: 1900, exp: CAKE,
+        name: 'Фісташка–малина', photo: 'demo/pistachio-raspberry.jpg', margin: 100, outWeight: 1900, shelf: 72, exp: CAKE,
         ing: [
           ['Яйця С1', 5], ['Цукор білий', 210], ['Борошно вищий ґатунок', 120], ['Фісташки очищені', 120],
           ['Масло вершкове 82%', 50], ['Розпушувач', 5],
@@ -502,7 +525,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Полуничне тріо', photo: 'demo/strawberry-trio.jpg', margin: 100, outWeight: 2200, exp: CAKE,
+        name: 'Полуничне тріо', photo: 'demo/strawberry-trio.jpg', margin: 100, outWeight: 2200, shelf: 72, exp: CAKE,
         ing: [
           ['@vanilla', 720],
           ['Полуниця заморожена', 600], ['Цукор білий', 150], ['Желатин', 10], ['Крохмаль кукурудзяний', 15],
@@ -531,7 +554,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Наполеон', photo: 'demo/napoleon.jpg', margin: 100, outWeight: 2300, exp: CAKE,
+        name: 'Наполеон', photo: 'demo/napoleon.jpg', margin: 100, outWeight: 2300, shelf: 48, exp: CAKE,
         ing: [
           ['Борошно вищий ґатунок', 510], ['Масло вершкове 82%', 500], ['Яйця С1', 4], ['Сіль', 3],
           ['Молоко 2,5%', 800], ['Цукор білий', 250], ['Вершки 33%', 200], ['Ванільний екстракт', 5]
@@ -555,7 +578,7 @@ function seed() {
     ] },
     { id: uid('f'), title: 'Капкейки', recipes: [
       recipe({
-        name: 'Капкейки класичні, 6 шт', photo: 'demo/cupcakes-classic.jpg', margin: 100, outWeight: 570, exp: CUPS,
+        name: 'Капкейки класичні, 6 шт', photo: 'demo/cupcakes-classic.jpg', margin: 100, outWeight: 570, shelf: 48, exp: CUPS,
         ing: [
           ['Борошно вищий ґатунок', 100], ['Цукор білий', 80], ['Масло вершкове 82%', 60], ['Яйця С1', 1],
           ['Молоко 2,5%', 60], ['Розпушувач', 4], ['Ванільний екстракт', 2.5],
@@ -573,7 +596,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Капкейки шоколадні, 6 шт', photo: 'demo/cupcakes-chocolate.jpg', margin: 100, outWeight: 570, exp: CUPS,
+        name: 'Капкейки шоколадні, 6 шт', photo: 'demo/cupcakes-chocolate.jpg', margin: 100, outWeight: 570, shelf: 48, exp: CUPS,
         ing: [
           ['Борошно вищий ґатунок', 75], ['Цукор білий', 85], ['Какао-порошок', 30], ['Яйця С1', 1],
           ['Молоко 2,5%', 60], ['Олія соняшникова', 30], ['Розпушувач', 3], ['Сода харчова', 1.5],
@@ -1862,6 +1885,7 @@ function closeOverlays() {
   closeAsk();
   closeLeave();
   closePdfPreview();
+  closeLabel();
   closePrepPick();
   closeNutModal();
   $('#save-overlay').classList.remove('is-on');
@@ -2983,6 +3007,8 @@ function bindFolder() {
 /* ═════════════════ 11. Калькуляція ═════════════════ */
 
 var calcPhoto = null;   // dataURL поточної калькуляції
+// Поля етикетки поточної калькуляції: на екрані їх немає, редагуються у вікні етикетки
+var calcLabel = { shelfLife: 0, storage: DEFAULT_STORAGE };
 
 function ingRow(data) {
   var v = data || { name: '', price: 0, pack: 0, unit: 'г', qty: 0 };
@@ -3075,6 +3101,8 @@ function readCalc() {
     // У полі кілограми, у рецепті — грами, як і всі ваги застосунку
     outWeight: $('#calc-outw').dataset.manual ? Math.round(num($('#calc-outw').value) * 1000) : 0,
     method: $('#calc-method-txt').value,
+    shelfLife: calcLabel.shelfLife,
+    storage: calcLabel.storage,
     ing: ingRows().map(function (tr) {
       var g = tr.getAttribute('data-g');
       var o = {
@@ -3116,6 +3144,8 @@ function cleanRecipe(d) {
     margin: d.margin,
     outWeight: num(d.outWeight),
     method: String(d.method || '').trim(),
+    shelfLife: Math.round(num(d.shelfLife)),
+    storage: typeof d.storage === 'string' ? d.storage.trim() : DEFAULT_STORAGE,
     ing: ing,
     // Група без жодного складника не має сенсу: рядки могли прибрати вручну
     groups: (d.groups || []).filter(function (g) {
@@ -3265,6 +3295,10 @@ function loadCalc(rec, crumb) {
 
   setPhoto(rec.photo || null);
   setMethod(rec.method);
+  calcLabel = {
+    shelfLife: Math.round(num(rec.shelfLife)),
+    storage: typeof rec.storage === 'string' ? rec.storage : DEFAULT_STORAGE
+  };
 
   var ib = $('#ing-body'); ib.innerHTML = '';
   var ing = (rec.ing || []).slice();
@@ -4043,6 +4077,7 @@ function bindSave() {
       var rec = (idx > -1) ? old.recipes[idx] : { id: ed.recipeId };
       rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin;
       rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups; rec.outWeight = d.outWeight; rec.method = d.method;
+      rec.shelfLife = d.shelfLife; rec.storage = d.storage;
       if (old && old.id !== target.id && idx > -1) {   // перенесли в іншу папку
         old.recipes.splice(idx, 1);
         target.recipes.push(rec);
@@ -4052,7 +4087,7 @@ function bindSave() {
       S.ui.editing = { folderId: target.id, recipeId: rec.id };
       toast('Оновлено — папка «' + target.title + '»');
     } else {
-      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method };
+      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method, shelfLife: d.shelfLife, storage: d.storage };
       target.recipes.push(fresh);
       S.ui.editing = { folderId: target.id, recipeId: fresh.id };
       toast('Збережено в папку «' + target.title + '»');
@@ -4306,6 +4341,267 @@ function bindPdf() {
     if (e.target === this) closePdfPreview();
   });
   window.addEventListener('resize', fitPdfPreview);
+}
+
+/* ═════════════════ 14a. Етикетка на коробку ═════════════════
+   Назва, вага, склад за спаданням маси, алергени, КБЖУ на 100 г, умови й
+   термін зберігання. Дату виготовлення (а без терміну — й «вжити до») пишуть
+   ручкою: етикетку друкують наперед, а готують у різні дні. */
+
+/** Склад: той самий продукт у групі й поза нею — один рядок, за спаданням ваги.
+    Штуки без ваги 1 шт порівняти не можна — вони йдуть у кінці, як у рецепті. */
+function labelComposition(d) {
+  var idx = baseIndex(), by = {}, list = [];
+  d.ing.forEach(function (i) {
+    var name = String(i.name || '').trim(); if (!name) return;
+    var k = nameKey(name), p = idx.p[k];
+    if (!by[k]) {
+      by[k] = { name: name, g: 0, known: true, pos: list.length, al: !!(p && p.allergens && p.allergens.length) };
+      list.push(by[k]);
+    }
+    var g = rowGrams(i, p);
+    if (g == null) by[k].known = false; else by[k].g += g;
+  });
+  return list.sort(function (a, b) {
+    if (a.known !== b.known) return a.known ? -1 : 1;
+    return (a.known ? b.g - a.g : 0) || a.pos - b.pos;
+  });
+}
+
+function labelWeight(g) {
+  return g >= 1000 ? qtyFmt(Math.round(g / 10) / 100) + ' кг' : qtyFmt(Math.round(g)) + ' г';
+}
+
+function labelHtml(d) {
+  var nu = nutritionOf(d.ing);
+  var withNut = S.showNutrition;   // алергени й КБЖУ є лише там, де їх ведуть
+  var row = function (k, v, cls) {
+    return '<div class="lbl-row' + (cls ? ' ' + cls : '') + '"><span class="lbl-k">' + k + '</span> ' + v + '</div>';
+  };
+  var hand = function (k) { return '<div class="lbl-hand"><span class="lbl-k">' + k + '</span><i></i></div>'; };
+
+  var g = num(d.outWeight), approx = false;
+  if (!(g > 0)) { g = nu.mass; approx = true; }
+
+  // Продукти з алергенами — жирним, як прийнято на етикетках
+  var comp = labelComposition(d).map(function (c) {
+    return withNut && c.al ? '<b>' + esc(c.name) + '</b>' : esc(c.name);
+  }).join(', ');
+
+  var al = '';
+  if (withNut && nu.allergens.length) {
+    al = nu.allergens.map(function (a) { return a[0] !== a[1] ? a[1].toLowerCase() : a[1]; }).join(', ');
+  } else if (withNut && nu.rows && !nu.noAl.length) {
+    al = 'немає';   // «немає» — лише коли про кожен продукт відомо; інакше рядок не друкуємо
+  }
+
+  // КБЖУ — табличкою праворуч, як на фабричній упаковці
+  var nut = '';
+  if (withNut && nu.counted) {
+    var per = calcNutPer(d, nu);
+    if (per.factor) {
+      nut = '<table class="lbl-nut"><thead><tr><th colspan="2">' + (per.approx ? '≈ ' : '') + 'На 100 г</th></tr></thead><tbody>' +
+        nutCells(nu, per.factor).map(function (c) {
+          return '<tr><td>' + c.label + '</td><td class="v">' + c.one + '</td></tr>';
+        }).join('') +
+      '</tbody></table>';
+    }
+  }
+
+  var storage = String(d.storage || '').trim();
+  return '<div class="lbl-main">' +
+      '<div class="lbl-left">' +
+        '<div class="lbl-name">' + esc(d.name || 'Без назви') + '</div>' +
+        (g > 0 ? '<div class="lbl-w">' + (approx ? '≈ ' : '') + labelWeight(g) + '</div>' : '') +
+        (al ? row('Алергени:', esc(al) + '.', 'lbl-al') : '') +
+        row('Склад:', comp + '.', 'lbl-comp') +
+      '</div>' +
+      (nut ? '<div class="lbl-right">' + nut + '</div>' : '') +
+    '</div>' +
+    '<div class="lbl-foot">' +
+      (storage ? row('Умови зберігання:', esc(storage)) : '') +
+      (d.shelfLife > 0
+        ? row('Термін придатності:', d.shelfLife + ' год від дати виготовлення')
+        : hand('Вжити до:')) +
+      hand('Дата виготовлення:') +
+    '</div>';
+}
+
+/** Зменшує кегль, поки текст не влізе в наліпку. false — не влазить і на найменшому. */
+function fitLabel(one, F) {
+  for (var fs = F.max; fs >= 5; fs -= 0.25) {
+    one.style.fontSize = fs + 'px';
+    if (one.scrollHeight <= one.clientHeight + 1) return true;
+  }
+  return false;
+}
+
+function renderLabel() {
+  var d = cleanRecipe(readCalc());
+  var F = LABEL_FORMATS[S.labelFormat];
+  var stage = $('#lbl-stage');
+  stage.innerHTML = '';
+
+  var page = document.createElement('div');
+  page.className = 'lbl-page' + (F.sheet ? ' is-sheet' : '');
+  // Сторінка на волосину нижча за папір: інакше html2pdf через округлення
+  // інколи додає порожній другий аркуш
+  if (!F.sheet) { page.style.width = F.w + 'mm'; page.style.height = (F.h - 0.3) + 'mm'; }
+
+  var one = document.createElement('div');
+  one.className = 'lbl';
+  one.style.padding = F.pad + 'mm';
+  if (F.sheet) { one.style.width = F.w + 'mm'; one.style.height = F.h + 'mm'; }
+  one.innerHTML = labelHtml(d);
+  page.appendChild(one);
+  stage.appendChild(page);
+
+  var fits = fitLabel(one, F);
+  if (F.sheet) for (var i = 1; i < 8; i++) page.appendChild(one.cloneNode(true));
+
+  var sub = $('#lbl-sub');
+  sub.textContent = F.sub + (fits ? '' : ' · текст не влазить — оберіть більший формат');
+  sub.classList.toggle('is-warn', !fits);
+  fitLabelPreview();
+}
+
+/* Прев'ю: аркуш А4 зменшуємо під вікно, маленьку наліпку — збільшуємо, щоб
+   її можна було прочитати. Масштабуємо лише обгортку: html2pdf знімає саму
+   сторінку, і її розміри в мм мають лишитися справжніми */
+function fitLabelPreview() {
+  var stage = $('#lbl-stage');
+  if (!stage.firstChild) return;
+  stage.style.transform = '';
+  stage.style.marginLeft = '';
+  stage.style.marginBottom = '';
+
+  var body = $('#lbl-body');
+  var pad = parseFloat(getComputedStyle(body).paddingLeft) || 0;
+  var avail = body.clientWidth - pad * 2;
+  var F = LABEL_FORMATS[S.labelFormat];
+  var k = Math.min(F.sheet ? 1 : 2.4, avail / stage.offsetWidth);
+  stage.style.transform = 'scale(' + k + ')';
+  stage.style.marginLeft = Math.max(0, Math.round((avail - stage.offsetWidth * k) / 2)) + 'px';
+  stage.style.marginBottom = Math.round(stage.offsetHeight * (k - 1)) + 'px';
+}
+
+function paintLabelFormat() {
+  $$('#lbl-format [data-lbl-f]').forEach(function (b) {
+    b.setAttribute('aria-pressed', b.getAttribute('data-lbl-f') === S.labelFormat ? 'true' : 'false');
+  });
+}
+
+function openLabel() {
+  var d = cleanRecipe(readCalc());
+  if (!d.ing.length) { toast('Немає що друкувати — додайте інгредієнти'); return; }
+  $('#lbl-shelf').value = d.shelfLife ? String(d.shelfLife) : '';
+  $('#lbl-storage').value = d.storage;
+  paintLabelFormat();
+  $('#lbl-body').scrollTop = 0;
+  $('#lbl-overlay').classList.add('is-on');   // міряти текст можна лише на видимому
+  renderLabel();
+}
+
+function closeLabel() {
+  $('#lbl-overlay').classList.remove('is-on');
+  $('#lbl-stage').innerHTML = '';
+}
+
+/**
+ * Термін і умови вписують раз — і вони лишаються в калькуляції. Для вже
+ * збереженої пишемо одразу, як фото: інакше треба було б пам'ятати про
+ * «Оновити калькуляцію» заради одного числа. Знімок збереженої версії
+ * підправляємо тими ж полями — щоб не спливало «Є незбережені зміни».
+ */
+function commitLabelFields() {
+  recalc();
+  var ed = S.ui.editing; if (!ed) return;
+  var f = folderById(ed.folderId); if (!f) return;
+  var r = f.recipes.filter(function (x) { return x.id === ed.recipeId; })[0];
+  if (!r) return;
+  r.shelfLife = S.draft.shelfLife;
+  r.storage = S.draft.storage;
+  if (calcBaseline) {
+    var b = JSON.parse(calcBaseline);
+    b.shelfLife = r.shelfLife; b.storage = r.storage;
+    calcBaseline = JSON.stringify(b);
+  }
+  draftDirty = calcDiffers(S.draft);
+  updateSaveBtn();
+  persist();
+}
+
+function downloadLabel() {
+  if (typeof html2pdf === 'undefined') {
+    toast('Бібліотека PDF не завантажилась — перевірте інтернет');
+    return;
+  }
+  var page = $('#lbl-stage .lbl-page');
+  if (!page) return;
+  var F = LABEL_FORMATS[S.labelFormat];
+  var modal = $('.lbl-modal'), btn = $('#lbl-file'), stage = $('#lbl-stage');
+  var name = $('#calc-name').value.trim() || 'етикетка';
+
+  modal.classList.add('is-exporting');
+  stage.style.transform = '';
+  stage.style.marginLeft = '';
+  stage.style.marginBottom = '';
+  $('#lbl-body').scrollTop = 0;
+  btn.disabled = true;
+  btn.textContent = 'Готуємо…';
+
+  function done(msg) {
+    modal.classList.remove('is-exporting');
+    fitLabelPreview();
+    btn.disabled = false;
+    btn.textContent = 'Завантажити';
+    toast(msg);
+  }
+
+  html2pdf().set({
+    margin: 0,
+    filename: 'FoodCost — етикетка — ' + name + '.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    // Дрібний кегль термоналіпки в растрі мʼякне — тому масштаб більший, ніж у техкарти
+    html2canvas: { scale: F.scale, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+    jsPDF: F.sheet
+      ? { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      : { unit: 'mm', format: [F.w, F.h], orientation: F.w > F.h ? 'landscape' : 'portrait' }
+  }).from(page).save().then(function () {
+    done('Етикетку збережено');
+  })['catch'](function (err) {
+    done('Не вдалося зібрати PDF: ' + (err && err.message ? err.message : 'невідома помилка'));
+  });
+}
+
+function bindLabel() {
+  $('#btn-label').addEventListener('click', openLabel);
+  $('#lbl-close').addEventListener('click', closeLabel);
+  $('#lbl-file').addEventListener('click', downloadLabel);
+  $('#lbl-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeLabel();
+  });
+  // Формат — властивість принтера, а не рецепта: запамʼятовуємо на пристрої
+  $('#lbl-format').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-lbl-f]'); if (!b) return;
+    S.labelFormat = b.getAttribute('data-lbl-f');
+    persist();
+    paintLabelFormat();
+    renderLabel();
+  });
+  $('#lbl-shelf').addEventListener('input', function () {
+    var v = this.value.replace(/\D/g, '').slice(0, 4);
+    if (v !== this.value) this.value = v;
+    calcLabel.shelfLife = Math.round(num(v));
+    commitLabelFields();
+    renderLabel();
+  });
+  $('#lbl-storage').addEventListener('input', function () {
+    calcLabel.storage = this.value;
+    commitLabelFields();
+    renderLabel();
+  });
+  window.addEventListener('resize', fitLabelPreview);
 }
 
 /* ═════════════════ 15. Резервна копія ═════════════════
@@ -5338,7 +5634,7 @@ function bindSettings() {
       closeAsk();
       // Налаштування — не дані: людина чистить базу, а не хоче, щоб тема
       // й валюта раптом повернулись до початкових
-      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders, showMethod: S.showMethod };
+      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders, showMethod: S.showMethod, labelFormat: S.labelFormat };
       S = normalize(emptyState());
       Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
       draftDirty = false;
@@ -5482,6 +5778,7 @@ function init() {
   bindOrders();
   bindSave();
   bindPdf();
+  bindLabel();
   bindSettings();
   bindInvite();
 

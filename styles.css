@@ -1084,6 +1084,57 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .pdf-al-l { font-family: var(--num); font-size: .75em; text-transform: uppercase; letter-spacing: .08em; color: #6d685f; }
 .pdf-al-v { margin-top: .3em; font-size: 1.04em; font-weight: 600; line-height: 1.35; }
 .pdf-al-n { margin-top: .45em; font-size: .88em; color: #55524b; }
+
+/* ═════════════════ Етикетка ═════════════════ */
+
+.lbl-tools {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px;
+  padding: 14px 22px 12px; border-bottom: 1px solid var(--line-soft);
+}
+.lbl-field { display: flex; flex-direction: column; gap: 6px; }
+.lbl-field-grow { flex: 1 1 180px; }
+.lbl-cap { font-size: 12.5px; color: var(--fg-2); }
+.lbl-tools .inp { height: 38px; border-color: var(--line-2); background: var(--field); }
+.lbl-tools .inp:hover { border-color: var(--edge-2); }
+.lbl-shelf { width: 128px; }
+.lbl-shelf .inp { padding-right: 38px; }
+.lbl-hint { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--muted); }
+.pdf-modal-head .modal-sub.is-warn { color: var(--danger); }
+.lbl-stage { width: max-content; transform-origin: 0 0; box-shadow: 0 8px 20px -12px rgba(0,0,0,.45); }
+
+/* Наліпка друкується завжди світлою й чорним: термопринтер сірий передає
+   крапками, і дрібний текст розсипається. Розміри в em від .lbl — кегль
+   підбирає fitLabel() */
+.lbl-page { background: #fff; color: #000; font-family: var(--ui); }
+.lbl-page.is-sheet {
+  display: grid; grid-template-columns: repeat(2, 105mm); grid-template-rows: repeat(4, 74mm);
+  width: 210mm; height: 296.5mm;
+}
+.lbl-page:not(.is-sheet) .lbl { width: 100%; height: 100%; }
+.lbl { display: flex; flex-direction: column; overflow: hidden; line-height: 1.28; }
+/* Лінія різу для звичайного паперу; на готових наліпках її майже не видно */
+.is-sheet .lbl { outline: 1px dashed #cfcfcf; outline-offset: -.5px; }
+/* Ліворуч — назва, вага, алергени, склад; праворуч — табличка КБЖУ */
+.lbl-main { display: flex; align-items: flex-start; gap: .9em; }
+.lbl-left { flex: 1 1 auto; min-width: 0; }
+.lbl-right { flex: 0 0 36%; }
+.lbl-name { font-size: 1.75em; font-weight: 800; line-height: 1.08; letter-spacing: -.015em; }
+.lbl-w { margin-top: .12em; font-size: 1.25em; font-weight: 700; }
+.lbl-row { margin-top: .3em; }
+.lbl-al { margin-top: .55em; }
+.lbl-comp { margin-top: .3em; }
+.lbl-nut { width: 100%; border-collapse: collapse; border: 1.5px solid #000; }
+.lbl-nut th { padding: .3em .45em; border-bottom: 1.5px solid #000; text-align: left; font-weight: 700; }
+.lbl-nut td { padding: .22em .45em; border-top: 1px solid #000; }
+.lbl-nut tbody tr:first-child td { border-top: 0; }
+.lbl-nut td.v { text-align: right; white-space: nowrap; font-weight: 600; }
+.lbl-k { font-weight: 700; }
+.lbl-comp b { font-weight: 700; text-decoration: underline; text-underline-offset: .12em; }
+.lbl-foot { margin-top: auto; padding-top: .45em; }
+.lbl-hand { display: flex; align-items: flex-end; gap: .4em; margin-top: .35em; }
+.lbl-hand .lbl-k { flex: 0 0 auto; }
+/* Місце під ручку: висота рядка з запасом, щоб дата влізла від руки */
+.lbl-hand i { flex: 1; min-height: 1.7em; border-bottom: 1px solid #000; }
 .pdf-rule { height: 3px; margin: .5em 1em; border-top: 1px solid #1b1a17; border-bottom: 1px solid #1b1a17; }
 .pdf-price { display: flex; justify-content: space-between; align-items: baseline; gap: 1em; padding: .33em 1em .83em; }
 .pdf-price .l { font-size: 1.04em; font-weight: 700; letter-spacing: .02em; }
@@ -1559,6 +1610,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .pdf-modal-head .btn-row { width: 100%; }
   .pdf-modal-head .btn-row .btn { flex: 1; }
   .pdf-modal-body { padding: 12px; }
+  .lbl-tools { padding: 12px 16px; }
+  .lbl-field:first-child, .lbl-field:first-child .seg { width: 100%; }
+  .lbl-field:first-child .seg button { flex: 1; }
   .prep-take-row { flex-wrap: wrap; }
 
   /* ── Розміри під палець ── */

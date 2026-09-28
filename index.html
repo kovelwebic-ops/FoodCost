@@ -562,6 +562,7 @@
         <div class="total-acts">
           <button class="btn btn-ghost is-danger" id="btn-del-calc">Видалити</button>
           <button class="btn" id="btn-pdf">Експортувати PDF</button>
+          <button class="btn" id="btn-label">Етикетка</button>
           <button class="btn btn-primary" id="btn-save">Зберегти калькуляцію</button>
         </div>
       </div>
@@ -729,6 +730,7 @@
         <span class="help-step">Крок 5</span>
         <h2 class="h2">PDF</h2>
         <p>«Експортувати PDF» у підсумку калькуляції. Спершу побачите аркуш А4, потім — «Завантажити». Довга калькуляція сама розкладеться на кілька сторінок.</p>
+        <p>«Етикетка» поруч — наліпка на коробку: назва, вага, склад від найбільшого до найменшого, алергени й КБЖУ на 100&nbsp;г (якщо КБЖУ ввімкнене), умови й термін зберігання. Формат обирається під ваш принтер: аркуш А4 на 8 наліпок, 100×70 або 58×40&nbsp;мм. Термін придатності й умови впишіть раз — вони запамʼятаються в калькуляції. Дату виготовлення на наліпці лишено порожньою — під ручку.</p>
       </article>
 
       <div class="help-group">Корисно знати</div>
@@ -877,6 +879,47 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Етикетка на коробку: формат друку, термін і умови зберігання, прев'ю наліпки -->
+<div class="overlay" id="lbl-overlay">
+  <div class="pdf-modal lbl-modal" role="dialog" aria-modal="true" aria-labelledby="lbl-title">
+    <div class="pdf-modal-head">
+      <div>
+        <div class="modal-title" id="lbl-title">Етикетка</div>
+        <div class="modal-sub" id="lbl-sub"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="lbl-close">Закрити</button>
+        <button class="btn btn-primary" id="lbl-file">Завантажити</button>
+      </div>
+    </div>
+    <div class="lbl-tools">
+      <div class="lbl-field">
+        <span class="lbl-cap">Формат</span>
+        <div class="seg" id="lbl-format">
+          <button data-lbl-f="a4" aria-pressed="true">А4 · 8 шт</button>
+          <button data-lbl-f="100x70" aria-pressed="false">100×70</button>
+          <button data-lbl-f="58x40" aria-pressed="false">58×40</button>
+        </div>
+      </div>
+      <label class="lbl-field">
+        <span class="lbl-cap">Термін придатності</span>
+        <span class="qty-wrap lbl-shelf">
+          <input class="inp is-num" id="lbl-shelf" inputmode="numeric" autocomplete="off" placeholder="від руки">
+          <span class="unit-tag">год</span>
+        </span>
+      </label>
+      <label class="lbl-field lbl-field-grow">
+        <span class="lbl-cap">Умови зберігання</span>
+        <input class="inp" id="lbl-storage" autocomplete="off" placeholder="Не друкувати">
+      </label>
+      <p class="lbl-hint">Термін і умови запамʼятовуються в цій калькуляції. Дату виготовлення впишете ручкою.</p>
+    </div>
+    <div class="pdf-modal-body" id="lbl-body">
+      <div class="lbl-stage" id="lbl-stage"></div>
+    </div>
+  </div>
+</div>
 
 <!-- Прев'ю перед експортом: документ має бути реально видимим, інакше html2canvas знімає порожнечу -->
 <div class="overlay" id="pdf-overlay">
