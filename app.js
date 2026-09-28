@@ -1685,8 +1685,8 @@ function pdfNutBlock(d) {
     '<h2 class="pdf-sec">Харчова цінність</h2>' +
     '<table class="pdf-tbl"><thead><tr><th>Показник</th>' +
       '<th class="r">' + (per.approx ? '≈ ' : '') + 'На 100 г</th><th class="r">Весь виріб</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>' +
-    '<div class="pdf-line"><span>Алергени</span><span class="t">' + esc(al) + '</span></div>' +
+      // Алергени — рядком тієї ж таблиці, щоб стояли в одну лінію з КБЖУ
+      '<tbody>' + rows + '<tr class="pdf-al"><td>Алергени</td><td class="r t" colspan="2">' + esc(al) + '</td></tr></tbody></table>' +
     '<div class="pdf-note">' + notes.map(esc).join('<br>') + '</div>' +
   '</section>';
 }
