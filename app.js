@@ -140,6 +140,7 @@ function emptyState() {
     showNutrition: false,                          // КБЖУ й алергени потрібні не всім
     nutAsked: false,                               // чи вже пропонували ввімкнути КБЖУ в базі
     showOrders: false,                             // вкладка «Замовлення» — теж не всім
+    showMethod: true,                              // блок «Рецепт» у калькуляції
     products: [],
     expenseBase: [],
     preps: [],
@@ -207,6 +208,8 @@ function normalize(s) {
   if (!s.preps) s.preps = [];               // до появи напівфабрикатів поля не було
   if (!s.folders) s.folders = [];
   if (typeof s.showOrders !== 'boolean') s.showOrders = false;
+  // До появи перемикача «Рецепт» був завжди — лишаємо його тим, хто вже ним користувався
+  if (typeof s.showMethod !== 'boolean') s.showMethod = true;
   // До появи замовлень поля не було; з файла копії може прийти будь-що
   s.orders = (Array.isArray(s.orders) ? s.orders : []).filter(function (o) { return o && typeof o === 'object'; });
   s.orders.forEach(normalizeOrder);
@@ -4485,6 +4488,14 @@ function paintOrderCounts() {
   $('[data-ord-n="done"]').textContent = done ? ' ' + done : '';
 }
 
+/* Вимкнений «Рецепт» лише ховає блок — уже написані тексти лишаються в калькуляціях */
+function applyMethod() {
+  document.documentElement.classList.toggle('method-off', !S.showMethod);
+  $$('#seg-method button').forEach(function (b) {
+    b.setAttribute('aria-pressed', (b.getAttribute('data-method-val') === 'on') === !!S.showMethod ? 'true' : 'false');
+  });
+}
+
 function applyOrders() {
   document.documentElement.classList.toggle('orders-on', !!S.showOrders);
   $$('#seg-orders-on button').forEach(function (b) {
@@ -5281,6 +5292,15 @@ function bindSettings() {
     if (on) toast('Увімкнено. Вкладка «Замовлення» — у меню');
   });
 
+  $('#seg-method').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-method-val]'); if (!b) return;
+    var on = b.getAttribute('data-method-val') === 'on';
+    if (on === S.showMethod) return;
+    S.showMethod = on;
+    applyMethod();
+    persist(true);
+  });
+
   $('#btn-export').addEventListener('click', exportData);
   $('#btn-import').addEventListener('click', function () { $('#import-input').click(); });
   $('#import-input').addEventListener('change', function () {
@@ -5314,7 +5334,7 @@ function bindSettings() {
       closeAsk();
       // Налаштування — не дані: людина чистить базу, а не хоче, щоб тема
       // й валюта раптом повернулись до початкових
-      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders };
+      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders, showMethod: S.showMethod };
       S = normalize(emptyState());
       Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
       draftDirty = false;
@@ -5390,6 +5410,7 @@ function boot(fresh) {
   applyTheme();
   applyNutrition();
   applyOrders();
+  applyMethod();
   applyCurrency();
   renderSidebar();
   renderBase();

@@ -531,6 +531,7 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .photo-acts { display: flex; flex-direction: column; gap: 4px; }
 
 .panel-method { margin-top: 20px; }
+.method-off .panel-method { display: none; }
 .method-head {
   display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 10px 20px;
   border: 0; background: transparent; text-align: left; cursor: pointer;
