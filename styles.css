@@ -84,7 +84,7 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 /* ═════════════════ Сайдбар ═════════════════ */
 
 .sidebar {
-  width: 244px; flex: 0 0 244px; position: sticky; top: 0; align-self: flex-start;
+  width: 208px; flex: 0 0 208px; position: sticky; top: 0; align-self: flex-start;
   height: 100vh; overflow-y: auto; background: var(--side);
   border-right: 1px solid var(--line-2); display: flex; flex-direction: column;
   padding: 22px 14px 18px;
