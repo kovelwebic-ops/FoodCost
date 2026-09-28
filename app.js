@@ -51,10 +51,10 @@ var PHOTO_MAX = 720;     // px — до цього розміру стискає
 var PHOTO_Q = 0.72;      // якість jpeg
 
 /* Етикетка на коробку. Розміри в мм; max — стартовий кегль, з якого текст
-   зменшується, поки не влізе. А4 — аркуш 2×4 наліпок 105×74 (стандартний
-   самоклеючий папір), решта — рулонні наліпки термопринтера */
+   зменшується, поки не влізе. А4 — аркуш 2×7 наліпок 105×42,3 (стандартний
+   самоклеючий папір на 14 шт), решта — рулонні наліпки термопринтера */
 var LABEL_FORMATS = {
-  a4: { name: 'А4 · 8 шт', sub: 'Аркуш А4 · 8 етикеток 105×74 мм', w: 105, h: 74, pad: 6, max: 11.5, sheet: true, scale: 3 },
+  a4: { name: 'А4 · 14 шт', sub: 'Аркуш А4 · 14 етикеток 105×42 мм', w: 105, h: 42.35, pad: 3.5, max: 10, sheet: true, cols: 2, rows: 7, scale: 3 },
   '100x70': { name: '100×70', sub: 'Наліпка 100×70 мм', w: 100, h: 70, pad: 4, max: 11.5, scale: 4 },
   '58x40': { name: '58×40', sub: 'Наліпка 58×40 мм', w: 58, h: 40, pad: 2.5, max: 8.5, scale: 5 }
 };
@@ -4395,36 +4395,40 @@ function labelHtml(d) {
     al = 'немає';   // «немає» — лише коли про кожен продукт відомо; інакше рядок не друкуємо
   }
 
-  // КБЖУ — табличкою праворуч, як на фабричній упаковці
-  var nut = '';
-  if (withNut && nu.counted) {
-    var per = calcNutPer(d, nu);
-    if (per.factor) {
-      nut = '<table class="lbl-nut"><thead><tr><th colspan="2">' + (per.approx ? '≈ ' : '') + 'На 100 г</th></tr></thead><tbody>' +
-        nutCells(nu, per.factor).map(function (c) {
-          return '<tr><td>' + c.label + '</td><td class="v">' + c.one + '</td></tr>';
-        }).join('') +
-      '</tbody></table>';
-    }
+  // Праворуч — табличка «Харчова цінність» на зразок фабричної: жирний заголовок,
+  // товсті смуги, калорійність окремо, під КБЖУ — алергени
+  var facts = '';
+  var per = withNut && nu.counted ? calcNutPer(d, nu) : null;
+  if ((per && per.factor) || al) {
+    var cells = per && per.factor ? nutCells(nu, per.factor) : [];
+    facts = '<div class="lbl-facts">' +
+      '<div class="lbl-facts-t">Харчова цінність</div>' +
+      (cells.length
+        ? '<div class="lbl-facts-s">' + (per.approx ? '≈ ' : '') + 'на 100 г</div>' +
+          '<div class="lbl-bar"></div>' +
+          cells.map(function (c, i) {
+            return (i === 1 ? '<div class="lbl-bar is-mid"></div>' : '') +
+              '<div class="lbl-fr' + (i ? '' : ' is-kcal') + '"><span>' + c.label + '</span><b>' + c.one + '</b></div>';
+          }).join('')
+        : '') +
+      (al ? '<div class="lbl-bar"></div><div class="lbl-facts-al"><span class="lbl-k">Алергени:</span> ' + esc(al) + '</div>' : '') +
+    '</div>';
   }
 
   var storage = String(d.storage || '').trim();
-  return '<div class="lbl-main">' +
-      '<div class="lbl-left">' +
-        '<div class="lbl-name">' + esc(d.name || 'Без назви') + '</div>' +
-        (g > 0 ? '<div class="lbl-w">' + (approx ? '≈ ' : '') + labelWeight(g) + '</div>' : '') +
-        (al ? row('Алергени:', esc(al) + '.', 'lbl-al') : '') +
-        row('Склад:', comp + '.', 'lbl-comp') +
+  return '<div class="lbl-left">' +
+      '<div class="lbl-name">' + esc(d.name || 'Без назви') + '</div>' +
+      row('Склад:', comp + '.', 'lbl-comp') +
+      '<div class="lbl-foot">' +
+        (storage ? row('Умови зберігання:', esc(storage)) : '') +
+        (d.shelfLife > 0
+          ? row('Термін придатності:', d.shelfLife + ' год від дати виготовлення')
+          : hand('Вжити до:')) +
+        (labelDate.trim() ? row('Дата виготовлення:', esc(labelDate.trim())) : hand('Дата виготовлення:')) +
       '</div>' +
-      (nut ? '<div class="lbl-right">' + nut + '</div>' : '') +
+      (g > 0 ? '<div class="lbl-w">Вага ' + (approx ? '≈ ' : '') + labelWeight(g) + '</div>' : '') +
     '</div>' +
-    '<div class="lbl-foot">' +
-      (storage ? row('Умови зберігання:', esc(storage)) : '') +
-      (d.shelfLife > 0
-        ? row('Термін придатності:', d.shelfLife + ' год від дати виготовлення')
-        : hand('Вжити до:')) +
-      (labelDate.trim() ? row('Дата виготовлення:', esc(labelDate.trim())) : hand('Дата виготовлення:')) +
-    '</div>';
+    (facts ? '<div class="lbl-right">' + facts + '</div>' : '');
 }
 
 // Дата виготовлення щоразу інша, тож у рецепт не пишеться — живе, поки відкрита сторінка
@@ -4437,8 +4441,11 @@ function todayDots() {
 
 /** Зменшує кегль, поки текст не влізе в наліпку. false — не влазить і на найменшому. */
 function fitLabel(one, F) {
+  var facts = $('.lbl-facts', one);
   for (var fs = F.max; fs >= 5; fs -= 0.25) {
     one.style.fontSize = fs + 'px';
+    // Табличка — ще й по ширині: «347 ккал» не переноситься і вилазив би за рамку
+    if (facts && facts.scrollWidth > facts.clientWidth + 1) continue;
     if (one.scrollHeight <= one.clientHeight + 1) return true;
   }
   return false;
@@ -4455,6 +4462,10 @@ function renderLabel() {
   // Сторінка на волосину нижча за папір: інакше html2pdf через округлення
   // інколи додає порожній другий аркуш
   if (!F.sheet) { page.style.width = F.w + 'mm'; page.style.height = (F.h - 0.3) + 'mm'; }
+  else {
+    page.style.gridTemplateColumns = 'repeat(' + F.cols + ', ' + F.w + 'mm)';
+    page.style.gridTemplateRows = 'repeat(' + F.rows + ', ' + F.h + 'mm)';
+  }
 
   var one = document.createElement('div');
   one.className = 'lbl';
@@ -4465,7 +4476,7 @@ function renderLabel() {
   stage.appendChild(page);
 
   var fits = fitLabel(one, F);
-  if (F.sheet) for (var i = 1; i < 8; i++) page.appendChild(one.cloneNode(true));
+  if (F.sheet) for (var i = 1; i < F.cols * F.rows; i++) page.appendChild(one.cloneNode(true));
 
   var sub = $('#lbl-sub');
   sub.textContent = F.sub + (fits ? '' : ' · текст не влазить — оберіть більший формат');

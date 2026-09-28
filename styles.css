@@ -1109,31 +1109,33 @@ html:not(.nut-on) .nut-only { display: none !important; }
    крапками, і дрібний текст розсипається. Розміри в em від .lbl — кегль
    підбирає fitLabel() */
 .lbl-page { background: #fff; color: #000; font-family: var(--ui); }
-.lbl-page.is-sheet {
-  display: grid; grid-template-columns: repeat(2, 105mm); grid-template-rows: repeat(4, 74mm);
-  width: 210mm; height: 296.5mm;
-}
+.lbl-page.is-sheet { display: grid; width: 210mm; height: 296.5mm; }
 .lbl-page:not(.is-sheet) .lbl { width: 100%; height: 100%; }
-.lbl { display: flex; flex-direction: column; overflow: hidden; line-height: 1.28; }
+/* Ліворуч — назва, склад, зберігання, внизу вага; праворуч — «Харчова цінність» */
+.lbl { display: flex; align-items: stretch; gap: .8em; overflow: hidden; line-height: 1.25; }
 /* Лінія різу для звичайного паперу; на готових наліпках її майже не видно */
 .is-sheet .lbl { outline: 1px dashed #cfcfcf; outline-offset: -.5px; }
-/* Ліворуч — назва, вага, алергени, склад; праворуч — табличка КБЖУ */
-.lbl-main { display: flex; align-items: flex-start; gap: .9em; }
-.lbl-left { flex: 1 1 auto; min-width: 0; }
-.lbl-right { flex: 0 0 36%; }
-.lbl-name { font-size: 1.75em; font-weight: 800; line-height: 1.08; letter-spacing: -.015em; }
-.lbl-w { margin-top: .12em; font-size: 1.25em; font-weight: 700; }
-.lbl-row { margin-top: .3em; }
-.lbl-al { margin-top: .55em; }
-.lbl-comp { margin-top: .3em; }
-.lbl-nut { width: 100%; border-collapse: collapse; border: 1.5px solid #000; }
-.lbl-nut th { padding: .3em .45em; border-bottom: 1.5px solid #000; text-align: left; font-weight: 700; }
-.lbl-nut td { padding: .22em .45em; border-top: 1px solid #000; }
-.lbl-nut tbody tr:first-child td { border-top: 0; }
-.lbl-nut td.v { text-align: right; white-space: nowrap; font-weight: 600; }
+.lbl-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.lbl-right { flex: 0 0 41%; min-width: 0; }
+.lbl-name { font-size: 1.8em; font-weight: 800; line-height: 1.05; letter-spacing: -.015em; }
+.lbl-row { margin-top: .25em; }
+.lbl-comp { margin-top: .45em; }
 .lbl-k { font-weight: 700; }
 .lbl-comp b { font-weight: 700; text-decoration: underline; text-underline-offset: .12em; }
 .lbl-foot { margin-top: auto; padding-top: .45em; }
+.lbl-w { margin-top: .3em; font-size: 1.5em; font-weight: 800; line-height: 1.05; }
+
+/* Табличка на зразок «Nutrition Facts»: рамка, жирний заголовок, товсті смуги */
+.lbl-facts { border: 1px solid #000; padding: .3em .45em .35em; }
+.lbl-facts-t { font-size: 1.35em; font-weight: 800; line-height: 1.02; letter-spacing: -.01em; }
+.lbl-facts-s { font-size: .92em; }
+.lbl-bar { margin: .22em 0 .1em; border-top: .5em solid #000; }
+.lbl-bar.is-mid { margin: .12em 0 0; border-top-width: .25em; }
+.lbl-fr { display: flex; justify-content: space-between; gap: .5em; padding: .14em 0; border-top: 1px solid #000; }
+.lbl-bar + .lbl-fr { border-top: 0; }
+.lbl-fr b { flex: 0 0 auto; font-weight: 700; white-space: nowrap; }
+.lbl-fr.is-kcal { font-weight: 800; }
+.lbl-facts-al { padding-top: .1em; }
 .lbl-hand { display: flex; align-items: flex-end; gap: .4em; margin-top: .35em; }
 .lbl-hand .lbl-k { flex: 0 0 auto; }
 /* Місце під ручку: висота рядка з запасом, щоб дата влізла від руки */
