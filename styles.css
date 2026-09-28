@@ -899,6 +899,12 @@ html:not(.nut-on) .nut-only { display: none !important; }
 /* Глобального стилю посилань немає — інакше зовнішнє джерело виглядало б як стандартна синя ссилка */
 .set-row-desc a, .help-sec a { color: var(--accent); text-decoration: none; }
 .set-row-desc a:hover, .help-sec a:hover { color: var(--accent-2); text-decoration: underline; }
+/* Версія, група тестувальників і контакт автора — дрібно під заголовком налаштувань */
+.app-ver { margin: 8px 0 0; font-family: var(--num); font-size: 11.5px; line-height: 1.6; color: var(--fg-3); opacity: .85; }
+.app-ver span { white-space: nowrap; }
+.app-ver i { font-style: normal; }
+.app-ver a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.app-ver a:hover { color: var(--accent-2); }
 #btn-reset, #btn-wipe { height: 38px; }
 
 /* ═════════════════ Інструкція ═════════════════ */
@@ -1619,6 +1625,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .lbl-field:first-child, .lbl-field:first-child .seg { width: 100%; }
   .lbl-field:first-child .seg button { flex: 1; }
   .lbl-date { width: 100%; }
+  .app-ver span { display: block; }
+  .app-ver i { display: none; }
   .prep-take-row { flex-wrap: wrap; }
 
   /* ── Розміри під палець ── */
