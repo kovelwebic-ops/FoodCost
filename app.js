@@ -353,9 +353,8 @@ function seed() {
     ['Посипка «срібні кульки»', 42, 50, 'г']
   ];
   // Харчова цінність на 100 г: [ккал, білки, жири, вуглеводи, алергени, вага 1 шт]
-  // «Барвник гелевий» тут навмисно відсутній: на таких упаковках складу часто
-  // немає, і демо одразу показує, як виглядає попередження «не вказано».
   var N = {
+    'Барвник гелевий': [290, 0, 0, 72, []],   // на гліцерині й цукрі, як у більшості гелевих
     'Борошно вищий ґатунок': [334, 10.3, 1.1, 70.6, ['gluten']],
     'Цукор білий': [399, 0, 0, 99.8, []],
     'Цукрова пудра': [399, 0, 0, 99.8, []],
@@ -1705,7 +1704,6 @@ function pdfNutBlock(d) {
   if (nu.noAl.length) notes.push('Алергени не вказані: ' + nu.noAl.map(function (m) { return m.label; }).join(', '));
   if (nu.noNut.length) notes.push('Без КБЖУ: ' + nu.noNut.map(function (m) { return m.label; }).join(', '));
   if (per.approx && nu.counted) notes.push('На 100 г — на сиру масу, без урахування упікання.');
-  notes.push('Розрахункові значення.');
 
   return '<section class="pdf-block">' +
     '<h2 class="pdf-sec">Харчова цінність</h2>' +
@@ -1716,7 +1714,7 @@ function pdfNutBlock(d) {
     '<div class="pdf-al">' +
       '<div class="pdf-al-l">Алергени</div>' +
       '<div class="pdf-al-v">' + esc(al) + '</div>' +
-      '<div class="pdf-al-n">' + notes.map(esc).join('<br>') + '</div>' +
+      (notes.length ? '<div class="pdf-al-n">' + notes.map(esc).join('<br>') + '</div>' : '') +
     '</div>' +
   '</section>';
 }
