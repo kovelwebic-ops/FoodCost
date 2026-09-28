@@ -1037,7 +1037,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
   display: flex; justify-content: space-between; align-items: flex-end; gap: 1em;
   margin-bottom: 1.1em;
 }
-.pdf-brand { flex: 0 0 auto; font-size: 1em; font-weight: 700; letter-spacing: -.01em; color: #6d685f; }
+.pdf-brand { flex: 0 0 auto; font-size: 1.5em; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .pdf-title { font-size: 1.92em; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin: 0; }
 .pdf-weight { margin-top: .3em; font-size: 1.04em; color: #55524b; }
 
@@ -1074,18 +1074,21 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .pdf-line.is-sum { margin-top: .2em; padding-top: .45em; border-top: 1px solid #e4dfd6; font-weight: 600; }
 .pdf-block .pdf-sec + .pdf-line { padding-top: .6em; }
 
-/* КБЖУ ліворуч, підсумок праворуч. Не розтягуємо до однакової висоти —
-   інакше під коротшим блоком висить порожня рамка */
-.pdf-cols { display: flex; gap: 1em; align-items: flex-start; }
+/* КБЖУ ліворуч, підсумок праворуч, однакової висоти. Вільне місце забирають
+   алергени (внизу КБЖУ) і ціна (внизу підсумку) — порожніх рамок немає */
+.pdf-cols { display: flex; gap: 1em; align-items: stretch; }
 .pdf-cols > * { flex: 1 1 0; min-width: 0; }
+.pdf-cols > .pdf-block { display: flex; flex-direction: column; }
+.pdf-cols .pdf-rule { margin-top: auto; }
+.pdf-al { margin-top: auto; padding: .6em .8em .7em; border-top: 1px solid #e4dfd6; }
+.pdf-al-l { font-family: var(--num); font-size: .75em; text-transform: uppercase; letter-spacing: .08em; color: #6d685f; }
+.pdf-al-v { margin-top: .3em; font-size: 1.04em; font-weight: 600; line-height: 1.35; }
+.pdf-al-n { margin-top: .45em; font-size: .88em; color: #55524b; }
 .pdf-rule { height: 3px; margin: .5em 1em; border-top: 1px solid #1b1a17; border-bottom: 1px solid #1b1a17; }
 .pdf-price { display: flex; justify-content: space-between; align-items: baseline; gap: 1em; padding: .33em 1em .83em; }
 .pdf-price .l { font-size: 1.04em; font-weight: 700; letter-spacing: .02em; }
 .pdf-price .v { font-family: var(--num); font-size: 2.16em; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pdf-note { padding: 0 1em .83em; font-size: .92em; color: #55524b; }
-/* Довгий список алергенів переноситься, а не розпирає колонку */
-.pdf-tbl td.t { font-family: var(--ui); font-weight: 600; white-space: normal; }
-.pdf-tbl + .pdf-note { padding: .5em .8em .7em; }
 
 /* ═════════════════ Адаптив ═════════════════ */
 
