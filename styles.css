@@ -1573,8 +1573,10 @@ html:not(.nut-on) .nut-only { display: none !important; }
   /* ── Замовлення ──
      Час — вузька колонка ліворуч, сума праворуч. У картці все по одному в ряд;
      позиція: назва зверху, під нею кількість, ціна й сума */
-  .ord-tools .seg { flex: 1 1 100%; }
-  .ord-tools .seg button { flex: 1; }
+  .ord-tools .seg { flex: 1 1 100%; min-width: 0; }
+  /* Три кнопки з лічильниками на вузькому телефоні не влазили з боковими відступами
+     по 10px — «Підсумки» виходили за край. Відступи вужчі, кнопки можуть стискатись */
+  .ord-tools .seg button { flex: 1 1 auto; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
   .osum-period { width: 100%; margin-left: 0; }
   /* Назва періоду зі стрілками — по центру, по осі плиток нижче */
   .osum-step { width: 100%; justify-content: space-between; }
