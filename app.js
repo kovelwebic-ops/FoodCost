@@ -4423,8 +4423,16 @@ function labelHtml(d) {
       (d.shelfLife > 0
         ? row('Термін придатності:', d.shelfLife + ' год від дати виготовлення')
         : hand('Вжити до:')) +
-      hand('Дата виготовлення:') +
+      (labelDate.trim() ? row('Дата виготовлення:', esc(labelDate.trim())) : hand('Дата виготовлення:')) +
     '</div>';
+}
+
+// Дата виготовлення щоразу інша, тож у рецепт не пишеться — живе, поки відкрита сторінка
+var labelDate = '';
+
+function todayDots() {
+  var t = new Date();
+  return pad2(t.getDate()) + '.' + pad2(t.getMonth() + 1) + '.' + t.getFullYear();
 }
 
 /** Зменшує кегль, поки текст не влізе в наліпку. false — не влазить і на найменшому. */
@@ -4496,6 +4504,7 @@ function openLabel() {
   if (!d.ing.length) { toast('Немає що друкувати — додайте інгредієнти'); return; }
   $('#lbl-shelf').value = d.shelfLife ? String(d.shelfLife) : '';
   $('#lbl-storage').value = d.storage;
+  $('#lbl-date').value = labelDate;
   paintLabelFormat();
   $('#lbl-body').scrollTop = 0;
   $('#lbl-overlay').classList.add('is-on');   // міряти текст можна лише на видимому
@@ -4599,6 +4608,14 @@ function bindLabel() {
   $('#lbl-storage').addEventListener('input', function () {
     calcLabel.storage = this.value;
     commitLabelFields();
+    renderLabel();
+  });
+  $('#lbl-date').addEventListener('input', function () {
+    labelDate = this.value;
+    renderLabel();
+  });
+  $('#lbl-today').addEventListener('click', function () {
+    labelDate = $('#lbl-date').value = todayDots();
     renderLabel();
   });
   window.addEventListener('resize', fitLabelPreview);

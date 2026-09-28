@@ -913,7 +913,11 @@
         <span class="lbl-cap">Умови зберігання</span>
         <input class="inp" id="lbl-storage" autocomplete="off" placeholder="Не друкувати">
       </label>
-      <p class="lbl-hint">Термін і умови запамʼятовуються в цій калькуляції. Дату виготовлення впишете ручкою.</p>
+      <div class="lbl-field lbl-date">
+        <span class="lbl-cap">Дата виготовлення <button type="button" class="link-btn" id="lbl-today">Сьогодні</button></span>
+        <input class="inp" id="lbl-date" autocomplete="off" placeholder="Від руки" aria-label="Дата виготовлення">
+      </div>
+      <p class="lbl-hint">Термін і умови запамʼятовуються в цій калькуляції. Порожня дата — рядок, щоб вписати ручкою.</p>
     </div>
     <div class="pdf-modal-body" id="lbl-body">
       <div class="lbl-stage" id="lbl-stage"></div>
