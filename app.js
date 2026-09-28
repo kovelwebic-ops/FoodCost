@@ -11,6 +11,7 @@ var STORE_KEY = 'fc:state:v1';
 /* Окремо від стану: «Скинути дані» чи відновлення з файла не мають повертати запрошення */
 var INVITE_KEY = 'fc:invite:v1';
 var UNITS = ['г', 'мл', 'шт'];
+var CURRENCIES = ['₴', 'zł', '$', '€'];
 
 /* Усі 14 алергенів зі стандарту ЄС (Регламент 1169/2011) — той самий перелік,
    що на етикетках і в Open Food Facts. Порядок не абетковий: спершу ті, що в
@@ -54,9 +55,9 @@ var PHOTO_Q = 0.72;      // якість jpeg
    зменшується, поки не влізе. А4 — аркуш 2×7 наліпок 105×42,3 (стандартний
    самоклеючий папір на 14 шт), решта — рулонні наліпки термопринтера */
 var LABEL_FORMATS = {
-  a4: { name: 'А4 · 14 шт', sub: 'Аркуш А4 · 14 етикеток 105×42 мм', w: 105, h: 42.35, pad: 3.5, max: 10, sheet: true, cols: 2, rows: 7, scale: 3 },
-  '100x70': { name: '100×70', sub: 'Наліпка 100×70 мм', w: 100, h: 70, pad: 4, max: 11.5, scale: 4 },
-  '58x40': { name: '58×40', sub: 'Наліпка 58×40 мм', w: 58, h: 40, pad: 2.5, max: 8.5, scale: 5 }
+  a4: { sub: 'Аркуш А4 · 14 етикеток 105×42 мм', w: 105, h: 42.35, pad: 3.5, max: 10, sheet: true, cols: 2, rows: 7, scale: 3 },
+  '100x70': { sub: 'Наліпка 100×70 мм', w: 100, h: 70, pad: 4, max: 11.5, scale: 4 },
+  '58x40': { sub: 'Наліпка 58×40 мм', w: 58, h: 40, pad: 2.5, max: 8.5, scale: 5 }
 };
 var DEFAULT_STORAGE = '+2…+6 °C';
 
@@ -120,17 +121,27 @@ var draftDirty = false;
 
 /**
  * Модель:
- *   product = { id, name, price, pack, unit, nutrition, allergens, pieceWeight }
+ *   product = { id, name, price, pack, unit, code, nutrition, allergens, pieceWeight }
+ *     code = штрихкод, лише цифри ('' — немає)
  *     nutrition = null | { kcal, prot, fat, carb }      ← на 100 г; поле null — не вписане, у сумі 0
  *     allergens = null (не вказано) | [] (немає) | ['gluten', 'Мед', …] — ключ базового або назва свого
  *     pieceWeight = вага 1 шт у грамах, потрібна лише штучним продуктам
  *   ingredient = { name, price, pack, unit, qty, g? }   ← копія даних, не посилання
  *   expense = { name, mode, value }   mode: 'sum' (валюта) | 'pct' (% від собівартості)
+ *     у базі витрат (S.expenseBase) те саме плюс id
  *   prep = { id, name, ing[], yield, unit }            ← напівфабрикат (тісто, крем)
  *   group = { id, prepId, name, take, of, unit }       ← напівфабрикат у рецепті
- *   recipe = { id, name, photo, margin, ing[], exp[], groups[], outWeight, method }
+ *   recipe = { id, name, photo, margin, ing[], exp[], groups[], outWeight, method,
+ *              laborHours, shelfLife, storage }
+ *     photo = data:-URL стиснутого фото або шлях до демо-фото; null — без фото
+ *     outWeight = вихід, г (0 — рахуємо із суми інгредієнтів)
  *     method = текст рецепта для себе ('' — немає), у PDF не йде
+ *     laborHours = час роботи, год — множиться на S.laborRate
+ *     shelfLife = термін придатності для етикетки, год (0 — вписують від руки)
+ *     storage = умови зберігання для етикетки ('' — не друкувати)
  *   folder = { id, title, recipes[] }
+ *   S.draft — рецепт без id: відкрита або незбережена калькуляція
+ *   order — у розділі 15a
  *
  * Ціна в рецепті — копія, а КБЖУ й алергени — ні: їх беремо з бази за назвою
  * в момент показу. Ціна — це знімок, за яким рахували клієнту, і вона має
@@ -182,86 +193,134 @@ function applyNutrition() {
 }
 
 /**
- * Старі сесії (до появи типу витрати) зберігали рядок витрати як {name, sum}.
- * Приводимо до {name, mode:'sum', value} скрізь, де могли лишитись такі записи:
- * у збережених рецептах і в чернетці.
- */
-function migrateExpenseList(list) {
-  if (!list) return list;
-  list.forEach(function (e) {
-    if (e.mode) return;
-    e.mode = 'sum';
-    e.value = e.sum || 0;
-    delete e.sum;
-  });
-  return list;
-}
-/**
  * Доводить будь-який стан до поточної форми: щойно засіяний, прочитаний зі
  * сховища або взятий з файла резервної копії.
  *
  * ВАЖЛИВО: дані в localStorage живуть безстроково й записані попередніми
  * версіями застосунку. Кожне нове поле треба додавати сюди — інакше
  * користувач зі старими даними отримає збій на новій версії.
+ *
+ * Файл копії ще й могли відредагувати руками. Тому списки чистимо від
+ * сміття (null, числа замість записів), а поля, з якими далі працюють як
+ * з рядком чи числом, приводимо до типу: .trim() на числі чи forEach на
+ * null валять увесь застосунок ще на старті.
  */
 function normalize(s) {
-  if (!s.ui) s.ui = { screen: 'home', folderId: null, editing: null };
-  if (!s.currency) s.currency = '₴';
-  if (!s.round) s.round = 5;
-  if (!s.theme) s.theme = 'light';
+  var ui = s.ui = isObj(s.ui) ? s.ui : {};
+  if (typeof ui.screen !== 'string' || !/^[a-z-]+$/.test(ui.screen)) ui.screen = 'home';
+  if (!isObj(ui.editing)) ui.editing = null;
+  if (ui.folderSort !== 'price' && ui.folderSort !== 'new') ui.folderSort = 'name';
+  if (typeof ui.folderQuery !== 'string') ui.folderQuery = '';
+  if (ui.folderCols !== 2) ui.folderCols = 1;   // картки папки на телефоні: 1 або 2 колонки
+
+  if (CURRENCIES.indexOf(s.currency) === -1) s.currency = '₴';
+  s.round = [1, 5, 10].indexOf(+s.round) !== -1 ? +s.round : 5;
+  s.theme = s.theme === 'dark' ? 'dark' : 'light';
   if (typeof s.showNutrition !== 'boolean') s.showNutrition = false;
   // Пропозицію ввімкнути КБЖУ показуємо один раз; тим, у кого воно вже ввімкнене, — ніколи
   if (typeof s.nutAsked !== 'boolean') s.nutAsked = !!s.showNutrition;
-  if (!s.ui.folderSort) s.ui.folderSort = 'name';
-  if (s.ui.folderQuery == null) s.ui.folderQuery = '';
-  if (s.ui.folderCols !== 2) s.ui.folderCols = 1;   // картки папки на телефоні: 1 або 2 колонки
-  if (!s.products) s.products = [];
-  if (!s.expenseBase) s.expenseBase = [];   // до появи бази витрат поля не було
-  if (!s.preps) s.preps = [];               // до появи напівфабрикатів поля не було
-  if (!s.folders) s.folders = [];
   if (typeof s.showOrders !== 'boolean') s.showOrders = false;
   // До появи перемикача «Рецепт» був завжди — лишаємо його тим, хто вже ним користувався
   if (typeof s.showMethod !== 'boolean') s.showMethod = true;
   if (!LABEL_FORMATS.hasOwnProperty(s.labelFormat)) s.labelFormat = 'a4';
   s.laborRate = num(s.laborRate);   // до появи оплати праці поля не було — 0, тобто «не рахувати»
-  // До появи замовлень поля не було; з файла копії може прийти будь-що
-  s.orders = (Array.isArray(s.orders) ? s.orders : []).filter(function (o) { return o && typeof o === 'object'; });
-  s.orders.forEach(normalizeOrder);
+
+  s.products = fixIds(objList(s.products), 'p');
   s.products.forEach(normalizeProduct);
+  s.expenseBase = fixIds(objList(s.expenseBase), 'e');   // до появи бази витрат поля не було
+  s.expenseBase.forEach(normalizeExpense);
+  s.preps = fixIds(objList(s.preps), 'k');               // до появи напівфабрикатів — теж
   s.preps.forEach(function (p) {
-    if (!p.ing) p.ing = [];
-    if (!p.unit) p.unit = 'г';
-    if (p['yield'] == null) p['yield'] = 0;
+    p.name = str(p.name);
+    p.ing = objList(p.ing);
+    p.ing.forEach(normalizeLine);
+    p.unit = unitOf(p.unit);
+    p['yield'] = num(p['yield']);
   });
+  s.folders = fixIds(objList(s.folders), 'f');
   s.folders.forEach(function (f) {
-    if (!f.recipes) f.recipes = [];
-    f.recipes.forEach(function (r) {
-      if (!r.ing) r.ing = [];
-      if (!r.exp) r.exp = [];
-      if (!r.groups) r.groups = [];
-      r.outWeight = num(r.outWeight);
-      if (typeof r.method !== 'string') r.method = '';
-      normalizeLabelFields(r);
-      migrateExpenseList(r.exp);
-    });
+    f.title = str(f.title);
+    f.recipes = fixIds(objList(f.recipes), 'r');
+    f.recipes.forEach(normalizeRecipe);
   });
-  if (s.draft) {
-    migrateExpenseList(s.draft.exp);
-    if (!s.draft.groups) s.draft.groups = [];
-    s.draft.outWeight = num(s.draft.outWeight);
-    if (typeof s.draft.method !== 'string') s.draft.method = '';
-    normalizeLabelFields(s.draft);
-  }
+  s.draft = isObj(s.draft) ? normalizeRecipe(s.draft) : null;
+  s.orders = fixIds(objList(s.orders), 'o');   // до появи замовлень поля не було
+  s.orders.forEach(normalizeOrder);
   return s;
 }
 
-/* Для етикетки: термін придатності в годинах (0 — пишуть від руки) і умови
-   зберігання. До появи етикетки полів не було — старим рецептам дістаються
-   типові +2…+6 °C, порожній рядок лишається свідомим «не друкувати» */
-function normalizeLabelFields(r) {
-  r.laborHours = num(r.laborHours);   // час роботи, год — поруч, бо так само новий і так само в кожному рецепті
+function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function objList(v) { return Array.isArray(v) ? v.filter(isObj) : []; }
+function str(v) { return typeof v === 'string' ? v : v == null ? '' : String(v); }
+function unitOf(u) { return UNITS.indexOf(u) !== -1 ? u : 'г'; }
+
+/* id іде в CSS-селектори ([data-id="…"]): лапка чи перенос рядка в ньому
+   кинули б помилку на першому ж кліку. uid() дає лише літери й цифри */
+var SAFE_ID = /^[\w-]{1,64}$/;
+
+/** id — безпечний рядок без повторів у своєму списку: за ним рядок знаходять і редагують. */
+function fixIds(list, prefix) {
+  var seen = Object.create(null);
+  list.forEach(function (x) {
+    var id = str(x.id);
+    if (!SAFE_ID.test(id) || seen[id]) id = uid(prefix);
+    seen[id] = true;
+    x.id = id;
+  });
+  return list;
+}
+
+/** Рецепт у папці й чернетка — однакові поля, однакова міграція. */
+function normalizeRecipe(r) {
+  r.name = str(r.name);
+  r.photo = typeof r.photo === 'string' && r.photo ? r.photo : null;
+  if (r.margin != null) r.margin = num(r.margin);
+  r.ing = objList(r.ing);
+  r.ing.forEach(normalizeLine);
+  r.exp = objList(r.exp);
+  r.exp.forEach(normalizeExpense);
+  // Групу з негодящим id знімаємо, а її складники лишаються звичайними рядками
+  r.groups = objList(r.groups).filter(function (g) { g.id = str(g.id); return SAFE_ID.test(g.id); });
+  r.groups.forEach(function (g) {
+    g.prepId = g.prepId == null || g.prepId === '' ? null : str(g.prepId);
+    g.name = str(g.name);
+    g.take = num(g.take);
+    g.of = num(g.of);
+    g.unit = unitOf(g.unit);
+  });
+  r.outWeight = num(r.outWeight);
+  r.method = str(r.method);
+  r.laborHours = num(r.laborHours);   // до появи оплати праці поля не було
+  // Етикетка: термін придатності в годинах (0 — пишуть від руки) і умови
+  // зберігання. До появи етикетки полів не було — старим рецептам дістаються
+  // типові +2…+6 °C, порожній рядок лишається свідомим «не друкувати»
   r.shelfLife = Math.round(num(r.shelfLife));
   if (typeof r.storage !== 'string') r.storage = DEFAULT_STORAGE;
+  return r;
+}
+
+/** Рядок інгредієнта — у рецепті, чернетці й напівфабрикаті. */
+function normalizeLine(i) {
+  i.name = str(i.name);
+  i.price = num(i.price);
+  i.pack = num(i.pack);
+  i.qty = num(i.qty);
+  i.unit = unitOf(i.unit);
+  // Мітка групи-напівфабрикату; негодяща — рядок стає звичайним
+  if (i.g != null) {
+    i.g = str(i.g);
+    if (!SAFE_ID.test(i.g)) delete i.g;
+  }
+}
+
+/** Витрата — у рецепті, чернетці й базі витрат (там ще з id). */
+function normalizeExpense(e) {
+  // Старі сесії (до появи типу витрати) зберігали рядок як {name, sum}
+  if (!e.mode && e.value == null) e.value = e.sum;
+  delete e.sum;
+  e.mode = e.mode === 'pct' ? 'pct' : 'sum';
+  e.name = str(e.name);
+  e.value = num(e.value);
 }
 
 /**
@@ -270,6 +329,10 @@ function normalizeLabelFields(r) {
  * небезпечніше за сміття в ціні — воно тихо зникає зі списку.
  */
 function normalizeProduct(p) {
+  p.name = str(p.name);
+  p.price = num(p.price);
+  p.pack = num(p.pack);
+  p.unit = unitOf(p.unit);
   var n = p.nutrition, clean = null;
   if (n && typeof n === 'object') {
     clean = {};
@@ -883,12 +946,12 @@ function alLabel(item) {
  * калькуляції стояло б два «Молоко».
  */
 function normalizeAllergens(list) {
-  var basic = {}, custom = [], seen = {};
+  var basic = {}, custom = [], seen = Object.create(null);
   list.forEach(function (raw) {
     if (typeof raw !== 'string') return;
     var s = raw.replace(/\s+/g, ' ').trim().slice(0, 40);
     if (!s) return;
-    if (LEGACY_ALLERGENS[s]) s = LEGACY_ALLERGENS[s];
+    if (LEGACY_ALLERGENS.hasOwnProperty(s)) s = LEGACY_ALLERGENS[s];
     var low = s.toLowerCase();
     var hit = ALLERGENS.filter(function (a) { return a[0] === s || a[1].toLowerCase() === low; })[0];
     if (hit) { basic[hit[0]] = 1; return; }
@@ -938,7 +1001,7 @@ function nutritionOf(rows) {
   var idx = baseIndex();
   var t = { kcal: 0, prot: 0, fat: 0, carb: 0, mass: 0, rows: 0, counted: 0,
             allergens: [], alKnown: 0, noNut: [], noAl: [] };
-  var alSet = {}, seenNut = {}, seenAl = {};
+  var alSet = Object.create(null), seenNut = Object.create(null), seenAl = Object.create(null);
 
   rows.forEach(function (i) {
     var name = String(i.name || '').trim();
@@ -2673,17 +2736,20 @@ function prepRow(p) {
   var n = p.ing.length;
   var ready = num(p['yield']) > 0;
   tr.setAttribute('data-id', p.id);
+  // Штучний напівфабрикат рахується за 1 шт, а не за 100 — інакше підпис збрехав би
+  var perPiece = p.unit === 'шт';
   var sum = n + ' ' + plural(n, 'складник', 'складники', 'складників') +
             (ready ? ' · ' + qtyFmt(p['yield']) + ' ' + p.unit : '') +
             (n ? ' · ' + money(prepCost(p)) : '') +
-            (ready && n ? ' · ' + fmt(prepUnitValue(p)) + ' за 100' : '');
+            (ready && n ? ' · ' + fmt(prepUnitValue(p)) + ' ' + prepUnitLabel(p).toLowerCase() : '');
   tr.innerHTML =
     '<td><button class="prep-name-btn" data-open-prep>' + esc(p.name || 'Без назви') + '</button>' +
       '<span class="m-sum">' + esc(sum) + '</span></td>' +
     '<td class="t-mono" data-lbl="Складників">' + n + '</td>' +
-    '<td class="t-mono' + (ready ? '' : ' t-empty') + '" data-lbl="Вихід">' + (ready ? qtyFmt(p['yield']) + ' ' + p.unit : '—') + '</td>' +
+    '<td class="t-mono' + (ready ? '' : ' t-empty') + '" data-lbl="Вихід">' + (ready ? qtyFmt(p['yield']) + ' ' + esc(p.unit) : '—') + '</td>' +
     '<td class="t-cost' + (n ? '' : ' t-empty') + '" data-lbl="Собівартість">' + (n ? fmt(prepCost(p)) : '—') + '</td>' +
-    '<td class="t-mono' + (ready ? '' : ' t-empty') + '" data-lbl="За 100">' + (ready ? fmt(prepUnitValue(p)) : '—') + '</td>' +
+    '<td class="t-mono' + (ready ? '' : ' t-empty') + '" data-lbl="' + esc(prepUnitLabel(p)) + '">' +
+      (ready ? fmt(prepUnitValue(p)) + (perPiece ? ' / шт' : '') : '—') + '</td>' +
     '<td class="t-act"><button class="icon-btn is-danger" data-del-prep aria-label="Видалити напівфабрикат">' + ICON_X + '</button></td>';
   return tr;
 }
@@ -2999,7 +3065,7 @@ function renderFolder() {
     card.setAttribute('data-open', r.id);
     card.innerHTML =
       '<span class="rcard-thumb' + (r.photo ? ' has-img' : '') + '">' +
-        (r.photo ? '<img src="' + r.photo + '" alt="">' : esc(r.name.trim().charAt(0).toUpperCase())) +
+        (r.photo ? '<img src="' + esc(r.photo) + '" alt="" loading="lazy" decoding="async">' : esc(r.name.trim().charAt(0).toUpperCase())) +
       '</span>' +
       '<span class="rcard-body">' +
         '<span class="rcard-title">' + esc(r.name) + '</span>' +
@@ -3458,7 +3524,8 @@ function openRecipe(folderId, recipeId) {
 }
 
 function updateSaveBtn() {
-  $('#btn-save').textContent = S.ui.editing ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';  var st = $('#save-state');
+  $('#btn-save').textContent = S.ui.editing ? 'Оновити калькуляцію' : 'Зберегти калькуляцію';
+  var st = $('#save-state');
   // Поки запис на диск не проходить, писати «Збережено» — обман: показуємо це першим.
   if (storageFailed) {
     st.className = 'save-state is-warn';
@@ -3937,7 +4004,7 @@ function bindPrepPick() {
   });
 }
 
-/* ═════════════════ 11a. Рецепт ═════════════════ */
+/* ═════════════════ 11b. Рецепт ═════════════════ */
 
 var methodAnim = null;
 
@@ -4198,6 +4265,38 @@ function bindSave() {
 
 /* ═════════════════ 14. Експорт PDF (А4) ═════════════════ */
 
+/* html2pdf важить 900 КБ, а на старті він не потрібен: раніше лише його
+   розбір тримав перший показ сторінки. Тепер тягнемо бібліотеку, щойно
+   відкрили прев'ю PDF чи етикетки, — поки людина дивиться на аркуш, вона
+   доїде. integrity: браузер виконає файл, лише якщо CDN віддав саме його. */
+var PDF_LIB = {
+  src: 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+  integrity: 'sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=='
+};
+var pdfLib = null;   // Promise завантаження; null — ще не просили або не вдалося
+
+function loadPdfLib() {
+  if (window.html2pdf) return Promise.resolve();
+  if (pdfLib) return pdfLib;
+  var s = document.createElement('script');
+  s.src = PDF_LIB.src;
+  s.integrity = PDF_LIB.integrity;
+  s.crossOrigin = 'anonymous';
+  pdfLib = new Promise(function (resolve, reject) {
+    s.onload = function () { if (window.html2pdf) resolve(); else reject(new Error('html2pdf')); };
+    s.onerror = reject;
+  });
+  // Не доїхала — наступна спроба почне з нуля: інтернет міг уже зʼявитись
+  pdfLib['catch'](function () {
+    pdfLib = null;
+    if (s.parentNode) s.parentNode.removeChild(s);
+  });
+  document.head.appendChild(s);
+  return pdfLib;
+}
+
+var PDF_LIB_FAIL = 'Бібліотека PDF не завантажилась — перевірте інтернет';
+
 /** Техкарта без ваги виробу неповна: «на скільки» — перше, що питають. Суму позначаємо «≈». */
 function pdfWeightLine(d) {
   var g = num(d.outWeight), approx = false;
@@ -4242,8 +4341,8 @@ function pdfIngBody(d) {
       '<tr' + (gid ? ' class="pdf-sub"' : '') + '>' +
         '<td>' + esc(i.name || '—') + '</td>' +
         '<td class="r">' + fmt(i.price) + '</td>' +
-        '<td class="r">' + qtyFmt(i.pack) + ' ' + i.unit + '</td>' +
-        '<td class="r">' + qtyFmt(i.qty) + ' ' + i.unit + '</td>' +
+        '<td class="r">' + qtyFmt(i.pack) + ' ' + esc(i.unit) + '</td>' +
+        '<td class="r">' + qtyFmt(i.qty) + ' ' + esc(i.unit) + '</td>' +
         '<td class="r b">' + fmt(ingCost(i)) + '</td>' +
       '</tr>');
   });
@@ -4317,9 +4416,9 @@ var PDF_STEPS = [12, 11.2, 10.4, 9.6, 9, 8.4, 7.8];
  * Усі розміри всередині .pdf-doc — в em, тож міняється лише одне число.
  * Повертає кількість сторінок.
  *
- * Рецепт із напівфабрикатами на аркуш уже не тиснемо: дві читабельні
- * сторінки кращі за одну, набрану кеглем 7,8 — тому щойно стало ясно,
- * що в одну не влазить, повертаємо найбільший кегль і рахуємо сторінки.
+ * Дрібніше за 7,8 не тиснемо: дві читабельні сторінки кращі за одну
+ * нечитабельну. Якщо не влізло й так — повертаємо найбільший кегль і
+ * рахуємо сторінки.
  */
 function fitToPage(doc) {
   for (var i = 0; i < PDF_STEPS.length; i++) {
@@ -4343,11 +4442,12 @@ function openPdfPreview() {
   stage.appendChild(doc);
 
   $('#pdf-modal-body').scrollTop = 0;
-  $('#pdf-overlay').classList.add('is-on');   //міряти висоту можна лише на видимому
+  $('#pdf-overlay').classList.add('is-on');   // міряти висоту можна лише на видимому
 
   var pages = fitToPage(doc);
   $('#pdf-sub').textContent = 'Формат А4 · ' + pages + ' ' + plural(pages, 'сторінка', 'сторінки', 'сторінок');
   fitPdfPreview();
+  loadPdfLib()['catch'](function () {});   // наперед; про збій скажемо, коли натиснуть «Завантажити»
 }
 
 /* Аркуш показуємо цілим, просто зменшеним: ширину самого документа чіпати
@@ -4374,23 +4474,11 @@ function closePdfPreview() {
 }
 
 function downloadPdf() {
-  if (typeof html2pdf === 'undefined') {
-    toast('Бібліотека PDF не завантажилась — перевірте інтернет');
-    return;
-  }
-  var doc = $('.pdf-doc', $('#pdf-stage'));
-  if (!doc) { toast('Немає що експортувати'); return; }
+  if (!$('.pdf-doc', $('#pdf-stage'))) { toast('Немає що експортувати'); return; }
 
   var modal = $('.pdf-modal');
   var btn = $('#pdf-file');
   var stage = $('#pdf-stage');
-
-  // Знімаємо прокрутку, обмеження висоти й масштаб прев'ю, щоб html2canvas
-  // побачив документ цілком і в справжньому розмірі
-  modal.classList.add('is-exporting');
-  stage.style.transform = '';
-  stage.style.marginBottom = '';
-  $('#pdf-modal-body').scrollTop = 0;
   btn.disabled = true;
   btn.textContent = 'Готуємо…';
 
@@ -4399,23 +4487,38 @@ function downloadPdf() {
     fitPdfPreview();
     btn.disabled = false;
     btn.textContent = 'Завантажити';
-    toast(msg);
+    if (msg) toast(msg);
   }
 
-  html2pdf().set({
-    margin: [12, 12, 14, 12],
-    filename: 'FoodCost — ' + pdfName + '.pdf',
-    image: { type: 'jpeg', quality: 0.98 },
-    // scale 3 ≈ 290 dpi — на 2 дрібний текст у растрі помітно милився
-    html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    // tbody — це цілий напівфабрикат: розрив сторінки посеред складу тіста
-    // перетворює техкарту на ребус, тому такі блоки переносимо цілком
-    pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block', '.pdf-cols'] }
-  }).from(doc).save().then(function () {
-    done('PDF збережено');
-  })['catch'](function (err) {
-    done('Не вдалося зібрати PDF: ' + (err && err.message ? err.message : 'невідома помилка'));
+  loadPdfLib().then(function () {
+    // Поки бібліотека їхала, вікно могли закрити — тоді й зберігати нічого
+    var doc = $('.pdf-doc', stage);
+    if (!doc) { done(); return; }
+
+    // Знімаємо прокрутку, обмеження висоти й масштаб прев'ю, щоб html2canvas
+    // побачив документ цілком і в справжньому розмірі
+    modal.classList.add('is-exporting');
+    stage.style.transform = '';
+    stage.style.marginBottom = '';
+    $('#pdf-modal-body').scrollTop = 0;
+
+    html2pdf().set({
+      margin: [12, 12, 14, 12],
+      filename: 'FoodCost — ' + pdfName + '.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      // scale 3 ≈ 290 dpi — на 2 дрібний текст у растрі помітно милився
+      html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      // tbody — це цілий напівфабрикат: розрив сторінки посеред складу тіста
+      // перетворює техкарту на ребус, тому такі блоки переносимо цілком
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block', '.pdf-cols'] }
+    }).from(doc).save().then(function () {
+      done('PDF збережено');
+    })['catch'](function (err) {
+      done('Не вдалося зібрати PDF: ' + (err && err.message ? err.message : 'невідома помилка'));
+    });
+  }, function () {
+    done(PDF_LIB_FAIL);
   });
 }
 
@@ -4437,7 +4540,7 @@ function bindPdf() {
 /** Склад: той самий продукт у групі й поза нею — один рядок, за спаданням ваги.
     Штуки без ваги 1 шт порівняти не можна — вони йдуть у кінці, як у рецепті. */
 function labelComposition(d) {
-  var idx = baseIndex(), by = {}, list = [];
+  var idx = baseIndex(), by = Object.create(null), list = [];
   d.ing.forEach(function (i) {
     var name = String(i.name || '').trim(); if (!name) return;
     var k = nameKey(name), p = idx.p[k];
@@ -4613,6 +4716,7 @@ function openLabel() {
   $('.lbl-modal').scrollTop = 0;   // на телефоні гортається вся шторка
   $('#lbl-overlay').classList.add('is-on');   // міряти текст можна лише на видимому
   renderLabel();
+  loadPdfLib()['catch'](function () {});
 }
 
 function closeLabel() {
@@ -4645,22 +4749,8 @@ function commitLabelFields() {
 }
 
 function downloadLabel() {
-  if (typeof html2pdf === 'undefined') {
-    toast('Бібліотека PDF не завантажилась — перевірте інтернет');
-    return;
-  }
-  var page = $('#lbl-stage .lbl-page');
-  if (!page) return;
-  var F = LABEL_FORMATS[S.labelFormat];
+  if (!$('#lbl-stage .lbl-page')) return;
   var modal = $('.lbl-modal'), btn = $('#lbl-file'), stage = $('#lbl-stage');
-  var name = $('#calc-name').value.trim() || 'етикетка';
-
-  modal.classList.add('is-exporting');
-  stage.style.transform = '';
-  stage.style.marginLeft = '';
-  stage.style.marginBottom = '';
-  $('#lbl-body').scrollTop = 0;
-  modal.scrollTop = 0;
   btn.disabled = true;
   btn.textContent = 'Готуємо…';
 
@@ -4669,22 +4759,39 @@ function downloadLabel() {
     fitLabelPreview();
     btn.disabled = false;
     btn.textContent = 'Завантажити';
-    toast(msg);
+    if (msg) toast(msg);
   }
 
-  html2pdf().set({
-    margin: 0,
-    filename: 'FoodCost — етикетка — ' + name + '.pdf',
-    image: { type: 'jpeg', quality: 0.98 },
-    // Дрібний кегль термоналіпки в растрі мʼякне — тому масштаб більший, ніж у техкарти
-    html2canvas: { scale: F.scale, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-    jsPDF: F.sheet
-      ? { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      : { unit: 'mm', format: [F.w, F.h], orientation: F.w > F.h ? 'landscape' : 'portrait' }
-  }).from(page).save().then(function () {
-    done('Етикетку збережено');
-  })['catch'](function (err) {
-    done('Не вдалося зібрати PDF: ' + (err && err.message ? err.message : 'невідома помилка'));
+  loadPdfLib().then(function () {
+    // Поки бібліотека їхала, могли змінити формат чи закрити вікно — беремо те, що є зараз
+    var page = $('.lbl-page', stage);
+    if (!page) { done(); return; }
+    var F = LABEL_FORMATS[S.labelFormat];
+    var name = $('#calc-name').value.trim() || 'етикетка';
+
+    modal.classList.add('is-exporting');
+    stage.style.transform = '';
+    stage.style.marginLeft = '';
+    stage.style.marginBottom = '';
+    $('#lbl-body').scrollTop = 0;
+    modal.scrollTop = 0;
+
+    html2pdf().set({
+      margin: 0,
+      filename: 'FoodCost — етикетка — ' + name + '.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      // Дрібний кегль термоналіпки в растрі мʼякне — тому масштаб більший, ніж у техкарти
+      html2canvas: { scale: F.scale, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+      jsPDF: F.sheet
+        ? { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        : { unit: 'mm', format: [F.w, F.h], orientation: F.w > F.h ? 'landscape' : 'portrait' }
+    }).from(page).save().then(function () {
+      done('Етикетку збережено');
+    })['catch'](function (err) {
+      done('Не вдалося зібрати PDF: ' + (err && err.message ? err.message : 'невідома помилка'));
+    });
+  }, function () {
+    done(PDF_LIB_FAIL);
   });
 }
 
@@ -4731,11 +4838,6 @@ function bindLabel() {
    Очищення історії, інший ноутбук чи переїзд на інший домен їх не переживуть.
    Файл — єдиний спосіб забрати роботу з собою, поки немає акаунта. */
 
-function stamp() {
-  var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-}
-
 function exportData() {
   var blob, url, a;
   try {
@@ -4745,7 +4847,7 @@ function exportData() {
   url = URL.createObjectURL(blob);
   a = document.createElement('a');
   a.href = url;
-  a.download = 'FoodCost — копія ' + stamp() + '.json';
+  a.download = 'FoodCost — копія ' + todayIso() + '.json';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4753,33 +4855,29 @@ function exportData() {
   toast('Копію збережено у файл');
 }
 
-function recipeCount(s) {
-  return s.folders.reduce(function (a, f) {
-    return a + ((f.recipes && f.recipes.length) || 0);
-  }, 0);
-}
-
 /** Імпорт замінює геть усе, тому спершу показуємо, що саме прийде з файла. */
 function importData(file) {
   var reader = new FileReader();
   reader.onload = function () {
-    var parsed;
-    try { parsed = JSON.parse(reader.result); }
-    catch (e) { toast('Не вдалося прочитати файл — це точно копія FoodCost?'); return; }
-
-    if (!parsed || !Array.isArray(parsed.products) || !Array.isArray(parsed.folders)) {
-      toast('Це не схоже на копію FoodCost');
+    var next;
+    try {
+      next = JSON.parse(reader.result);
+      if (!isObj(next) || !Array.isArray(next.products) || !Array.isArray(next.folders)) {
+        toast('Це не схоже на копію FoodCost');
+        return;
+      }
+      // Лічимо вже після чистки: у вікні — те, що справді прийде
+      next = normalize(next);
+    } catch (e) {
+      toast('Не вдалося прочитати файл — це точно копія FoodCost?');
       return;
     }
 
-    var n = recipeCount(parsed);
-    var k = (parsed.preps && parsed.preps.length) || 0;
-    var m = Array.isArray(parsed.orders)
-      ? parsed.orders.filter(function (o) { return o && typeof o === 'object'; }).length : 0;
+    var p = next.products.length, k = next.preps.length, m = next.orders.length;
+    var n = next.folders.reduce(function (a, f) { return a + f.recipes.length; }, 0);
     ask({
       title: 'Відновити з файла?',
-      sub: 'З файла прийде ' + parsed.products.length + ' ' +
-           plural(parsed.products.length, 'продукт', 'продукти', 'продуктів') +
+      sub: 'З файла прийде ' + p + ' ' + plural(p, 'продукт', 'продукти', 'продуктів') +
            (k ? ', ' + k + ' ' + plural(k, 'напівфабрикат', 'напівфабрикати', 'напівфабрикатів') : '') +
            (m ? ', ' + m + ' ' + plural(m, 'замовлення', 'замовлення', 'замовлень') : '') +
            ' і ' + n + ' ' + plural(n, 'калькуляція', 'калькуляції', 'калькуляцій') +
@@ -4787,7 +4885,8 @@ function importData(file) {
       input: false, ok: 'Відновити', danger: true
     }, function () {
       closeAsk();
-      S = normalize(parsed);
+      S = next;
+      draftDirty = false;
       persist(true);
       boot(true);
       toast('Дані відновлено з файла');
@@ -4806,27 +4905,29 @@ function importData(file) {
 
 var ORD_MONTHS = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня',
   'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+var MONTHS_NOM = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+  'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
+var MONTHS_SHORT = ['січ', 'лют', 'бер', 'кві', 'тра', 'чер', 'лип', 'сер', 'вер', 'жов', 'лис', 'гру'];
 var ORD_DAYS = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'Пʼятниця', 'Субота'];
+var WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];   // тиждень з понеділка
 var ICON_PHONE = '<svg viewBox="0 0 24 24"><path d="M6 3.5h3l1.6 4.4-2.2 1.4a11.5 11.5 0 0 0 6.3 6.3l1.4-2.2 4.4 1.6v3A2 2 0 0 1 18.3 20 15.8 15.8 0 0 1 4 5.7a2 2 0 0 1 2-2.2z"/></svg>';
 
 var ICON_CAL = '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
 var ICON_CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 var ICON_PREV = '<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>';
 var ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>';
-var CAL_MONTHS = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень',
-  'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
 
-var ordView = 'active';   // 'active' | 'done'
+var ordView = 'active';   // 'active' | 'done' | 'sum' — список чи підсумки
 var ordOpen = {};         // id → картка розкрита
 var ordFresh = null;      // щойно створене: стоїть угорі, доки його не згорнули
 
 function normalizeOrder(o) {
-  if (!o.id) o.id = uid('o');
   ['client', 'phone', 'date', 'time', 'address', 'note'].forEach(function (k) {
     if (typeof o[k] !== 'string') o[k] = '';
   });
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date)) o.date = '';
-  if (!/^\d{2}:\d{2}$/.test(o.time)) o.time = '';
+  // Не лише формат, а й справжня дата: «2026-02-30» календар розкрутив би в березень
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date) || isoOf(isoDate(o.date)) !== o.date) o.date = '';
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.time)) o.time = '';
   o.delivery = !!o.delivery;
   o.done = !!o.done;
   o.prepaid = num(o.prepaid);
@@ -4889,7 +4990,7 @@ function paintOrderLists() {
     return '<option value="' + esc(r.name) + '" label="' + esc(moneyShort(recipeSalePrice(r))) + '">';
   }).join('');
   // Свіжіші замовлення першими: у них актуальніший номер
-  var seen = {}, opts = [];
+  var seen = Object.create(null), opts = [];
   S.orders.slice().reverse().forEach(function (o) {
     var k = nameKey(o.client);
     if (!k || seen[k]) return;
@@ -4995,17 +5096,14 @@ function renderOrders(fresh) {
   if (!fr && !list.length) box.innerHTML = ordEmptyHtml(q, done);
 }
 
-/* ── Підсумки місяця ──────────────────────────────────────────
+/* ── Підсумки: тиждень, місяць, рік ────────────────────────────
    Виручка й прибуток — лише з виконаних замовлень за датою здачі; ще не
-   виконані показуємо окремо як «заплановано». Собівартість позиції береться
-   з калькуляції з такою ж назвою (собівартість + витрати): у самому
-   замовленні її немає. Позиції без калькуляції в прибуток не йдуть — і про
-   це чесно написано, щоб «прибуток» не виглядав більшим, ніж є. */
+   виконані показуємо окремо як «заплановано». Витрати на позицію беруться
+   з калькуляції з такою ж назвою (собівартість + витрати + праця): у самому
+   замовленні їх немає, а прибуток — це тоді саме маржа. Позиції без
+   калькуляції в прибуток не йдуть — і про це чесно написано, щоб «прибуток»
+   не виглядав більшим, ніж є. */
 
-var MONTHS_NOM = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
-                  'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
-var MONTHS_SHORT = ['січ', 'лют', 'бер', 'кві', 'тра', 'чер', 'лип', 'сер', 'вер', 'жов', 'лис', 'гру'];
-var WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 var PERIOD_WORD = { week: 'тиждень', month: 'місяць', year: 'рік' };
 // Період підсумків і дата його початку ('YYYY-MM-DD'); живуть, поки відкрита сторінка
 var ordPeriod = 'month', ordFrom = null;
@@ -5044,18 +5142,18 @@ function periodTitle(from, period) {
 
 /** Собівартість одиниці за назвою калькуляції: null — такої калькуляції немає. */
 function recipeCostIndex() {
-  var idx = {};
+  var idx = Object.create(null);
   allRecipes().forEach(function (r) {
     var k = nameKey(r.name);
     // Витрати на виріб — з працею: тоді «прибуток» у підсумках — саме маржа
-    if (k && !idx.hasOwnProperty(k)) { var t = totals(r); idx[k] = t.sub + t.labor; }
+    if (k && !(k in idx)) { var t = totals(r); idx[k] = t.sub + t.labor; }
   });
-  return function (name) { var k = nameKey(name); return idx.hasOwnProperty(k) ? idx[k] : null; };
+  return function (name) { var k = nameKey(name); return k in idx ? idx[k] : null; };
 }
 
 /** Замовлення з датою здачі в [from, to). */
 function rangeStats(from, to, costOf) {
-  var s = { done: 0, revenue: 0, profit: 0, costed: 0, uncosted: 0, plan: 0, planSum: 0, items: {} };
+  var s = { done: 0, revenue: 0, profit: 0, costed: 0, uncosted: 0, plan: 0, planSum: 0, items: Object.create(null) };
   S.orders.forEach(function (o) {
     if (orderEmpty(o) || !o.date || o.date < from || o.date >= to) return;
     var total = orderTotal(o);
@@ -5154,9 +5252,9 @@ function renderOrdSum() {
   $('#ord-sum').innerHTML =
     '<div class="osum-nav">' +
       '<div class="osum-step">' +
-        '<button type="button" class="cal-nav" data-sum-shift="-1" aria-label="Попередній ' + PERIOD_WORD[ordPeriod] + '"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>' +
+        '<button type="button" class="cal-nav" data-sum-shift="-1" aria-label="Попередній ' + PERIOD_WORD[ordPeriod] + '">' + ICON_PREV + '</button>' +
         '<div class="osum-title">' + periodTitle(ordFrom, ordPeriod) + '</div>' +
-        '<button type="button" class="cal-nav" data-sum-shift="1" aria-label="Наступний ' + PERIOD_WORD[ordPeriod] + '"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>' +
+        '<button type="button" class="cal-nav" data-sum-shift="1" aria-label="Наступний ' + PERIOD_WORD[ordPeriod] + '">' + ICON_NEXT + '</button>' +
       '</div>' +
       '<div class="seg osum-period">' +
         ['week', 'month', 'year'].map(function (p) {
@@ -5303,7 +5401,7 @@ function ordBodyHtml() {
     '</section>' +
     '<section class="ord-sec">' +
       '<div class="ord-sec-t">Примітка</div>' +
-      '<textarea class="inp ord-inp ord-note" data-o="note" rows="2" placeholder="Напис на торті, побажання, як проїхати" aria-label="Примітка"></textarea>' +
+      '<textarea class="inp ord-inp ord-note" data-o="note" rows="2" autocomplete="off" placeholder="Напис на торті, побажання, як проїхати" aria-label="Примітка"></textarea>' +
     '</section>' +
     '<div class="ord-acts">' +
       '<button type="button" class="btn btn-soft" data-o-done></button>' +
@@ -5457,7 +5555,7 @@ function ordEl(o) { return $('#ord-list .ord[data-id="' + o.id + '"]'); }
    і кожен браузер по-своєму. Одне спливне вікно на весь застосунок, fixed —
    панелі з overflow: hidden його б обрізали. */
 
-var pop = null;       // { kind, el, o, anchor, y, m, typed }
+var pop = null;       // { kind, el, o, anchor, y, m, th, tmin } — th/tmin: вибрані година й хвилини
 var popEl = null;
 
 function popBox() {
@@ -5529,10 +5627,10 @@ function calHtml() {
   var days = new Date(y, m + 1, 0).getDate();
   var h = '<div class="cal-head">' +
       '<button type="button" class="cal-nav" data-cal-nav="-1" aria-label="Попередній місяць">' + ICON_PREV + '</button>' +
-      '<span class="cal-title">' + CAL_MONTHS[m] + ' ' + y + '</span>' +
+      '<span class="cal-title">' + MONTHS_NOM[m] + ' ' + y + '</span>' +
       '<button type="button" class="cal-nav" data-cal-nav="1" aria-label="Наступний місяць">' + ICON_NEXT + '</button>' +
     '</div><div class="cal-grid">' +
-    ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'].map(function (d) { return '<span class="cal-wd">' + d + '</span>'; }).join('');
+    WEEKDAYS_SHORT.map(function (d) { return '<span class="cal-wd">' + d + '</span>'; }).join('');
   for (var i = 0; i < lead; i++) h += '<span></span>';
   for (var d = 1; d <= days; d++) {
     var iso = y + '-' + pad2(m + 1) + '-' + pad2(d);
@@ -5972,7 +6070,8 @@ function bindSettings() {
       input: false, ok: 'Скинути', danger: true
     }, function () {
       closeAsk();
-      S = seed();
+      S = normalize(seed());
+      draftDirty = false;
       persist(true);
       boot(true);
       toast('Дані скинуто до демо-набору');
@@ -6000,7 +6099,7 @@ function bindSettings() {
   });
 }
 
-/* ═════════════════ 16. Глобальні звʼязки ═════════════════ */
+/* ═════════════════ 17. Глобальні звʼязки ═════════════════ */
 
 function bindGlobal() {
   // Перемикання екранів
@@ -6059,7 +6158,7 @@ function bindGlobal() {
   });
 }
 
-/* ═════════════════ 17. Старт ═════════════════ */
+/* ═════════════════ 18. Старт ═════════════════ */
 
 function boot(fresh) {
   applyTheme();
