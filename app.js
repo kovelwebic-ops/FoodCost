@@ -615,7 +615,63 @@ function seed() {
     ] }
   ];
 
+  s.orders = demoOrders();
   return s;
+}
+
+/*
+ * Демо-замовлення — щоб «Замовлення» й «Підсумки» було на чому показати.
+ * Дати рахуються від сьогодні, тож демо не старіє: виконані за пів року з
+ * наростанням (справа росте), кілька попереду й одне прострочене. Імена й
+ * телефони вигадані. Ціни — ціни демо-калькуляцій з округленням до 5.
+ */
+function demoOrders() {
+  var PR = {
+    'Снікерс': 1080, 'Фісташка–малина': 1670, 'Полуничне тріо': 1295, 'Наполеон': 1085,
+    'Капкейки класичні, 6 шт': 425, 'Капкейки шоколадні, 6 шт': 370
+  };
+  // [днів тому (мінус — наперед), клієнт, телефон, доставка, [[виріб, к-сть, своя ціна?]], час, примітка, виконано]
+  var D = [
+    [178, 'Олена', '+380 67 111 20 01', false, [['Наполеон', 1]], '12:00', '', true],
+    [163, 'Марина К.', '+380 50 222 30 02', true, [['Снікерс', 1]], '17:30', '', true],
+    [149, 'Андрій', '+380 63 333 40 03', false, [['Капкейки класичні, 6 шт', 2]], '10:00', 'На дитяче свято', true],
+    [136, 'Ірина', '+380 97 444 50 04', true, [['Полуничне тріо', 1]], '15:00', '', true],
+    [121, 'Софія', '+380 66 555 60 05', false, [['Снікерс', 1], ['Капкейки шоколадні, 6 шт', 1]], '18:00', '', true],
+    [110, 'Олена', '+380 67 111 20 01', false, [['Наполеон', 1]], '12:00', '', true],
+    [99, 'Тарас', '+380 93 666 70 06', true, [['Фісташка–малина', 1]], '16:00', 'Напис «З ювілеєм, тато»', true],
+    [91, 'Наталія', '+380 68 777 80 07', false, [['Капкейки класичні, 6 шт', 1], ['Капкейки шоколадні, 6 шт', 1]], '11:00', '', true],
+    [83, 'Юлія', '+380 99 888 90 08', true, [['Снікерс', 1], ['Топер «З днем народження»', 1, 150]], '17:00', '', true],
+    [74, 'Марина К.', '+380 50 222 30 02', true, [['Полуничне тріо', 1]], '14:30', '', true],
+    [66, 'Дмитро', '+380 73 999 10 09', false, [['Наполеон', 2]], '19:00', 'Два торти на корпоратив', true],
+    [59, 'Катерина', '+380 95 123 45 10', false, [['Фісташка–малина', 1]], '13:00', '', true],
+    [51, 'Ірина', '+380 97 444 50 04', true, [['Снікерс', 1], ['Капкейки класичні, 6 шт', 1]], '16:30', '', true],
+    [45, 'Оксана', '+380 67 234 56 11', false, [['Полуничне тріо', 1]], '10:30', '', true],
+    [39, 'Андрій', '+380 63 333 40 03', false, [['Капкейки шоколадні, 6 шт', 3]], '09:30', 'До школи', true],
+    [33, 'Віктор', '+380 50 345 67 12', true, [['Фісташка–малина', 1], ['Топер «З днем народження»', 1, 150]], '18:30', '', true],
+    [27, 'Софія', '+380 66 555 60 05', false, [['Снікерс', 1]], '15:30', '', true],
+    [22, 'Юлія', '+380 99 888 90 08', true, [['Наполеон', 1], ['Капкейки класичні, 6 шт', 1]], '12:30', '', true],
+    [17, 'Наталія', '+380 68 777 80 07', false, [['Полуничне тріо', 1]], '17:00', '', true],
+    [12, 'Олена', '+380 67 111 20 01', false, [['Снікерс', 2]], '11:30', '', true],
+    [8, 'Тарас', '+380 93 666 70 06', true, [['Фісташка–малина', 1]], '16:00', '', true],
+    [5, 'Катерина', '+380 95 123 45 10', false, [['Капкейки шоколадні, 6 шт', 2]], '10:00', '', true],
+    [2, 'Дмитро', '+380 73 999 10 09', true, [['Наполеон', 1], ['Снікерс', 1]], '18:00', '', true],
+    [1, 'Марина К.', '+380 50 222 30 02', true, [['Полуничне тріо', 1]], '14:00', 'Подзвонити перед виїздом', false],
+    [-1, 'Оксана', '+380 67 234 56 11', false, [['Снікерс', 1]], '16:00', 'Напис «Вітаємо!»', false],
+    [-3, 'Віктор', '+380 50 345 67 12', true, [['Фісташка–малина', 1], ['Капкейки класичні, 6 шт', 1]], '12:00', '', false],
+    [-6, 'Ірина', '+380 97 444 50 04', false, [['Наполеон', 1]], '17:30', '', false]
+  ];
+  var addr = 'вул. Садова, 12, кв. 4';
+  return D.map(function (x, n) {
+    var d = new Date(); d.setDate(d.getDate() - x[0]);
+    var items = x[4].map(function (i) { return { name: i[0], qty: i[1], price: i[2] || PR[i[0]] }; });
+    var total = items.reduce(function (a, i) { return a + i.qty * i.price; }, 0);
+    return {
+      id: uid('o') + n, client: x[1], phone: x[2], date: isoOf(d), time: x[5],
+      delivery: x[3], address: x[3] ? addr : '', items: items, note: x[6], done: x[7],
+      // Виконані оплачені; заплановані — з передоплатою половини, як зазвичай беруть
+      prepaid: x[7] ? total : Math.round(total / 2 / 50) * 50
+    };
+  });
 }
 
 /* ═════════════════ 5. Розрахунок ═════════════════ */
@@ -4906,16 +4962,41 @@ function renderOrders(fresh) {
 var MONTHS_NOM = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
                   'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
 var MONTHS_SHORT = ['січ', 'лют', 'бер', 'кві', 'тра', 'чер', 'лип', 'сер', 'вер', 'жов', 'лис', 'гру'];
-var ordMonth = null;   // 'YYYY-MM', що показуємо в підсумках; живе, поки відкрита сторінка
+var WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+var PERIOD_WORD = { week: 'тиждень', month: 'місяць', year: 'рік' };
+// Період підсумків і дата його початку ('YYYY-MM-DD'); живуть, поки відкрита сторінка
+var ordPeriod = 'month', ordFrom = null;
 
-function monthShift(ym, d) {
-  var p = ym.split('-'), dt = new Date(+p[0], +p[1] - 1 + d, 1);
-  return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1);
+function isoDate(iso) { var p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+
+/** Початок періоду, куди потрапляє дата: понеділок, 1-ше число чи 1 січня. */
+function periodStart(iso, period) {
+  var d = isoDate(iso);
+  if (period === 'week') d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  else if (period === 'month') d.setDate(1);
+  else d = new Date(d.getFullYear(), 0, 1);
+  return isoOf(d);
 }
 
-function monthTitle(ym) {
-  var p = ym.split('-');
-  return MONTHS_NOM[+p[1] - 1] + ' ' + p[0];
+function periodShift(from, period, n) {
+  var d = isoDate(from);
+  if (period === 'week') d.setDate(d.getDate() + 7 * n);
+  else if (period === 'month') d = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  else d = new Date(d.getFullYear() + n, 0, 1);
+  return isoOf(d);
+}
+
+/** «22–28 вересня», «29 вересня – 5 жовтня», «Вересень 2026», «2026». */
+function periodTitle(from, period) {
+  var d = isoDate(from);
+  if (period === 'year') return String(d.getFullYear());
+  if (period === 'month') return MONTHS_NOM[d.getMonth()] + ' ' + d.getFullYear();
+  var e = isoDate(periodShift(from, 'week', 1));
+  e.setDate(e.getDate() - 1);
+  var y = e.getFullYear() !== new Date().getFullYear() ? ' ' + e.getFullYear() : '';
+  return d.getMonth() === e.getMonth()
+    ? d.getDate() + '–' + e.getDate() + ' ' + ORD_MONTHS[e.getMonth()] + y
+    : d.getDate() + ' ' + ORD_MONTHS[d.getMonth()] + ' – ' + e.getDate() + ' ' + ORD_MONTHS[e.getMonth()] + y;
 }
 
 /** Собівартість одиниці за назвою калькуляції: null — такої калькуляції немає. */
@@ -4928,10 +5009,11 @@ function recipeCostIndex() {
   return function (name) { var k = nameKey(name); return idx.hasOwnProperty(k) ? idx[k] : null; };
 }
 
-function monthStats(ym, costOf) {
+/** Замовлення з датою здачі в [from, to). */
+function rangeStats(from, to, costOf) {
   var s = { done: 0, revenue: 0, profit: 0, costed: 0, uncosted: 0, plan: 0, planSum: 0, items: {} };
   S.orders.forEach(function (o) {
-    if (orderEmpty(o) || o.date.slice(0, 7) !== ym) return;
+    if (orderEmpty(o) || !o.date || o.date < from || o.date >= to) return;
     var total = orderTotal(o);
     if (!o.done) { s.plan++; s.planSum += total; return; }
     s.done++;
@@ -4951,10 +5033,37 @@ function monthStats(ym, costOf) {
   return s;
 }
 
+/* Стовпчики під період: тиждень — по днях; місяць — пів року до нього (видно,
+   росте справа чи ні); рік — його 12 місяців. go — куди веде клік по стовпчику */
+function sumBuckets(from, period) {
+  var out = [], i, b, d;
+  if (period === 'week') {
+    for (i = 0; i < 7; i++) {
+      d = isoDate(from); d.setDate(d.getDate() + i); b = isoOf(d);
+      d.setDate(d.getDate() + 1);
+      out.push({ from: b, to: isoOf(d), label: WEEKDAYS_SHORT[i], name: ordDayLabel(b), sel: b === todayIso(), go: null });
+    }
+  } else if (period === 'month') {
+    for (i = 5; i >= 0; i--) {
+      b = periodShift(from, 'month', -i);
+      out.push({ from: b, to: periodShift(b, 'month', 1), label: MONTHS_SHORT[isoDate(b).getMonth()],
+                 name: periodTitle(b, 'month'), sel: i === 0, go: b });
+    }
+  } else {
+    for (i = 0; i < 12; i++) {
+      b = periodShift(from, 'month', i);
+      out.push({ from: b, to: periodShift(b, 'month', 1), label: MONTHS_SHORT[i],
+                 name: periodTitle(b, 'month'), sel: b === periodStart(todayIso(), 'month'), go: b });
+    }
+  }
+  return out;
+}
+
 function renderOrdSum() {
-  if (!ordMonth) ordMonth = todayIso().slice(0, 7);
+  if (!ordFrom) ordFrom = periodStart(todayIso(), ordPeriod);
+  var to = periodShift(ordFrom, ordPeriod, 1);
   var costOf = recipeCostIndex();
-  var s = monthStats(ordMonth, costOf);
+  var s = rangeStats(ordFrom, to, costOf);
   var undated = S.orders.filter(function (o) { return o.done && !o.date && !orderEmpty(o); }).length;
 
   var kpi = function (label, value, note) {
@@ -4966,26 +5075,26 @@ function renderOrdSum() {
       ? 'без ' + s.uncosted + ' ' + plural(s.uncosted, 'позиції, для якої', 'позицій, для яких', 'позицій, для яких') + ' немає калькуляції'
       : 'за собівартістю калькуляцій';
 
-  // Пів року до вибраного місяця включно: видно, росте справа чи ні
-  var months = [];
-  for (var i = 5; i >= 0; i--) {
-    var ym = monthShift(ordMonth, -i), st = monthStats(ym, costOf);
-    months.push({ ym: ym, rev: st.revenue, n: st.done });
-  }
-  var max = Math.max.apply(null, months.map(function (m) { return m.rev; }));
-  var bars = months.map(function (m) {
-    var mi = +m.ym.split('-')[1] - 1;
-    var full = moneyShort(m.rev) + ', ' + m.n + ' ' + plural(m.n, 'замовлення', 'замовлення', 'замовлень');
+  var buckets = sumBuckets(ordFrom, ordPeriod).map(function (b) {
+    var st = rangeStats(b.from, b.to, costOf);
+    b.rev = st.revenue; b.n = st.done;
+    return b;
+  });
+  var max = Math.max.apply(null, buckets.map(function (b) { return b.rev; }));
+  var bars = buckets.map(function (b) {
+    var full = moneyShort(b.rev) + ', ' + b.n + ' ' + plural(b.n, 'замовлення', 'замовлення', 'замовлень');
     // Над вузьким стовпчиком — коротко: «12,4 тис»
-    var tip = m.rev >= 1000 ? qtyFmt(Math.round(m.rev / 100) / 10) + ' тис' : String(Math.round(m.rev));
-    return '<button type="button" class="osum-bar' + (m.ym === ordMonth ? ' is-sel' : '') + '" data-sum-ym="' + m.ym + '"' +
-        ' aria-label="' + esc(monthTitle(m.ym) + ': ' + full) + '" title="' + esc(full) + '">' +
+    var tip = b.rev >= 1000 ? qtyFmt(Math.round(b.rev / 100) / 10) + ' тис' : String(Math.round(b.rev));
+    return '<button type="button" class="osum-bar' + (b.sel ? ' is-sel' : '') + '"' +
+        (b.go ? ' data-sum-go="' + b.go + '"' : ' tabindex="-1"') +
+        ' aria-label="' + esc(b.name + ': ' + full) + '" title="' + esc(b.name + ': ' + full) + '">' +
       '<span class="osum-bar-tip">' + esc(tip) + '</span>' +
       '<span class="osum-bar-col"><span class="osum-bar-fill" style="height:' +
-        (max > 0 && m.rev > 0 ? Math.max(3, Math.round(m.rev / max * 100)) : 0) + '%"></span></span>' +
-      '<span class="osum-bar-m">' + MONTHS_SHORT[mi] + '</span>' +
+        (max > 0 && b.rev > 0 ? Math.max(3, Math.round(b.rev / max * 100)) : 0) + '%"></span></span>' +
+      '<span class="osum-bar-m">' + b.label + '</span>' +
     '</button>';
   }).join('');
+  var chartTitle = { week: 'Виручка за днями', month: 'Виручка за пів року', year: 'Виручка за місяцями' }[ordPeriod];
 
   var top = Object.keys(s.items).map(function (k) { return s.items[k]; })
     .sort(function (a, b) { return b.sum - a.sum || b.qty - a.qty; }).slice(0, 5);
@@ -4996,13 +5105,21 @@ function renderOrdSum() {
           '<span class="osum-top-v">×' + qtyFmt(t.qty) + ' · ' + moneyShort(t.sum) + '</span></div>' +
           '<div class="osum-top-bar"><i style="width:' + (topMax > 0 ? Math.max(2, Math.round(t.sum / topMax * 100)) : 0) + '%"></i></div></li>';
       }).join('') + '</ol>'
-    : '<p class="osum-empty">Виконаних замовлень за цей місяць ще немає.</p>';
+    : '<p class="osum-empty">Виконаних замовлень за цей ' + PERIOD_WORD[ordPeriod] + ' ще немає.</p>';
 
   $('#ord-sum').innerHTML =
     '<div class="osum-nav">' +
-      '<button type="button" class="cal-nav" data-sum-shift="-1" aria-label="Попередній місяць"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>' +
-      '<div class="osum-title">' + monthTitle(ordMonth) + '</div>' +
-      '<button type="button" class="cal-nav" data-sum-shift="1" aria-label="Наступний місяць"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>' +
+      '<div class="osum-step">' +
+        '<button type="button" class="cal-nav" data-sum-shift="-1" aria-label="Попередній ' + PERIOD_WORD[ordPeriod] + '"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>' +
+        '<div class="osum-title">' + periodTitle(ordFrom, ordPeriod) + '</div>' +
+        '<button type="button" class="cal-nav" data-sum-shift="1" aria-label="Наступний ' + PERIOD_WORD[ordPeriod] + '"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>' +
+      '</div>' +
+      '<div class="seg osum-period">' +
+        ['week', 'month', 'year'].map(function (p) {
+          return '<button type="button" data-sum-period="' + p + '" aria-pressed="' + (p === ordPeriod) + '">' +
+            { week: 'Тиждень', month: 'Місяць', year: 'Рік' }[p] + '</button>';
+        }).join('') +
+      '</div>' +
     '</div>' +
     '<div class="osum-kpis">' +
       kpi('Виконано замовлень', String(s.done)) +
@@ -5014,13 +5131,14 @@ function renderOrdSum() {
       ? '<p class="osum-plan">Ще заплановано: ' + s.plan + ' ' + plural(s.plan, 'замовлення', 'замовлення', 'замовлень') +
         ' на ' + moneyShort(s.planSum) + '</p>'
       : '') +
-    // Місяць береться з дати здачі — без неї виконане замовлення тихо випало б з підсумків
+    // Період береться з дати здачі — без неї виконане замовлення тихо випало б з підсумків
     (undated
       ? '<p class="osum-plan is-warn">' + undated + ' ' + plural(undated, 'виконане замовлення', 'виконані замовлення', 'виконаних замовлень') +
         ' без дати здачі — у підсумки не ' + (undated === 1 ? 'входить' : 'входять') + '. Вкажіть дату в картці.</p>'
       : '') +
     '<div class="osum-grid">' +
-      '<section class="panel osum-card"><h2 class="h2">Виручка за пів року</h2><div class="osum-bars">' + bars + '</div></section>' +
+      '<section class="panel osum-card"><h2 class="h2">' + chartTitle + '</h2>' +
+        '<div class="osum-bars' + (ordPeriod === 'month' ? '' : ' is-all') + '">' + bars + '</div></section>' +
       '<section class="panel osum-card"><h2 class="h2">Що замовляли</h2>' + topHtml + '</section>' +
     '</div>';
 }
@@ -5593,9 +5711,18 @@ function bindOrders() {
     renderOrders();
   });
   $('#ord-sum').addEventListener('click', function (e) {
-    var sh = e.target.closest('[data-sum-shift]'), bar = e.target.closest('[data-sum-ym]');
-    if (sh) ordMonth = monthShift(ordMonth, +sh.getAttribute('data-sum-shift'));
-    else if (bar) ordMonth = bar.getAttribute('data-sum-ym');
+    var sh = e.target.closest('[data-sum-shift]'), go = e.target.closest('[data-sum-go]'),
+        per = e.target.closest('[data-sum-period]');
+    if (sh) ordFrom = periodShift(ordFrom, ordPeriod, +sh.getAttribute('data-sum-shift'));
+    else if (go) { ordPeriod = 'month'; ordFrom = go.getAttribute('data-sum-go'); }
+    else if (per) {
+      var p = per.getAttribute('data-sum-period');
+      if (p === ordPeriod) return;
+      // Інший масштаб — навколо того ж часу: сьогодні, якщо воно в показаному періоді
+      var t = todayIso(), inside = t >= ordFrom && t < periodShift(ordFrom, ordPeriod, 1);
+      ordFrom = periodStart(inside ? t : ordFrom, p);
+      ordPeriod = p;
+    }
     else return;
     renderOrdSum();
   });

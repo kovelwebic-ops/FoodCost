@@ -567,7 +567,9 @@ html:not(.orders-on) .orders-only { display: none !important; }
 
 /* ── Підсумки місяця: плитки з цифрами + стовпчики за пів року + що замовляли ── */
 .is-sum .ord-tools .search-wrap { display: none; }
-.osum-nav { display: flex; align-items: center; gap: 6px; margin: 18px 0 12px; }
+.osum-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin: 18px 0 12px; }
+.osum-step { display: flex; align-items: center; gap: 6px; }
+.osum-period { margin-left: auto; }
 .osum-title { min-width: 150px; text-align: center; font-size: 17px; font-weight: 600; color: var(--fg); }
 .osum-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .osum-kpi {
@@ -591,6 +593,12 @@ html:not(.orders-on) .orders-only { display: none !important; }
 .osum-bar-col { flex: 1; width: 100%; max-width: 44px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line-2); }
 .osum-bar-fill { width: 100%; border-radius: 4px 4px 0 0; background: var(--accent); opacity: .32; transition: opacity .15s; }
 .osum-bar.is-sel .osum-bar-fill, .osum-bar:hover .osum-bar-fill { opacity: 1; }
+/* Тиждень і рік — нічого не виділяємо: усі стовпчики рівноправні */
+.osum-bars.is-all .osum-bar-fill { opacity: .85; }
+.osum-bars.is-all .osum-bar:hover .osum-bar-fill { opacity: 1; }
+.osum-bars.is-all .osum-bar.is-sel .osum-bar-tip { visibility: hidden; }
+.osum-bars.is-all .osum-bar:hover .osum-bar-tip { visibility: visible; }
+.osum-bar[tabindex="-1"] { cursor: default; }
 .osum-bar-m { font-family: var(--num); font-size: 11.5px; color: var(--muted); }
 .osum-bar.is-sel .osum-bar-m { color: var(--fg); font-weight: 600; }
 .osum-bar-tip { font-family: var(--num); font-size: 11px; color: var(--fg-2); white-space: nowrap; visibility: hidden; }
@@ -1560,6 +1568,8 @@ html:not(.nut-on) .nut-only { display: none !important; }
      позиція: назва зверху, під нею кількість, ціна й сума */
   .ord-tools .seg { flex: 1 1 100%; }
   .ord-tools .seg button { flex: 1; }
+  .osum-period { width: 100%; margin-left: 0; }
+  .osum-period button { flex: 1; }
   .osum-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .osum-kpi { padding: 12px 14px; }
   .osum-kpi-v { font-size: 19px; }
