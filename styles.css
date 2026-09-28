@@ -788,7 +788,7 @@ html:not(.labor-on) .labor-only { display: none; }
 #labor-sum { font-family: var(--num); font-size: 14px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .margin-field #labor-inp { padding-right: 40px; }
 .set-rate { flex: 0 0 auto; width: 140px; }
-.set-rate .inp { padding-right: 58px; }
+.margin-field.set-rate .inp { padding-right: 62px; }
 .panel-margin .h2 { margin-bottom: 14px; }
 .margin-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .margin-field { position: relative; display: block; width: 96px; }

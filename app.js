@@ -704,16 +704,18 @@ function expenseCost(e, cost) {
 /**
  * Праця = години рецепта × ставка з налаштувань. Ставка не копіюється в рецепт:
  * це «скільки я беру за годину», і після її зміни ціни всіх калькуляцій мають
- * перерахуватись самі. Маржа йде поверх праці — це вже прибуток справи.
+ * перерахуватись самі. Маржа — лише на собівартість із витратами (рішення
+ * власника): праця додається до ціни окремо, без націнки на власну зарплату.
+ * sub — як і раніше, собівартість + витрати: база маржі.
  */
 function totals(r) {
   var cost = 0, extra = 0, i;
   for (i = 0; i < r.ing.length; i++) cost += ingCost(r.ing[i]);
   for (i = 0; i < r.exp.length; i++) extra += expenseCost(r.exp[i], cost);
   var labor = num(r.laborHours) * num(S.laborRate);
-  var sub = cost + extra + labor;
+  var sub = cost + extra;
   var margin = sub * (num(r.margin) / 100);
-  var price = sub + margin;
+  var price = sub + margin + labor;
   var step = S.round || 1;
   return {
     cost: cost, extra: extra, labor: labor, sub: sub, margin: margin, price: price,
@@ -3251,7 +3253,6 @@ function paintReceipt(t, m) {
   var target = { cost: t.cost, extra: t.extra, labor: t.labor, sub: t.sub, margin: t.margin, price: t.price };
 
   var rate = num(S.laborRate), hours = num($('#labor-inp').value);
-  $('#r-sublbl').textContent = rate > 0 ? 'Разом з витратами й працею' : 'Разом з витратами';
   $('#labor-sum').textContent = rate > 0
     ? '× ' + moneyShort(rate) + (hours > 0 ? ' = ' + money(t.labor) : ' за годину')
     : '—';
@@ -4269,15 +4270,13 @@ function buildPdfDoc(d, t) {
       '<h2 class="pdf-sec">Підсумок</h2>' +
       '<div class="pdf-line"><span>Собівартість</span><span class="v">' + money(t.cost) + '</span></div>' +
       expLines +
+      (d.exp.length ? '<div class="pdf-line is-sum"><span>Разом з витратами</span><span class="v">' + money(t.sub) + '</span></div>' : '') +
+      '<div class="pdf-line"><span>Маржа ' + qtyFmt(d.margin) + '%</span><span class="v">+ ' + money(t.margin) + '</span></div>' +
+      // Праця — після маржі: націнка на неї не йде
       (t.labor > 0
         ? '<div class="pdf-line"><span>Праця, ' + qtyFmt(num(d.laborHours)) + ' год × ' + esc(moneyShort(num(S.laborRate))) +
           '</span><span class="v">+ ' + money(t.labor) + '</span></div>'
         : '') +
-      (d.exp.length || t.labor > 0
-        ? '<div class="pdf-line is-sum"><span>' + (t.labor > 0 ? 'Разом з витратами й працею' : 'Разом з витратами') +
-          '</span><span class="v">' + money(t.sub) + '</span></div>'
-        : '') +
-      '<div class="pdf-line"><span>Маржа ' + qtyFmt(d.margin) + '%</span><span class="v">+ ' + money(t.margin) + '</span></div>' +
       '<div class="pdf-rule"></div>' +
       '<div class="pdf-price"><span class="l">ЦІНА ПРОДАЖУ</span><span class="v">' + money(t.price) + '</span></div>' +
       ((S.round || 1) > 1
@@ -5048,7 +5047,8 @@ function recipeCostIndex() {
   var idx = {};
   allRecipes().forEach(function (r) {
     var k = nameKey(r.name);
-    if (k && !idx.hasOwnProperty(k)) idx[k] = totals(r).sub;
+    // Витрати на виріб — з працею: тоді «прибуток» у підсумках — саме маржа
+    if (k && !idx.hasOwnProperty(k)) { var t = totals(r); idx[k] = t.sub + t.labor; }
   });
   return function (name) { var k = nameKey(name); return idx.hasOwnProperty(k) ? idx[k] : null; };
 }
