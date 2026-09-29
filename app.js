@@ -1952,6 +1952,7 @@ function setNav(key) {
 
 function show(id, navKey) {
   closePop();
+  closeExpMenu();
   $$('.screen').forEach(function (s) { s.classList.toggle('is-active', s.id === 's-' + id); });
   setNav(navKey === undefined ? id : navKey);
   S.ui.screen = id;
@@ -2001,6 +2002,7 @@ function replaceNav() {
 
 function closeOverlays() {
   closePop();
+  closeExpMenu();
   closeMenu();
   closeAsk();
   closeLeave();
@@ -3748,7 +3750,8 @@ function bindCalc() {
   $('#leave-cancel').addEventListener('click', closeLeave);
   $('#leave-overlay').addEventListener('click', function (e) { if (e.target === this) closeLeave(); });
   $('#calc-name').addEventListener('input', recalc);
-  $('#margin-inp').addEventListener('input', recalc);
+  // Маржу поставили самі — прикидка «хочу продавати за» більше ні до чого
+  $('#margin-inp').addEventListener('input', function () { $('#goal-inp').value = ''; recalc(); });
   $('#margin-inp').addEventListener('blur', function () {
     this.value = qtyFmt(num(this.value)) || '0';
   });
@@ -3782,6 +3785,7 @@ function bindCalc() {
   $('#margin-quick').addEventListener('click', function (e) {
     var b = e.target.closest('[data-m]'); if (!b) return;
     $('#margin-inp').value = b.getAttribute('data-m');
+    $('#goal-inp').value = '';
     recalc();
   });
   // «Хочу продавати за» рецепта не міняє — лише перемальовує прикидку
@@ -4459,24 +4463,60 @@ function fitToPage(doc) {
 }
 
 var pdfName = 'калькуляція';
+var pdfKind = 'pdf';   // що збереже «Завантажити»: 'pdf' | 'jpg' — обрали в меню «Експортувати»
 
-function openPdfPreview() {
+function openPdfPreview(kind) {
   var d = cleanRecipe(readCalc());
   if (!d.ing.length) { toast('Немає що експортувати — додайте інгредієнти'); return; }
 
+  pdfKind = kind === 'jpg' ? 'jpg' : 'pdf';
   pdfName = d.name || 'калькуляція';
   var stage = $('#pdf-stage');
   stage.innerHTML = '';
   var doc = buildPdfDoc(d, totals(d));
   stage.appendChild(doc);
 
+  $('#pdf-title').textContent = pdfKind === 'jpg' ? 'Експорт у JPG' : 'Експорт у PDF';
   $('#pdf-modal-body').scrollTop = 0;
   $('#pdf-overlay').classList.add('is-on');   // міряти висоту можна лише на видимому
 
   var pages = fitToPage(doc);
-  $('#pdf-sub').textContent = 'Формат А4 · ' + pages + ' ' + plural(pages, 'сторінка', 'сторінки', 'сторінок');
+  $('#pdf-sub').textContent = 'Формат А4 · ' + pages + ' ' + plural(pages, 'сторінка', 'сторінки', 'сторінок') +
+    (pdfKind === 'jpg' ? (pages > 1 ? ' — кожна окремою картинкою' : ' · картинкою, щоб поділитись') : ' · для друку');
   fitPdfPreview();
   loadPdfLib()['catch'](function () {});   // наперед; про збій скажемо, коли натиснуть «Завантажити»
+}
+
+/* ── Меню «Експортувати» ──────────────────────────────────────
+   Формат обирають одразу, до прев'ю: PDF — для друку, JPG — щоб поділитись.
+   Меню fixed, як і календар замовлень: панель підсумку його б обрізала. */
+
+function expMenuOpen() { return !$('#exp-menu').hidden; }
+
+function openExpMenu(byKeyboard) {
+  var menu = $('#exp-menu');
+  menu.hidden = false;
+  $('#btn-pdf').setAttribute('aria-expanded', 'true');
+  placeExpMenu();
+  if (byKeyboard) $('[data-exp]', menu).focus();
+}
+
+function closeExpMenu() {
+  if (!expMenuOpen()) return;
+  $('#exp-menu').hidden = true;
+  $('#btn-pdf').setAttribute('aria-expanded', 'false');
+}
+
+/** Під кнопкою, а не влазить — над нею. Завширшки як кнопка, але не вужче за 220px. */
+function placeExpMenu() {
+  var menu = $('#exp-menu'), r = $('#btn-pdf').getBoundingClientRect();
+  var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+  var w = Math.max(r.width, 220);
+  menu.style.width = w + 'px';
+  var h = menu.offsetHeight, top = r.bottom + 6;
+  if (top + h > vh - 8 && r.top - h - 6 >= 8) top = r.top - h - 6;
+  menu.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  menu.style.top = Math.max(8, top) + 'px';
 }
 
 /* Аркуш показуємо цілим, просто зменшеним: ширину самого документа чіпати
@@ -4520,23 +4560,21 @@ function pdfOptions(scale) {
 }
 
 /**
- * Спільне для «Завантажити» (PDF) і «JPG»: дочекатися бібліотеки, показати
- * документ у справжньому розмірі й заблокувати обидві кнопки, поки йде
- * експорт, — два знімки того самого вузла водночас заважали б один одному.
+ * Спільне для PDF і JPG: дочекатися бібліотеки, показати документ у
+ * справжньому розмірі й заблокувати «Завантажити», поки йде експорт.
  * work(doc, done) збирає сам файл і викликає done(повідомлення).
  */
-function exportTechCard(btn, work) {
+function exportTechCard(work) {
   if (!$('.pdf-doc', $('#pdf-stage'))) { toast('Немає що експортувати'); return; }
-  var modal = $('.pdf-modal'), stage = $('#pdf-stage');
-  var btns = [$('#pdf-file'), $('#pdf-jpg')], label = btn.textContent;
-  btns.forEach(function (b) { b.disabled = true; });
+  var modal = $('.pdf-modal'), stage = $('#pdf-stage'), btn = $('#pdf-file');
+  btn.disabled = true;
   btn.textContent = 'Готуємо…';
 
   function done(msg) {
     modal.classList.remove('is-exporting');
     fitPdfPreview();
-    btns.forEach(function (b) { b.disabled = false; });
-    btn.textContent = label;
+    btn.disabled = false;
+    btn.textContent = 'Завантажити';
     if (msg) toast(msg);
   }
 
@@ -4558,7 +4596,7 @@ function exportTechCard(btn, work) {
 }
 
 function downloadPdf() {
-  exportTechCard($('#pdf-file'), function (doc, done) {
+  exportTechCard(function (doc, done) {
     // scale 3 ≈ 290 dpi — на 2 дрібний текст у растрі помітно милився
     html2pdf().set(pdfOptions(3)).from(doc).save().then(function () {
       done('PDF збережено');
@@ -4575,7 +4613,7 @@ function downloadPdf() {
  * граничний розмір canvas.
  */
 function downloadJpg() {
-  exportTechCard($('#pdf-jpg'), function (doc, done) {
+  exportTechCard(function (doc, done) {
     html2pdf().set(pdfOptions(2)).from(doc).toCanvas().get('canvas').then(function (canvas) {
       var pages = a4Pages(canvas), n = pages.length;
       (function next(i) {
@@ -4618,10 +4656,27 @@ function a4Pages(canvas) {
 }
 
 function bindPdf() {
-  $('#btn-pdf').addEventListener('click', openPdfPreview);
+  var menu = $('#exp-menu'), btn = $('#btn-pdf');
+  // detail === 0 — «клік» з клавіатури: тоді фокус одразу на перший пункт
+  btn.addEventListener('click', function (e) {
+    if (expMenuOpen()) closeExpMenu(); else openExpMenu(!e.detail);
+  });
+  menu.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-exp]'); if (!b) return;
+    closeExpMenu();
+    openPdfPreview(b.getAttribute('data-exp'));
+  });
+  // Клік повз меню закриває його; по самій кнопці — вона перемкне сама
+  document.addEventListener('pointerdown', function (e) {
+    if (expMenuOpen() && !menu.contains(e.target) && !btn.contains(e.target)) closeExpMenu();
+  }, true);
+  window.addEventListener('scroll', function () { if (expMenuOpen()) placeExpMenu(); }, true);
+  window.addEventListener('resize', function () { if (expMenuOpen()) placeExpMenu(); });
+
   $('#pdf-close').addEventListener('click', closePdfPreview);
-  $('#pdf-file').addEventListener('click', downloadPdf);
-  $('#pdf-jpg').addEventListener('click', downloadJpg);
+  $('#pdf-file').addEventListener('click', function () {
+    if (pdfKind === 'jpg') downloadJpg(); else downloadPdf();
+  });
   $('#pdf-overlay').addEventListener('click', function (e) {
     if (e.target === this) closePdfPreview();
   });

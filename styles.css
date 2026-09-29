@@ -790,11 +790,14 @@ html:not(.labor-on) .labor-only { display: none; }
 .labor-block { margin-bottom: 16px; padding-bottom: 2px; border-bottom: 1px solid var(--line-soft); }
 #labor-sum { font-family: var(--num); font-size: 14px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .margin-field #labor-inp { padding-right: 40px; }
-.set-rate { flex: 0 0 auto; width: 140px; }
+/* Дві класи, а не одна: .margin-field нижче у файлі перебивав би ширину */
+.margin-field.set-rate { flex: 0 0 auto; width: 140px; }
 .margin-field.set-rate .inp { padding-right: 62px; }
 .panel-margin .h2 { margin-bottom: 14px; }
 .margin-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.margin-field { position: relative; display: block; width: 96px; }
+/* 118px: «824,29» чи «122,259» після «Поставити» мають влазити цілком — у 96px
+   остання цифра ховалась під «%» */
+.margin-field { position: relative; display: block; width: 118px; }
 .margin-field .inp {
   padding: 9px 26px 9px 10px; border-color: var(--edge); background: var(--field);
   font-size: 16px; font-weight: 600;
@@ -816,7 +819,7 @@ html:not(.labor-on) .labor-only { display: none; }
 /* «Хочу продавати за»: під маржею, відокремлено лінією — це прикидка, а не частина рецепта */
 .goal { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
 .goal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--fg-2); }
-.goal-field { flex: 0 0 auto; width: 132px; }
+.margin-field.goal-field { flex: 0 0 auto; width: 132px; }
 .margin-field.goal-field .inp { padding-right: 34px; }
 .goal-out { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 13px; line-height: 1.45; color: var(--fg-3); }
 .goal-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -848,6 +851,26 @@ html:not(.labor-on) .labor-only { display: none; }
 .total-note { font-size: 13px; color: var(--fg-3); }
 .total-acts { display: flex; align-items: center; gap: 10px; }
 .total-acts .btn { height: 40px; }
+/* «Експортувати» відкриває меню — шеврон про це й каже */
+.btn-exp svg { width: 15px; height: 15px; margin-right: -3px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+.btn-exp[aria-expanded="true"] svg { transform: rotate(180deg); }
+.btn-exp[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
+
+/* Меню формату: назва формату й підказка, навіщо він */
+.exp-menu {
+  position: fixed; z-index: 75; display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  border: 1px solid var(--line-2); border-radius: var(--r-m); background: var(--panel);
+  box-shadow: 0 22px 44px -22px var(--modal-shadow), 0 2px 8px -4px var(--card-shadow);
+}
+.exp-menu[hidden] { display: none; }
+.exp-menu button {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 11px 12px; border: 0; border-radius: var(--r-s); background: transparent;
+  color: var(--fg); text-align: left; cursor: pointer;
+}
+.exp-menu button:hover, .exp-menu button:focus-visible { background: var(--seg-bg); outline: none; }
+.exp-menu b { font-family: var(--num); font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+.exp-menu span { font-size: 13px; color: var(--fg-3); }
 
 /* ═════════════════ Харчова цінність ═════════════════ */
 
@@ -1705,9 +1728,6 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .pdf-modal-head { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
   .pdf-modal-head .btn-row { width: 100%; }
   .pdf-modal-head .btn-row .btn { flex: 1; }
-  /* Три кнопки техкарти («Закрити», «JPG», «Завантажити») рівними частинами на
-     320px не влазять — ширина за текстом, решту ділять порівну */
-  #pdf-overlay .pdf-modal-head .btn-row .btn { flex: 1 1 auto; padding: 0 10px; }
   .pdf-modal-body { padding: 12px; }
   .lbl-tools { padding: 12px 16px; gap: 10px 12px; }
   /* Шторка етикетки гортається цілком: інакше поля займали весь екран, а від

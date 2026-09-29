@@ -604,7 +604,7 @@
         </div>
         <div class="total-acts">
           <button class="btn btn-ghost is-danger" id="btn-del-calc">Видалити</button>
-          <button class="btn" id="btn-pdf">Експортувати PDF</button>
+          <button class="btn btn-exp" id="btn-pdf" aria-haspopup="menu" aria-expanded="false" aria-controls="exp-menu">Експортувати<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
           <button class="btn" id="btn-label">Етикетка</button>
           <button class="btn btn-primary" id="btn-save">Зберегти калькуляцію</button>
         </div>
@@ -786,9 +786,8 @@
 
       <article class="panel help-sec">
         <span class="help-step">Крок 5</span>
-        <h2 class="h2">PDF</h2>
-        <p>«Експортувати PDF» у підсумку калькуляції. Спершу побачите аркуш А4, потім — «Завантажити». Довга калькуляція сама розкладеться на кілька сторінок.</p>
-        <p>Поруч кнопка «JPG» — той самий аркуш картинкою, зручно надіслати в месенджер. Якщо сторінок кілька, кожна збережеться окремою картинкою.</p>
+        <h2 class="h2">PDF і JPG</h2>
+        <p>«Експортувати» у підсумку калькуляції — оберіть формат: <b>PDF</b> для друку або <b>JPG</b>, щоб поділитись (картинку зручно надіслати в месенджер). Спершу побачите аркуш А4, потім — «Завантажити». Довга калькуляція сама розкладеться на кілька сторінок, а в JPG кожна сторінка збережеться окремою картинкою.</p>
         <p>«Етикетка» поруч — наліпка на коробку: назва, вага, склад від найбільшого до найменшого, алергени й КБЖУ на 100&nbsp;г (якщо КБЖУ ввімкнене), умови й термін зберігання. Формат обирається під ваш принтер: аркуш А4 на 14 наліпок, 100×70 або 58×40&nbsp;мм. Термін придатності й умови впишіть раз — вони запамʼятаються в калькуляції. Дату виготовлення впишіть там же (є кнопка «Сьогодні») або лишіть порожньою — на наліпці буде рядок під ручку.</p>
       </article>
 
@@ -991,19 +990,25 @@
   <div class="pdf-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-title">
     <div class="pdf-modal-head">
       <div>
-        <div class="modal-title" id="pdf-title">Експорт техкарти</div>
+        <div class="modal-title" id="pdf-title">Експорт у PDF</div>
         <div class="modal-sub" id="pdf-sub">Формат А4</div>
       </div>
       <div class="btn-row">
         <button class="btn" id="pdf-close">Закрити</button>
-        <button class="btn" id="pdf-jpg" title="Картинкою — зручно надіслати в месенджер">JPG</button>
-        <button class="btn btn-primary" id="pdf-file" title="PDF — для друку">Завантажити</button>
+        <button class="btn btn-primary" id="pdf-file">Завантажити</button>
       </div>
     </div>
     <div class="pdf-modal-body" id="pdf-modal-body">
       <div class="pdf-stage" id="pdf-stage"></div>
     </div>
   </div>
+</div>
+
+<!-- Меню «Експортувати» під кнопкою в підсумку: формат обирають до прев'ю.
+     fixed — панель підсумку з overflow його б обрізала -->
+<div class="exp-menu" id="exp-menu" role="menu" aria-label="Формат експорту" hidden>
+  <button type="button" role="menuitem" data-exp="pdf"><b>PDF</b><span>для друку</span></button>
+  <button type="button" role="menuitem" data-exp="jpg"><b>JPG</b><span>щоб поділитись</span></button>
 </div>
 
 <datalist id="dl-products"></datalist>
