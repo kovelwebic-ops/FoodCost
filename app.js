@@ -780,9 +780,12 @@ function totals(r) {
   var margin = sub * (num(r.margin) / 100);
   var price = sub + margin + labor;
   var step = S.round || 1;
+  // Округлюємо ціну, яку людина бачить, — до копійки: інакше хвіст дробу
+  // (1 200,0000001) підкидав би «до прайсу» на цілий крок вище
+  var cents = Math.round(price * 100) / 100;
   return {
     cost: cost, extra: extra, labor: labor, sub: sub, margin: margin, price: price,
-    round: step > 1 ? Math.ceil(price / step) * step : price
+    round: step > 1 ? Math.ceil(cents / step) * step : price
   };
 }
 
@@ -1619,36 +1622,22 @@ function calcNutPer(d, nu) {
 }
 
 /**
- * Поле «Вага виробу» в шапці калькуляції, у кілограмах. Поки людина не вписала
- * своє число, воно само показує суму інгредієнтів — сірим, щоб було видно, що
- * це підставлене. Своє число вже не перезаписується; кнопка поруч повертає суму.
- * Ручне значення позначає data-manual: саме його, а не текст поля, читає readCalc().
+ * Вага в шапці калькуляції. Сума інгредієнтів — лише для довідки, поруч поле
+ * «Вихід»: вага готового виробу, яку вписують самі. Раніше сума стояла сірим
+ * у самому полі, і воно читалось як «вага інгредієнтів» — тож окремо.
  * mass — у грамах, як і outWeight у рецепті.
  */
-function paintOutWeight(mass, force) {
-  var ow = $('#calc-outw'), reset = $('#calc-outw-reset');
-  var auto = mass > 0 ? Math.round(mass) : 0;
-  if (!ow.dataset.manual) {
-    // Під час набору не підміняємо текст під пальцем. force — з blur: там
-    // activeElement ще може вказувати на саме поле, і суму б не підставило
-    if (force || document.activeElement !== ow) ow.value = auto ? qtyFmt(auto / 1000) : '';
-    ow.classList.add('is-auto');
-    reset.hidden = true;
-    return;
-  }
-  ow.classList.remove('is-auto');
-  // Піввідсотка — не різниця: після перерахунку округлені грамовки дають 2,201 кг
-  // замість 2,2, і підказка лізла б без причини. Усушка при випіканні — 10–20 %
-  var differs = auto > 0 && Math.abs(num(ow.value) * 1000 - auto) > Math.max(1, auto * 0.005);
-  reset.hidden = !differs;
-  if (differs) reset.textContent = 'Сума інгредієнтів — ' + qtyFmt(auto / 1000) + ' кг';
+function paintOutWeight(mass) {
+  var g = mass > 0 ? Math.round(mass) : 0;
+  $('#calc-ingw').textContent = g ? qtyFmt(g / 1000) + ' кг' : '—';
 }
 
-/** Вага, від якої рахує перерахунок: своя, якщо вписана, інакше сума інгредієнтів. У грамах. */
+/** Вихід із поля, у грамах; 0 — не вказано. */
+function calcOutWeight() { return Math.round(num($('#calc-outw').value) * 1000); }
+
+/** Вага, від якої рахує перерахунок: вихід, якщо вписаний, інакше сума інгредієнтів. У грамах. */
 function calcBaseWeight() {
-  var ow = $('#calc-outw');
-  if (ow.dataset.manual) return Math.round(num(ow.value) * 1000);
-  return Math.round(nutritionOf(readCalc().ing).mass);
+  return calcOutWeight() || Math.round(nutritionOf(readCalc().ing).mass);
 }
 
 /**
@@ -1664,7 +1653,7 @@ function scaleCalc(toG, fromG) {
   if (!s) {
     s = scaleSnap = {
       fromG: fromG,
-      weight: { manual: !!ow.dataset.manual, value: ow.value },
+      weight: ow.value,
       dirty: draftDirty,
       json: JSON.stringify(cleanRecipe(readCalc())),
       fields: []
@@ -1679,8 +1668,7 @@ function scaleCalc(toG, fromG) {
     scaleField(s, inp, gtr.getAttribute('data-unit'), toG, fromG, gtr);
     gtr.setAttribute('data-take', num(inp.value));
   });
-  ow.dataset.manual = '1';
-  ow.value = qtyFmt(toG / 1000);
+  ow.value = qtyFmt(toG / 1000);   // перерахували на цю вагу — вона й вихід
   recalc();
 }
 
@@ -1728,9 +1716,7 @@ function undoScale() {
     f.inp.value = f.orig;
     if (f.gtr) f.gtr.setAttribute('data-take', f.take);
   });
-  var ow = $('#calc-outw');
-  if (s.weight.manual) ow.dataset.manual = '1'; else delete ow.dataset.manual;
-  ow.value = s.weight.value;
+  $('#calc-outw').value = s.weight;
   scaleSnap = null;
   recalc();
   if (JSON.stringify(cleanRecipe(readCalc())) === s.json) { draftDirty = s.dirty; updateSaveBtn(); }
@@ -1760,7 +1746,7 @@ function paintScalePanel(from) {
 function openScalePanel() {
   var from = calcBaseWeight();
   if (!(from > 0)) {
-    toast('Спершу додайте інгредієнти або вкажіть вагу виробу — від неї рахується перерахунок');
+    toast('Спершу додайте інгредієнти або вкажіть вихід — від нього рахується перерахунок');
     $('#calc-outw').focus();
     return;
   }
@@ -1794,7 +1780,7 @@ function paintCalcNut(d) {
   $('#calc-nut-body').innerHTML = nutPanelHtml(nu, calcNutPer(d, nu), {
     whole: 'Весь виріб',
     empty: 'Додайте інгредієнти — тут зʼявиться харчова цінність і алергени.',
-    approx: 'Вага виробу — сума інгредієнтів, без урахування упікання. Впишіть вагу після випікання вгорі калькуляції — буде точно.'
+    approx: 'Рахуємо на вагу інгредієнтів, без урахування упікання. Впишіть вихід угорі калькуляції — буде точно.'
   });
 }
 
@@ -1970,6 +1956,7 @@ function show(id, navKey) {
   setNav(navKey === undefined ? id : navKey);
   S.ui.screen = id;
   recordNav(id);
+  placeBackupBar();
   window.scrollTo(0, 0);
   persist();
 }
@@ -3233,9 +3220,9 @@ function readCalc() {
     name: $('#calc-name').value.trim(),
     photo: calcPhoto,
     margin: num($('#margin-inp').value),
-    // Підставлена сума інгредієнтів — не значення рецепта: 0 означає «рахувати самим».
+    // Порожній вихід — 0, «рахувати від ваги інгредієнтів».
     // У полі кілограми, у рецепті — грами, як і всі ваги застосунку
-    outWeight: $('#calc-outw').dataset.manual ? Math.round(num($('#calc-outw').value) * 1000) : 0,
+    outWeight: calcOutWeight(),
     method: $('#calc-method-txt').value,
     laborHours: num($('#labor-inp').value),
     shelfLife: calcLabel.shelfLife,
@@ -3349,6 +3336,55 @@ function paintReceipt(t, m) {
   })();
 }
 
+/* ── Від ціни до маржі ────────────────────────────────────────
+   «Хочу продавати за 1 200» — яка тоді вийде маржа і до якої суми можна
+   тримати собівартість, не міняючи маржі. Праця йде до ціни без націнки,
+   тож спершу віднімаємо її. Прикидка нікуди не пишеться: маржу міняє лише
+   «Поставити». */
+
+/**
+ * Маржа, з якою ціна — рівно goal до копійки. Беремо найкоротше таке число:
+ * 122,26 %, а не 122,2593 %. Більше трьох знаків поле маржі не показує.
+ */
+function goalMargin(goal, sub, labor) {
+  var exact = (goal - labor - sub) / sub * 100;
+  for (var d = 0; d <= 3; d++) {
+    var k = Math.pow(10, d), m = Math.round(exact * k) / k;
+    if (Math.abs(sub * (1 + m / 100) + labor - goal) < 0.005) return m;
+  }
+  return Math.round(exact * 1000) / 1000;
+}
+
+function paintGoal(d, t) {
+  var out = $('#goal-out'), goal = num($('#goal-inp').value);
+  if (!(goal > 0) || !(t.sub > 0)) { out.hidden = true; return; }
+  var m = num(d.margin), room = goal - t.labor;   // що лишається на собівартість, витрати й маржу
+  var lines = [], same = false;
+  if (room > t.sub + 0.005) {
+    var gm = goalMargin(goal, t.sub, t.labor);
+    same = Math.abs(gm - m) < 0.0005;
+    lines.push('<div class="goal-line"><span>Маржа вийде <b>' + qtyFmt(gm) + '&nbsp;%</b></span>' +
+      (same ? '' : '<button type="button" class="btn-mini" data-goal-set="' + gm + '">Поставити</button>') + '</div>');
+  } else {
+    lines.push('<div class="goal-line is-warn">Нижче за витрати' + (t.labor > 0 ? ' з працею' : '') +
+      ' на ' + money(t.sub - room) + '</div>');
+  }
+  if (!same) {
+    // Допустима собівартість при нинішній маржі. Витрати-відсотки ростуть разом
+    // із нею, фіксовані — ні, тож і віднімаються по-різному
+    var fixed = 0, pct = 0;
+    d.exp.forEach(function (e) { if (e.mode === 'pct') pct += num(e.value); else fixed += num(e.value); });
+    var costMax = (room / (1 + m / 100) - fixed) / (1 + pct / 100);
+    lines.push(costMax > 0.005
+      ? '<div class="goal-line"><span>При маржі ' + qtyFmt(m) + '&nbsp;% собівартість — до <b>' + money(costMax) +
+        '</b> (зараз ' + money(t.cost) + ')</span></div>'
+      : '<div class="goal-line is-warn">При маржі ' + qtyFmt(m) + '&nbsp;% не покрити навіть витрати' +
+        (t.labor > 0 ? ' й працю' : '') + '</div>');
+  }
+  out.innerHTML = lines.join('');
+  out.hidden = false;
+}
+
 /** Головний перерахунок: рядки → вартості → підсумок → чернетка в сесію. */
 function recalc() {
   var d = readCalc();
@@ -3387,7 +3423,8 @@ function recalc() {
   });
 
   paintReceipt(t, d.margin);
-  // Вага виробу — у шапці й потрібна всім, а не лише з увімкненим КБЖУ
+  paintGoal(d, t);
+  // Вага інгредієнтів — у шапці й потрібна всім, а не лише з увімкненим КБЖУ
   paintOutWeight(nutritionOf(d.ing).mass);
   paintCalcNut(d);
   // Змінили вагу чи продукти — «Було» в панелі не має брехати
@@ -3430,9 +3467,8 @@ function loadCalc(rec, crumb) {
   $('#calc-name').value = rec.name || '';
   $('#calc-crumb').textContent = crumb;
   $('#margin-inp').value = qtyFmt(rec.margin != null ? rec.margin : 50) || '0';
-  var ow = $('#calc-outw');
-  if (num(rec.outWeight) > 0) { ow.dataset.manual = '1'; ow.value = qtyFmt(num(rec.outWeight) / 1000); }
-  else { delete ow.dataset.manual; ow.value = ''; }   // суму інгредієнтів підставить recalc()
+  $('#calc-outw').value = num(rec.outWeight) > 0 ? qtyFmt(num(rec.outWeight) / 1000) : '';
+  $('#goal-inp').value = '';                          // «хочу продавати за» — прикидка для однієї калькуляції
   scaleSnap = null;                                   // інша калькуляція — відміняти перерахунок уже нічого
   $('#scale-to').value = '';
   closeScalePanel();
@@ -3718,25 +3754,10 @@ function bindCalc() {
   });
   $('#labor-inp').addEventListener('input', recalc);
   $('#labor-inp').addEventListener('blur', function () { this.value = qtyFmt(num(this.value)); });
-  // Вага готового виробу: своє число — ручне значення, порожнє поле — знову сума інгредієнтів
+  // Вихід: порожнє поле — не вказано, тоді всюди рахуємо від ваги інгредієнтів
   var ow = $('#calc-outw');
-  ow.addEventListener('focus', function () {
-    if (!ow.dataset.manual) ow.select();   // підставлене число замінюють, а не дописують
-  });
-  ow.addEventListener('input', function () {
-    if (num(ow.value) > 0) ow.dataset.manual = '1'; else delete ow.dataset.manual;
-    recalc();
-  });
-  ow.addEventListener('blur', function () {
-    if (ow.dataset.manual) ow.value = qtyFmt(num(ow.value));
-    // Стерли число — одразу повертаємо суму. Не recalc(): той позначив би «є зміни»
-    else paintOutWeight(nutritionOf(readCalc().ing).mass, true);
-  });
-  $('#calc-outw-reset').addEventListener('click', function () {
-    delete ow.dataset.manual;
-    ow.value = '';
-    recalc();
-  });
+  ow.addEventListener('input', recalc);
+  ow.addEventListener('blur', function () { ow.value = qtyFmt(num(ow.value)); });
 
   // Та сама кнопка й закриває панель — щоб не шукати «Скасувати»
   $('#btn-scale').addEventListener('click', function () {
@@ -3761,6 +3782,14 @@ function bindCalc() {
   $('#margin-quick').addEventListener('click', function (e) {
     var b = e.target.closest('[data-m]'); if (!b) return;
     $('#margin-inp').value = b.getAttribute('data-m');
+    recalc();
+  });
+  // «Хочу продавати за» рецепта не міняє — лише перемальовує прикидку
+  $('#goal-inp').addEventListener('input', function () { var d = readCalc(); paintGoal(d, totals(d)); });
+  $('#goal-inp').addEventListener('blur', function () { this.value = num(this.value) ? fmt(num(this.value)) : ''; });
+  $('#goal-out').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-goal-set]'); if (!b) return;
+    $('#margin-inp').value = qtyFmt(num(b.getAttribute('data-goal-set')));
     recalc();
   });
 
@@ -4297,12 +4326,12 @@ function loadPdfLib() {
 
 var PDF_LIB_FAIL = 'Бібліотека PDF не завантажилась — перевірте інтернет';
 
-/** Техкарта без ваги виробу неповна: «на скільки» — перше, що питають. Суму позначаємо «≈». */
+/** Техкарта без виходу неповна: «на скільки» — перше, що питають. Суму інгредієнтів позначаємо «≈». */
 function pdfWeightLine(d) {
   var g = num(d.outWeight), approx = false;
   if (!(g > 0)) { g = Math.round(nutritionOf(d.ing).mass); approx = true; }
   if (!(g > 0)) return '';
-  return '<div class="pdf-weight">Вага виробу: ' + (approx ? '≈ ' : '') + qtyFmt(g / 1000) + ' кг</div>';
+  return '<div class="pdf-weight">Вихід: ' + (approx ? '≈ ' : '') + qtyFmt(g / 1000) + ' кг</div>';
 }
 
 /**
@@ -4473,20 +4502,41 @@ function closePdfPreview() {
   $('#pdf-stage').innerHTML = '';
 }
 
-function downloadPdf() {
-  if (!$('.pdf-doc', $('#pdf-stage'))) { toast('Немає що експортувати'); return; }
+function errText(err) { return err && err.message ? err.message : 'невідома помилка'; }
 
-  var modal = $('.pdf-modal');
-  var btn = $('#pdf-file');
-  var stage = $('#pdf-stage');
-  btn.disabled = true;
+/* Параметри html2pdf для техкарти — спільні для PDF і JPG: той самий аркуш,
+   ті самі поля й ті самі розриви сторінок. scale — щільність растру */
+function pdfOptions(scale) {
+  return {
+    margin: [12, 12, 14, 12],
+    filename: 'FoodCost — ' + pdfName + '.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: scale, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    // tbody — це цілий напівфабрикат: розрив сторінки посеред складу тіста
+    // перетворює техкарту на ребус, тому такі блоки переносимо цілком
+    pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block', '.pdf-cols'] }
+  };
+}
+
+/**
+ * Спільне для «Завантажити» (PDF) і «JPG»: дочекатися бібліотеки, показати
+ * документ у справжньому розмірі й заблокувати обидві кнопки, поки йде
+ * експорт, — два знімки того самого вузла водночас заважали б один одному.
+ * work(doc, done) збирає сам файл і викликає done(повідомлення).
+ */
+function exportTechCard(btn, work) {
+  if (!$('.pdf-doc', $('#pdf-stage'))) { toast('Немає що експортувати'); return; }
+  var modal = $('.pdf-modal'), stage = $('#pdf-stage');
+  var btns = [$('#pdf-file'), $('#pdf-jpg')], label = btn.textContent;
+  btns.forEach(function (b) { b.disabled = true; });
   btn.textContent = 'Готуємо…';
 
   function done(msg) {
     modal.classList.remove('is-exporting');
     fitPdfPreview();
-    btn.disabled = false;
-    btn.textContent = 'Завантажити';
+    btns.forEach(function (b) { b.disabled = false; });
+    btn.textContent = label;
     if (msg) toast(msg);
   }
 
@@ -4501,31 +4551,77 @@ function downloadPdf() {
     stage.style.transform = '';
     stage.style.marginBottom = '';
     $('#pdf-modal-body').scrollTop = 0;
-
-    html2pdf().set({
-      margin: [12, 12, 14, 12],
-      filename: 'FoodCost — ' + pdfName + '.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      // scale 3 ≈ 290 dpi — на 2 дрібний текст у растрі помітно милився
-      html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      // tbody — це цілий напівфабрикат: розрив сторінки посеред складу тіста
-      // перетворює техкарту на ребус, тому такі блоки переносимо цілком
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.pdf-grp-body', '.pdf-block', '.pdf-cols'] }
-    }).from(doc).save().then(function () {
-      done('PDF збережено');
-    })['catch'](function (err) {
-      done('Не вдалося зібрати PDF: ' + (err && err.message ? err.message : 'невідома помилка'));
-    });
+    work(doc, done);
   }, function () {
     done(PDF_LIB_FAIL);
   });
+}
+
+function downloadPdf() {
+  exportTechCard($('#pdf-file'), function (doc, done) {
+    // scale 3 ≈ 290 dpi — на 2 дрібний текст у растрі помітно милився
+    html2pdf().set(pdfOptions(3)).from(doc).save().then(function () {
+      done('PDF збережено');
+    })['catch'](function (err) {
+      done('Не вдалося зібрати PDF: ' + errText(err));
+    });
+  });
+}
+
+/**
+ * Техкарта картинкою — скинути в месенджер, де PDF відкривають не всі.
+ * Кожна сторінка — окремий JPG аркуша А4 з тими самими полями, що й у PDF.
+ * Масштаб 2 (≈ 190 dpi): для екрана досить, а телефон не впирається в
+ * граничний розмір canvas.
+ */
+function downloadJpg() {
+  exportTechCard($('#pdf-jpg'), function (doc, done) {
+    html2pdf().set(pdfOptions(2)).from(doc).toCanvas().get('canvas').then(function (canvas) {
+      var pages = a4Pages(canvas), n = pages.length;
+      (function next(i) {
+        if (i >= n) { done(n > 1 ? 'Збережено ' + n + ' JPG — по одному на сторінку' : 'JPG збережено'); return; }
+        pages[i].toBlob(function (blob) {
+          if (!blob) { done('Не вдалося зібрати JPG'); return; }
+          saveBlob(blob, 'FoodCost — ' + pdfName + (n > 1 ? ' — ' + (i + 1) + ' з ' + n : '') + '.jpg');
+          // Кілька файлів поспіль браузер може прийняти за нав'язливість — пауза між ними
+          setTimeout(function () { next(i + 1); }, 400);
+        }, 'image/jpeg', 0.92);
+      })(0);
+    })['catch'](function (err) {
+      done('Не вдалося зібрати JPG: ' + errText(err));
+    });
+  });
+}
+
+/**
+ * Знімок документа → аркуші А4 з полями 12/12/14 мм, як у PDF. html2pdf
+ * знімає документ одним полотном шириною в корисну ширину аркуша (186 мм),
+ * уже з розривами сторінок; ріжемо його тим самим кроком, що й він (271 мм).
+ */
+function a4Pages(canvas) {
+  var mm = canvas.width / 186;
+  var step = Math.floor(canvas.width * 271 / 186);
+  var W = Math.round(210 * mm), H = Math.round(297 * mm), pad = Math.round(12 * mm);
+  var out = [];
+  for (var y = 0; y < canvas.height; y += step) {
+    var h = Math.min(step, canvas.height - y);
+    var page = document.createElement('canvas');
+    page.width = W;
+    page.height = H;
+    var ctx = page.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(canvas, 0, y, canvas.width, h, pad, pad, canvas.width, h);
+    out.push(page);
+  }
+  return out;
 }
 
 function bindPdf() {
   $('#btn-pdf').addEventListener('click', openPdfPreview);
   $('#pdf-close').addEventListener('click', closePdfPreview);
   $('#pdf-file').addEventListener('click', downloadPdf);
+  $('#pdf-jpg').addEventListener('click', downloadJpg);
   $('#pdf-overlay').addEventListener('click', function (e) {
     if (e.target === this) closePdfPreview();
   });
@@ -4838,21 +4934,105 @@ function bindLabel() {
    Очищення історії, інший ноутбук чи переїзд на інший домен їх не переживуть.
    Файл — єдиний спосіб забрати роботу з собою, поки немає акаунта. */
 
-function exportData() {
-  var blob, url, a;
-  try {
-    blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-  } catch (e) { toast('Не вдалося зібрати файл копії'); return; }
-
-  url = URL.createObjectURL(blob);
-  a = document.createElement('a');
+/** Файл із памʼяті — через тимчасове посилання: так уміють усі браузери, і телефонні теж. */
+function saveBlob(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
   a.href = url;
-  a.download = 'FoodCost — копія ' + todayIso() + '.json';
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
+function exportData() {
+  var blob;
+  try {
+    blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+  } catch (e) { toast('Не вдалося зібрати файл копії'); return; }
+  saveBlob(blob, 'FoodCost — копія ' + todayIso() + '.json');
+  markBackup();
   toast('Копію збережено у файл');
+}
+
+/* ── Нагадування про копію ────────────────────────────────────
+   Раз на тиждень, якщо дані змінились відтоді, як їх востаннє зберігали
+   у файл (чи відколи вони тут зʼявились), — смуга над екраном. Незмінений
+   демо-набір не нагадує: відбиток даних той самий. Позначка — окремий
+   ключ, як і запрошення: вона про цей пристрій, а не про дані, і з файлом
+   копії не їздить. { hash, at, snooze } — відбиток і час останньої точки
+   відліку, «Пізніше» відкладає до snooze. */
+
+var BACKUP_KEY = 'fc:backup:v1';
+var BACKUP_EVERY = 7 * 864e5;   // тиждень
+var backupChecked = 0;          // коли перевіряли востаннє — щоб не рахувати відбиток на кожен показ вкладки
+
+function readBackupMark() {
+  try {
+    var m = JSON.parse(localStorage.getItem(BACKUP_KEY));
+    return isObj(m) && typeof m.at === 'number' ? m : null;
+  } catch (e) { return null; }
+}
+
+function writeBackupMark(m) {
+  try { localStorage.setItem(BACKUP_KEY, JSON.stringify(m)); }
+  catch (e) { /* без сховища нема й даних, які треба берегти */ }
+}
+
+/**
+ * Відбиток даних — FNV-1a по JSON стану. Без ui (перехід між екранами даних не
+ * міняє) і без draft: відкрита калькуляція — лише копія рецепта, і сам факт
+ * відкриття не має рахуватись зміною.
+ */
+function dataHash() {
+  var s = JSON.stringify(S, function (k, v) { return k === 'ui' || k === 'draft' ? undefined : v; });
+  var h = 2166136261;
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36) + '.' + s.length;
+}
+
+/** Точка відліку: дані щойно збережено у файл, узято з файла чи скинуто. */
+function markBackup() {
+  writeBackupMark({ hash: dataHash(), at: Date.now(), snooze: 0 });
+  paintBackupBar(false);
+}
+
+function checkBackup() {
+  backupChecked = Date.now();
+  var m = readBackupMark();
+  // Перший запуск на цьому пристрої (чи першої версії з нагадуванням): коли
+  // зберігали востаннє, невідомо — лічимо від сьогодні, а не лякаємо одразу
+  if (!m) { markBackup(); return; }
+  var now = Date.now();
+  paintBackupBar(now - m.at >= BACKUP_EVERY && now >= num(m.snooze) && m.hash !== dataHash());
+}
+
+function paintBackupBar(on) {
+  var bar = $('#backup-bar');
+  bar.hidden = !on;
+  placeBackupBar();
+}
+
+/** Смуга стоїть угорі того екрана, який відкрито: з кожним переходом переїжджає. */
+function placeBackupBar() {
+  var bar = $('#backup-bar'), scr = $('.screen.is-active');
+  if (bar.hidden || !scr || bar.parentNode === scr) return;
+  scr.insertBefore(bar, scr.firstChild);
+}
+
+function bindBackup() {
+  $('#backup-save').addEventListener('click', exportData);
+  $('#backup-later').addEventListener('click', function () {
+    var m = readBackupMark() || { hash: '', at: Date.now() };
+    m.snooze = Date.now() + BACKUP_EVERY;
+    writeBackupMark(m);
+    paintBackupBar(false);
+  });
+  // Вкладку на телефоні тримають відкритою днями — перевіряємо й при поверненні, раз на годину
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && Date.now() - backupChecked > 36e5) checkBackup();
+  });
 }
 
 /** Імпорт замінює геть усе, тому спершу показуємо, що саме прийде з файла. */
@@ -4889,6 +5069,7 @@ function importData(file) {
       draftDirty = false;
       persist(true);
       boot(true);
+      markBackup();   // дані щойно з файла — копія в людини вже є
       toast('Дані відновлено з файла');
     });
   };
@@ -5971,6 +6152,7 @@ function applyCurrency() {
   // «₴»-варіант типу витрати показує символ валюти прямо в тексті опції — оновлюємо на вже відкритих рядках
   $$('[data-f=mode] option[value=sum]').forEach(function (o) { o.textContent = S.currency; });
   $('#set-labor-unit').textContent = S.currency + '/год';
+  $('#goal-unit').textContent = S.currency;
 }
 
 /** Після зміни валюти/округлення перемальовуємо все, де є гроші. */
@@ -6074,6 +6256,7 @@ function bindSettings() {
       draftDirty = false;
       persist(true);
       boot(true);
+      markBackup();   // свіжий демо-набір — берегти поки нічого
       toast('Дані скинуто до демо-набору');
     });
   });
@@ -6094,6 +6277,7 @@ function bindSettings() {
       draftDirty = false;
       persist(true);
       boot(true);
+      markBackup();   // порожньо — відлік із чистого аркуша
       toast('Усі дані видалено');
     });
   });
@@ -6236,6 +6420,7 @@ function init() {
   bindLabel();
   bindSettings();
   bindInvite();
+  bindBackup();
 
   // Відновлення екрана на старті — не новий крок: інакше перше «Назад»
   // вело б на той самий екран, а друге вже з сайту
@@ -6245,6 +6430,7 @@ function init() {
   replaceNav();
   persist(true);
   maybeShowInvite();
+  checkBackup();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

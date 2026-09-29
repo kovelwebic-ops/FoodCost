@@ -334,6 +334,8 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .nut-offer-txt span { font-size: 13px; line-height: 1.5; color: var(--fg-3); }
 .nut-offer .btn-row { flex: 0 0 auto; }
 .nut-offer .btn { height: 36px; }
+/* Нагадування про копію — та сама картка, але в кольорі акценту: тут ризик, а не вибір */
+.backup-bar { border-color: var(--accent); background: var(--accent-soft); }
 
 /* Попередження про двійника в базі — під полем назви, тим самим червоним */
 .row-warn { display: block; margin: 2px 8px 6px; font-size: 12px; line-height: 1.45; color: var(--danger); }
@@ -479,8 +481,9 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 
 .calc-titlebar { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 34px; }
 
-/* Вага виробу під назвою: одне поле на всю калькуляцію (і для КБЖУ, і для
-   перерахунку), тож ближче до назви, а відступ до інгредієнтів — уже після нього */
+/* Вага під назвою: сума інгредієнтів для довідки й вихід — одне поле на всю
+   калькуляцію (і для КБЖУ, і для перерахунку), тож ближче до назви, а відступ
+   до інгредієнтів — уже після нього */
 #s-calc .calc-titlebar { margin-bottom: 14px; }
 .calc-weight { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 28px; }
 .calc-weight-field { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--fg-2); }
@@ -488,9 +491,9 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .calc-weight-field .qty-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
 .calc-weight-field .inp { height: 36px; padding: 0 30px 0 10px; }
 .calc-weight-field .inp:focus { border-color: transparent; box-shadow: none; }
-/* Сума інгредієнтів, підставлена сама, — сірим: видно, що число не вписане руками */
-.calc-weight-field .inp.is-auto { color: var(--muted); }
-.calc-weight-reset { font-size: 12.5px; }
+/* Сума інгредієнтів — лише число, не поле: її не вписують, вона рахується сама */
+.calc-ingw { margin-right: 10px; }
+.calc-ingw b { font-family: var(--num); font-size: 14px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #btn-scale[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
 
 /* Панель перерахунку — над таблицею, як картка: «Було → Стане» і множник
@@ -810,6 +813,16 @@ html:not(.labor-on) .labor-only { display: none; }
 .margin-quick button[aria-pressed="true"] {
   border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); font-weight: 600;
 }
+/* «Хочу продавати за»: під маржею, відокремлено лінією — це прикидка, а не частина рецепта */
+.goal { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.goal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--fg-2); }
+.goal-field { flex: 0 0 auto; width: 132px; }
+.margin-field.goal-field .inp { padding-right: 34px; }
+.goal-out { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 13px; line-height: 1.45; color: var(--fg-3); }
+.goal-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.goal-line b { font-weight: 600; color: var(--fg); white-space: nowrap; }
+.goal-line.is-warn { color: var(--danger); }
+.goal-line .btn-mini { flex: 0 0 auto; }
 
 /* Підсумок */
 .panel-total .panel-head { position: relative; }
@@ -1550,11 +1563,15 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .panel-head .h2, .panel-margin > .h2, .panel-yield .h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
   .panel-sum { font-size: 0; gap: 0; }
   .panel-sum b { font-size: 16px; }
-  .calc-weight { margin-bottom: 16px; gap: 10px; }
-  .calc-weight-field { flex: 1 1 auto; justify-content: space-between; }
+  /* Інгредієнти й вихід — дві колонки з підписом над числом, як у картках;
+     кнопка перерахунку — рядком на всю ширину: поруч не влазить */
+  .calc-weight { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-bottom: 16px; }
+  .calc-weight .calc-weight-field { flex-direction: column; align-items: stretch; gap: 5px; margin: 0; font-size: 13px; }
+  .calc-weight .calc-weight-field .qty-wrap { width: auto; }
+  .calc-ingw b { display: flex; align-items: center; height: 42px; font-size: 16px; }
   .calc-weight-field .inp { height: 40px; }
-  /* Кнопка перерахунку — окремим рядком на всю ширину: поруч із полем не влазить */
-  #btn-scale { flex: 1 1 100%; }
+  .scale-to.calc-weight-field { justify-content: space-between; }
+  #btn-scale { grid-column: 1 / -1; }
   /* «Було» окремим рядком, «Стане» з полем на всю ширину, множник поруч;
      стрілка між рядками вже не читається */
   .scale-panel { padding: 14px; }
@@ -1688,6 +1705,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .pdf-modal-head { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
   .pdf-modal-head .btn-row { width: 100%; }
   .pdf-modal-head .btn-row .btn { flex: 1; }
+  /* Три кнопки техкарти («Закрити», «JPG», «Завантажити») рівними частинами на
+     320px не влазять — ширина за текстом, решту ділять порівну */
+  #pdf-overlay .pdf-modal-head .btn-row .btn { flex: 1 1 auto; padding: 0 10px; }
   .pdf-modal-body { padding: 12px; }
   .lbl-tools { padding: 12px 16px; gap: 10px 12px; }
   /* Шторка етикетки гортається цілком: інакше поля займали весь екран, а від
