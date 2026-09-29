@@ -495,6 +495,8 @@ aside, main, section, h1, h2, p { transition: background-color .22s ease, border
 .calc-ingw { margin-right: 10px; }
 .calc-ingw b { font-family: var(--num); font-size: 14px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .calc-pcs .qty-wrap { width: 84px; }
+/* Без одиниці: підпис «Порцій» і так її каже */
+.calc-weight-field.calc-pcs .inp { padding-right: 10px; }
 #btn-scale[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
 
 /* Панель перерахунку — над таблицею, як картка: «Було → Стане» і множник
@@ -850,7 +852,7 @@ html:not(.labor-on) .labor-only { display: none; }
 .total-lbl { font-family: var(--num); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
 .total-val { font-family: var(--num); font-size: 40px; line-height: 1; font-weight: 600; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
 .total-note { font-size: 13px; color: var(--fg-3); }
-/* Ціна за 1 шт — під ціною продажу, число жирним */
+/* Ціна за 1 порцію — під ціною продажу, число жирним */
 .total-piece { font-size: 14px; color: var(--fg-2); }
 .total-piece b { font-family: var(--num); font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
 .total-acts { display: flex; align-items: center; gap: 10px; }
@@ -1247,7 +1249,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .pdf-price .l { font-size: 1.04em; font-weight: 700; letter-spacing: .02em; }
 .pdf-price .v { font-family: var(--num); font-size: 2.16em; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pdf-note { padding: 0 1em .83em; font-size: .92em; color: #55524b; }
-/* «За 1 шт» — одразу під ціною, до підказки про округлення */
+/* «За 1 порцію» — одразу під ціною, до підказки про округлення */
 .pdf-line.is-piece { margin-top: -.5em; padding-bottom: .7em; font-weight: 600; }
 
 /* ═════════════════ Адаптив ═════════════════ */
@@ -1592,7 +1594,7 @@ html:not(.nut-on) .nut-only { display: none !important; }
   .panel-head .h2, .panel-margin > .h2, .panel-yield .h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
   .panel-sum { font-size: 0; gap: 0; }
   .panel-sum b { font-size: 16px; }
-  /* Вага інгредієнтів — довідковим рядком угорі; вихід і шматки — дві колонки з
+  /* Вага інгредієнтів — довідковим рядком угорі; вихід і порції — дві колонки з
      підписом над полем, як у картках (утрьох поля в 87px не вміщали «1,875»);
      кнопка перерахунку — рядком на всю ширину */
   .calc-weight { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin-bottom: 16px; }

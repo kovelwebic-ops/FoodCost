@@ -139,7 +139,7 @@ var draftDirty = false;
  *     laborHours = час роботи, год — множиться на S.laborRate
  *     shelfLife = термін придатності для етикетки, год (0 — вписують від руки)
  *     storage = умови зберігання для етикетки ('' — не друкувати)
- *     pieces = на скільки шматків чи штук ділиться виріб (0 — не ділиться); дає «за 1 шт»
+ *     pieces = на скільки порцій ділиться виріб (0 — не ділиться); дає «за 1 порцію»
  *   folder = { id, title, recipes[] }
  *   S.draft — рецепт без id: відкрита або незбережена калькуляція
  *   order — у розділі 15a
@@ -292,7 +292,7 @@ function normalizeRecipe(r) {
   r.outWeight = num(r.outWeight);
   r.method = str(r.method);
   r.laborHours = num(r.laborHours);   // до появи оплати праці поля не було
-  r.pieces = Math.round(num(r.pieces));   // до появи «за 1 шт» поля не було — 0, не ділиться
+  r.pieces = Math.round(num(r.pieces));   // до появи порцій поля не було — 0, не ділиться
   // Етикетка: термін придатності в годинах (0 — пишуть від руки) і умови
   // зберігання. До появи етикетки полів не було — старим рецептам дістаються
   // типові +2…+6 °C, порожній рядок лишається свідомим «не друкувати»
@@ -1663,7 +1663,7 @@ function scaleCalc(toG, fromG) {
     };
   }
   s.toG = toG;   // для смуги: поле ваги потім можуть змінити, а перерахували саме на цю
-  // Шматків — пропорційно, від вихідного числа: 6 капкейків на 570 г → 12 на 1,14 кг
+  // Порцій — пропорційно, від вихідного числа: 6 капкейків на 570 г → 12 на 1,14 кг
   var pcs = Math.round(num(s.pieces));
   if (pcs >= 1) $('#calc-pieces').value = String(Math.max(1, Math.round(pcs * toG / s.fromG)));
   ingRows().forEach(function (tr) {
@@ -3325,11 +3325,11 @@ function paintReceipt(t, m) {
   $('#r-note').hidden = !showNote;
   if (showNote) $('#r-round').textContent = moneyShort(t.round);
 
-  // Торт ріжуть на шматки, капкейки продають поштучно — ціна й собівартість одного
+  // Торт ріжуть на порції, капкейки продають поштучно — ціна й собівартість однієї порції
   var pcs = Math.round(num($('#calc-pieces').value)), piece = $('#r-piece');
   piece.hidden = !(pcs > 1 && t.price > 0);
   if (!piece.hidden) {
-    piece.innerHTML = 'За 1 шт із ' + pcs + ' — <b>' + esc(money(t.price / pcs)) + '</b>' +
+    piece.innerHTML = 'За 1 порцію із ' + pcs + ' — <b>' + esc(money(t.price / pcs)) + '</b>' +
       ' · собівартість ' + esc(money(t.cost / pcs));
   }
 
@@ -4436,7 +4436,7 @@ function buildPdfDoc(d, t) {
       '<div class="pdf-rule"></div>' +
       '<div class="pdf-price"><span class="l">ЦІНА ПРОДАЖУ</span><span class="v">' + money(t.price) + '</span></div>' +
       (num(d.pieces) > 1
-        ? '<div class="pdf-line is-piece"><span>За 1 шт (із ' + Math.round(num(d.pieces)) + ')</span><span class="v">' +
+        ? '<div class="pdf-line is-piece"><span>За 1 порцію (із ' + Math.round(num(d.pieces)) + ')</span><span class="v">' +
           money(t.price / Math.round(num(d.pieces))) + '</span></div>'
         : '') +
       ((S.round || 1) > 1
