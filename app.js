@@ -132,13 +132,14 @@ var draftDirty = false;
  *   prep = { id, name, ing[], yield, unit }            ← напівфабрикат (тісто, крем)
  *   group = { id, prepId, name, take, of, unit }       ← напівфабрикат у рецепті
  *   recipe = { id, name, photo, margin, ing[], exp[], groups[], outWeight, method,
- *              laborHours, shelfLife, storage }
+ *              laborHours, shelfLife, storage, pieces }
  *     photo = data:-URL стиснутого фото або шлях до демо-фото; null — без фото
  *     outWeight = вихід, г (0 — рахуємо із суми інгредієнтів)
  *     method = текст рецепта для себе ('' — немає), у PDF не йде
  *     laborHours = час роботи, год — множиться на S.laborRate
  *     shelfLife = термін придатності для етикетки, год (0 — вписують від руки)
  *     storage = умови зберігання для етикетки ('' — не друкувати)
+ *     pieces = на скільки шматків чи штук ділиться виріб (0 — не ділиться); дає «за 1 шт»
  *   folder = { id, title, recipes[] }
  *   S.draft — рецепт без id: відкрита або незбережена калькуляція
  *   order — у розділі 15a
@@ -291,6 +292,7 @@ function normalizeRecipe(r) {
   r.outWeight = num(r.outWeight);
   r.method = str(r.method);
   r.laborHours = num(r.laborHours);   // до появи оплати праці поля не було
+  r.pieces = Math.round(num(r.pieces));   // до появи «за 1 шт» поля не було — 0, не ділиться
   // Етикетка: термін придатності в годинах (0 — пишуть від руки) і умови
   // зберігання. До появи етикетки полів не було — старим рецептам дістаються
   // типові +2…+6 °C, порожній рядок лишається свідомим «не друкувати»
@@ -513,7 +515,7 @@ function seed() {
     var o = {
       id: uid('r'), name: r.name, photo: r.photo, margin: r.margin,
       ing: [], exp: [], groups: [], outWeight: r.outWeight, method: r.method.join('\n'),
-      shelfLife: r.shelf, storage: DEFAULT_STORAGE
+      shelfLife: r.shelf, storage: DEFAULT_STORAGE, pieces: r.pieces || 0
     };
     r.ing.forEach(function (i) {
       if (i[0].charAt(0) !== '@') { o.ing.push(line(i[0], i[1])); return; }
@@ -534,7 +536,7 @@ function seed() {
   s.folders = [
     { id: uid('f'), title: 'Торти', recipes: [
       recipe({
-        name: 'Снікерс', photo: 'demo/snickers.jpg', margin: 100, outWeight: 2100, shelf: 72, exp: CAKE,
+        name: 'Снікерс', photo: 'demo/snickers.jpg', margin: 100, outWeight: 2100, pieces: 12, shelf: 72, exp: CAKE,
         ing: [
           ['@choc', 760],
           ['Цукор білий', 150], ['Вершки 33%', 150], ['Масло вершкове 82%', 50], ['Сіль', 2],
@@ -561,7 +563,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Фісташка–малина', photo: 'demo/pistachio-raspberry.jpg', margin: 100, outWeight: 1900, shelf: 72, exp: CAKE,
+        name: 'Фісташка–малина', photo: 'demo/pistachio-raspberry.jpg', margin: 100, outWeight: 1900, pieces: 10, shelf: 72, exp: CAKE,
         ing: [
           ['Яйця С1', 5], ['Цукор білий', 210], ['Борошно вищий ґатунок', 120], ['Фісташки очищені', 120],
           ['Масло вершкове 82%', 50], ['Розпушувач', 5],
@@ -590,7 +592,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Полуничне тріо', photo: 'demo/strawberry-trio.jpg', margin: 100, outWeight: 2200, shelf: 72, exp: CAKE,
+        name: 'Полуничне тріо', photo: 'demo/strawberry-trio.jpg', margin: 100, outWeight: 2200, pieces: 12, shelf: 72, exp: CAKE,
         ing: [
           ['@vanilla', 720],
           ['Полуниця заморожена', 600], ['Цукор білий', 150], ['Желатин', 10], ['Крохмаль кукурудзяний', 15],
@@ -619,7 +621,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Наполеон', photo: 'demo/napoleon.jpg', margin: 100, outWeight: 2300, shelf: 48, exp: CAKE,
+        name: 'Наполеон', photo: 'demo/napoleon.jpg', margin: 100, outWeight: 2300, pieces: 12, shelf: 48, exp: CAKE,
         ing: [
           ['Борошно вищий ґатунок', 510], ['Масло вершкове 82%', 500], ['Яйця С1', 4], ['Сіль', 3],
           ['Молоко 2,5%', 800], ['Цукор білий', 250], ['Вершки 33%', 200], ['Ванільний екстракт', 5]
@@ -643,7 +645,7 @@ function seed() {
     ] },
     { id: uid('f'), title: 'Капкейки', recipes: [
       recipe({
-        name: 'Капкейки класичні, 6 шт', photo: 'demo/cupcakes-classic.jpg', margin: 100, outWeight: 570, shelf: 48, exp: CUPS,
+        name: 'Капкейки класичні, 6 шт', photo: 'demo/cupcakes-classic.jpg', margin: 100, outWeight: 570, pieces: 6, shelf: 48, exp: CUPS,
         ing: [
           ['Борошно вищий ґатунок', 100], ['Цукор білий', 80], ['Масло вершкове 82%', 60], ['Яйця С1', 1],
           ['Молоко 2,5%', 60], ['Розпушувач', 4], ['Ванільний екстракт', 2.5],
@@ -661,7 +663,7 @@ function seed() {
         ]
       }),
       recipe({
-        name: 'Капкейки шоколадні, 6 шт', photo: 'demo/cupcakes-chocolate.jpg', margin: 100, outWeight: 570, shelf: 48, exp: CUPS,
+        name: 'Капкейки шоколадні, 6 шт', photo: 'demo/cupcakes-chocolate.jpg', margin: 100, outWeight: 570, pieces: 6, shelf: 48, exp: CUPS,
         ing: [
           ['Борошно вищий ґатунок', 75], ['Цукор білий', 85], ['Какао-порошок', 30], ['Яйця С1', 1],
           ['Молоко 2,5%', 60], ['Олія соняшникова', 30], ['Розпушувач', 3], ['Сода харчова', 1.5],
@@ -1654,12 +1656,16 @@ function scaleCalc(toG, fromG) {
     s = scaleSnap = {
       fromG: fromG,
       weight: ow.value,
+      pieces: $('#calc-pieces').value,
       dirty: draftDirty,
       json: JSON.stringify(cleanRecipe(readCalc())),
       fields: []
     };
   }
   s.toG = toG;   // для смуги: поле ваги потім можуть змінити, а перерахували саме на цю
+  // Шматків — пропорційно, від вихідного числа: 6 капкейків на 570 г → 12 на 1,14 кг
+  var pcs = Math.round(num(s.pieces));
+  if (pcs >= 1) $('#calc-pieces').value = String(Math.max(1, Math.round(pcs * toG / s.fromG)));
   ingRows().forEach(function (tr) {
     scaleField(s, $('[data-f=qty]', tr), $('[data-f=unit]', tr).value, toG, fromG);
   });
@@ -1717,6 +1723,7 @@ function undoScale() {
     if (f.gtr) f.gtr.setAttribute('data-take', f.take);
   });
   $('#calc-outw').value = s.weight;
+  $('#calc-pieces').value = s.pieces;
   scaleSnap = null;
   recalc();
   if (JSON.stringify(cleanRecipe(readCalc())) === s.json) { draftDirty = s.dirty; updateSaveBtn(); }
@@ -3227,6 +3234,7 @@ function readCalc() {
     outWeight: calcOutWeight(),
     method: $('#calc-method-txt').value,
     laborHours: num($('#labor-inp').value),
+    pieces: Math.round(num($('#calc-pieces').value)),
     shelfLife: calcLabel.shelfLife,
     storage: calcLabel.storage,
     ing: ingRows().map(function (tr) {
@@ -3271,6 +3279,7 @@ function cleanRecipe(d) {
     outWeight: num(d.outWeight),
     method: String(d.method || '').trim(),
     laborHours: num(d.laborHours),
+    pieces: Math.round(num(d.pieces)),
     shelfLife: Math.round(num(d.shelfLife)),
     storage: typeof d.storage === 'string' ? d.storage.trim() : DEFAULT_STORAGE,
     ing: ing,
@@ -3315,6 +3324,14 @@ function paintReceipt(t, m) {
   var showNote = (S.round || 1) > 1 && t.price > 0;
   $('#r-note').hidden = !showNote;
   if (showNote) $('#r-round').textContent = moneyShort(t.round);
+
+  // Торт ріжуть на шматки, капкейки продають поштучно — ціна й собівартість одного
+  var pcs = Math.round(num($('#calc-pieces').value)), piece = $('#r-piece');
+  piece.hidden = !(pcs > 1 && t.price > 0);
+  if (!piece.hidden) {
+    piece.innerHTML = 'За 1 шт із ' + pcs + ' — <b>' + esc(money(t.price / pcs)) + '</b>' +
+      ' · собівартість ' + esc(money(t.cost / pcs));
+  }
 
   $$('#margin-quick button').forEach(function (b) {
     b.setAttribute('aria-pressed', num(b.getAttribute('data-m')) === num(m) ? 'true' : 'false');
@@ -3478,6 +3495,7 @@ function loadCalc(rec, crumb) {
   setPhoto(rec.photo || null);
   setMethod(rec.method);
   $('#labor-inp').value = num(rec.laborHours) ? qtyFmt(num(rec.laborHours)) : '';
+  $('#calc-pieces').value = num(rec.pieces) >= 1 ? String(Math.round(num(rec.pieces))) : '';
   calcLabel = {
     shelfLife: Math.round(num(rec.shelfLife)),
     storage: typeof rec.storage === 'string' ? rec.storage : DEFAULT_STORAGE
@@ -3761,6 +3779,12 @@ function bindCalc() {
   var ow = $('#calc-outw');
   ow.addEventListener('input', recalc);
   ow.addEventListener('blur', function () { ow.value = qtyFmt(num(ow.value)); });
+  // Шматки — цілі: «12», а не «12,5»; порожньо — виріб не ділиться
+  $('#calc-pieces').addEventListener('input', recalc);
+  $('#calc-pieces').addEventListener('blur', function () {
+    var n = Math.round(num(this.value));
+    this.value = n >= 1 ? String(n) : '';
+  });
 
   // Та сама кнопка й закриває панель — щоб не шукати «Скасувати»
   $('#btn-scale').addEventListener('click', function () {
@@ -4258,7 +4282,7 @@ function bindSave() {
       var rec = (idx > -1) ? old.recipes[idx] : { id: ed.recipeId };
       rec.name = d.name; rec.photo = d.photo; rec.margin = d.margin;
       rec.ing = d.ing; rec.exp = d.exp; rec.groups = d.groups; rec.outWeight = d.outWeight; rec.method = d.method;
-      rec.shelfLife = d.shelfLife; rec.storage = d.storage; rec.laborHours = d.laborHours;
+      rec.shelfLife = d.shelfLife; rec.storage = d.storage; rec.laborHours = d.laborHours; rec.pieces = d.pieces;
       if (old && old.id !== target.id && idx > -1) {   // перенесли в іншу папку
         old.recipes.splice(idx, 1);
         target.recipes.push(rec);
@@ -4268,7 +4292,7 @@ function bindSave() {
       S.ui.editing = { folderId: target.id, recipeId: rec.id };
       toast('Оновлено — папка «' + target.title + '»');
     } else {
-      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method, shelfLife: d.shelfLife, storage: d.storage, laborHours: d.laborHours };
+      var fresh = { id: uid('r'), name: d.name, photo: d.photo, margin: d.margin, ing: d.ing, exp: d.exp, groups: d.groups, outWeight: d.outWeight, method: d.method, shelfLife: d.shelfLife, storage: d.storage, laborHours: d.laborHours, pieces: d.pieces };
       target.recipes.push(fresh);
       S.ui.editing = { folderId: target.id, recipeId: fresh.id };
       toast('Збережено в папку «' + target.title + '»');
@@ -4411,6 +4435,10 @@ function buildPdfDoc(d, t) {
         : '') +
       '<div class="pdf-rule"></div>' +
       '<div class="pdf-price"><span class="l">ЦІНА ПРОДАЖУ</span><span class="v">' + money(t.price) + '</span></div>' +
+      (num(d.pieces) > 1
+        ? '<div class="pdf-line is-piece"><span>За 1 шт (із ' + Math.round(num(d.pieces)) + ')</span><span class="v">' +
+          money(t.price / Math.round(num(d.pieces))) + '</span></div>'
+        : '') +
       ((S.round || 1) > 1
         ? '<div class="pdf-note">До прайсу зручно округлити вгору до ' + moneyShort(t.round) + '</div>'
         : '') +
