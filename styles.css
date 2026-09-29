@@ -795,7 +795,7 @@ html:not(.labor-on) .labor-only { display: none; }
 .margin-field #labor-inp { padding-right: 40px; }
 /* Дві класи, а не одна: .margin-field нижче у файлі перебивав би ширину */
 .margin-field.set-rate { flex: 0 0 auto; width: 140px; }
-.margin-field.set-rate .inp { padding-right: 62px; }
+.margin-field.set-rate .inp { padding-right: 68px; }   /* «zł/год» — найдовша одиниця */
 .panel-margin .h2 { margin-bottom: 14px; }
 .margin-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 /* 118px: «824,29» чи «122,259» після «Поставити» мають влазити цілком — у 96px
