@@ -373,13 +373,18 @@ function readStore() {
 
 var saveTimer = null;
 var storageFailed = false;   // сховище переповнене або недоступне
+var lastSaved = null;        // що саме ця копія востаннє записала — щоб упізнати чужий запис
+var handingOver = false;     // інша копія записала новіше — ця перезавантажується й більше не пише
 
 function persist(now) {
   clearTimeout(saveTimer);
+  if (handingOver) return;
   if (!now) { saveTimer = setTimeout(function () { persist(true); }, 300); return; }
   var failed = false;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(S));
+    var json = JSON.stringify(S);
+    localStorage.setItem(STORE_KEY, json);
+    lastSaved = json;   // лише після вдалого запису: невдалий не має виглядати «чужим»
   } catch (e) {
     // Переповнене сховище або приватний режим. Промовчати не можна: користувач
     // вважає, що дані на диску, а їх там немає — і втратить усе при закритті.
@@ -6480,11 +6485,34 @@ function bindGlobal() {
 
   // Не даємо зайвий раз втратити незбережену роботу
   window.addEventListener('beforeunload', function (e) {
+    if (handingOver) return;   // перезавантажуємось заради новіших даних — питати нема про що
     persist(true);   // запис відкладений на 300 мс — при перезавантаженні дописуємо одразу
     if (!calcUnsaved()) return;
     e.preventDefault();
     e.returnValue = '';
   });
+
+  /* Дві відкриті копії — застосунок на телефоні й вкладка браузера — ділять
+     сховище, але кожна тримає дані в памʼяті й пише їх цілком. Без цього
+     стара вкладка записала б свою копію поверх: зміна теми «відкочувалась»,
+     а доданий продукт міг би зникнути. Інша копія записала новіше —
+     перечитуємо з нуля, нічого свого не дописуючи. */
+  window.addEventListener('storage', function (e) {
+    if (e.key === STORE_KEY && e.newValue && e.newValue !== lastSaved) takeOver();
+  });
+  // Подія могла не дійти (застосунок спав у фоні) — звіряємось, коли повертаються
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || handingOver) return;
+    var stored = null;
+    try { stored = localStorage.getItem(STORE_KEY); } catch (err) { return; }
+    if (stored && lastSaved && stored !== lastSaved) takeOver();
+  });
+}
+
+function takeOver() {
+  handingOver = true;
+  clearTimeout(saveTimer);
+  location.reload();
 }
 
 /* ═════════════════ 18. Старт ═════════════════ */
