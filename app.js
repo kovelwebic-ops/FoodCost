@@ -179,9 +179,6 @@ function emptyState() {
 
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', S.theme === 'dark' ? 'dark' : 'light');
-  // Статус-бар встановленого застосунку — під фон теми, а не білою смугою над темним екраном
-  var tc = $('meta[name="theme-color"]');
-  if (tc) tc.setAttribute('content', S.theme === 'dark' ? '#16150f' : '#f4f1ec');
   $$('#seg-theme button').forEach(function (b) {
     b.setAttribute('aria-pressed', b.getAttribute('data-theme-val') === S.theme ? 'true' : 'false');
   });
@@ -373,18 +370,13 @@ function readStore() {
 
 var saveTimer = null;
 var storageFailed = false;   // сховище переповнене або недоступне
-var lastSaved = null;        // що саме ця копія востаннє записала — щоб упізнати чужий запис
-var handingOver = false;     // інша копія записала новіше — ця перезавантажується й більше не пише
 
 function persist(now) {
   clearTimeout(saveTimer);
-  if (handingOver) return;
   if (!now) { saveTimer = setTimeout(function () { persist(true); }, 300); return; }
   var failed = false;
   try {
-    var json = JSON.stringify(S);
-    localStorage.setItem(STORE_KEY, json);
-    lastSaved = json;   // лише після вдалого запису: невдалий не має виглядати «чужим»
+    localStorage.setItem(STORE_KEY, JSON.stringify(S));
   } catch (e) {
     // Переповнене сховище або приватний режим. Промовчати не можна: користувач
     // вважає, що дані на диску, а їх там немає — і втратить усе при закритті.
@@ -6246,65 +6238,6 @@ function applyCurrency() {
   $('#goal-unit').textContent = S.currency;
 }
 
-/* ── Застосунок на телефон (PWA) ──────────────────────────────
-   Офлайн дає sw.js. Кнопку «Встановити» показуємо лише там, де браузер
-   дозволяє її викликати (подія beforeinstallprompt: Android, Chrome на
-   компʼютері). iPhone такої кнопки сайтам не дає — там підказка, як додати
-   вручну через «Поділитися». */
-
-var installPrompt = null;   // відкладена beforeinstallprompt: є — можна показати «Встановити»
-
-function isStandalone() {
-  return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
-}
-
-/** iPad із iPadOS 13+ прикидається Mac — впізнаємо за дотиком. */
-function isIOS() {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function paintInstall() {
-  var btn = $('#btn-install'), desc = $('#install-desc');
-  btn.hidden = !installPrompt || isStandalone();
-  desc.textContent = isStandalone()
-    ? 'FoodCost уже встановлено — відкривайте з іконки на головному екрані. Працює й без інтернету.'
-    : installPrompt
-      ? 'Іконка на головному екрані, відкривається без адресного рядка й працює без інтернету.'
-      : isIOS()
-        ? 'У Safari натисніть «Поділитися» (квадрат зі стрілкою) → «На початковий екран». FoodCost відкриватиметься з іконки, без адресного рядка й без інтернету.'
-        : 'У меню браузера оберіть «Встановити застосунок» або «Додати на головний екран» — FoodCost відкриватиметься з іконки й без інтернету.';
-}
-
-function registerWorker() {
-  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
-  navigator.serviceWorker.register('sw.js')['catch'](function () { /* без офлайну, але сайт працює */ });
-}
-
-function bindInstall() {
-  window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault();   // свою смужку браузера не показуємо — є кнопка в налаштуваннях
-    installPrompt = e;
-    paintInstall();
-  });
-  window.addEventListener('appinstalled', function () {
-    installPrompt = null;
-    paintInstall();
-    toast('FoodCost встановлено — шукайте іконку на головному екрані');
-  });
-  $('#btn-install').addEventListener('click', function () {
-    var p = installPrompt;
-    if (!p) return;
-    installPrompt = null;   // подію можна використати лише раз
-    p.prompt();
-    p.userChoice.then(paintInstall, paintInstall);
-  });
-  // Воркер — уже після показу сторінки: перший запуск не має чекати на кешування
-  if (document.readyState === 'complete') registerWorker();
-  else window.addEventListener('load', registerWorker);
-  paintInstall();
-}
-
 /** Після зміни валюти/округлення перемальовуємо все, де є гроші. */
 function repaintMoney() {
   applyCurrency();
@@ -6485,34 +6418,11 @@ function bindGlobal() {
 
   // Не даємо зайвий раз втратити незбережену роботу
   window.addEventListener('beforeunload', function (e) {
-    if (handingOver) return;   // перезавантажуємось заради новіших даних — питати нема про що
     persist(true);   // запис відкладений на 300 мс — при перезавантаженні дописуємо одразу
     if (!calcUnsaved()) return;
     e.preventDefault();
     e.returnValue = '';
   });
-
-  /* Дві відкриті копії — застосунок на телефоні й вкладка браузера — ділять
-     сховище, але кожна тримає дані в памʼяті й пише їх цілком. Без цього
-     стара вкладка записала б свою копію поверх: зміна теми «відкочувалась»,
-     а доданий продукт міг би зникнути. Інша копія записала новіше —
-     перечитуємо з нуля, нічого свого не дописуючи. */
-  window.addEventListener('storage', function (e) {
-    if (e.key === STORE_KEY && e.newValue && e.newValue !== lastSaved) takeOver();
-  });
-  // Подія могла не дійти (застосунок спав у фоні) — звіряємось, коли повертаються
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState !== 'visible' || handingOver) return;
-    var stored = null;
-    try { stored = localStorage.getItem(STORE_KEY); } catch (err) { return; }
-    if (stored && lastSaved && stored !== lastSaved) takeOver();
-  });
-}
-
-function takeOver() {
-  handingOver = true;
-  clearTimeout(saveTimer);
-  location.reload();
 }
 
 /* ═════════════════ 18. Старт ═════════════════ */
@@ -6594,7 +6504,6 @@ function init() {
   bindSettings();
   bindInvite();
   bindBackup();
-  bindInstall();
 
   // Відновлення екрана на старті — не новий крок: інакше перше «Назад»
   // вело б на той самий екран, а друге вже з сайту
