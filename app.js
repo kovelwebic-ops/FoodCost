@@ -179,6 +179,9 @@ function emptyState() {
 
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', S.theme === 'dark' ? 'dark' : 'light');
+  // Статус-бар встановленого застосунку — під фон теми, а не білою смугою над темним екраном
+  var tc = $('meta[name="theme-color"]');
+  if (tc) tc.setAttribute('content', S.theme === 'dark' ? '#16150f' : '#f4f1ec');
   $$('#seg-theme button').forEach(function (b) {
     b.setAttribute('aria-pressed', b.getAttribute('data-theme-val') === S.theme ? 'true' : 'false');
   });
@@ -6238,6 +6241,65 @@ function applyCurrency() {
   $('#goal-unit').textContent = S.currency;
 }
 
+/* ── Застосунок на телефон (PWA) ──────────────────────────────
+   Офлайн дає sw.js. Кнопку «Встановити» показуємо лише там, де браузер
+   дозволяє її викликати (подія beforeinstallprompt: Android, Chrome на
+   компʼютері). iPhone такої кнопки сайтам не дає — там підказка, як додати
+   вручну через «Поділитися». */
+
+var installPrompt = null;   // відкладена beforeinstallprompt: є — можна показати «Встановити»
+
+function isStandalone() {
+  return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+}
+
+/** iPad із iPadOS 13+ прикидається Mac — впізнаємо за дотиком. */
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function paintInstall() {
+  var btn = $('#btn-install'), desc = $('#install-desc');
+  btn.hidden = !installPrompt || isStandalone();
+  desc.textContent = isStandalone()
+    ? 'FoodCost уже встановлено — відкривайте з іконки на головному екрані. Працює й без інтернету.'
+    : installPrompt
+      ? 'Іконка на головному екрані, відкривається без адресного рядка й працює без інтернету.'
+      : isIOS()
+        ? 'У Safari натисніть «Поділитися» (квадрат зі стрілкою) → «На початковий екран». FoodCost відкриватиметься з іконки, без адресного рядка й без інтернету.'
+        : 'У меню браузера оберіть «Встановити застосунок» або «Додати на головний екран» — FoodCost відкриватиметься з іконки й без інтернету.';
+}
+
+function registerWorker() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  navigator.serviceWorker.register('sw.js')['catch'](function () { /* без офлайну, але сайт працює */ });
+}
+
+function bindInstall() {
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();   // свою смужку браузера не показуємо — є кнопка в налаштуваннях
+    installPrompt = e;
+    paintInstall();
+  });
+  window.addEventListener('appinstalled', function () {
+    installPrompt = null;
+    paintInstall();
+    toast('FoodCost встановлено — шукайте іконку на головному екрані');
+  });
+  $('#btn-install').addEventListener('click', function () {
+    var p = installPrompt;
+    if (!p) return;
+    installPrompt = null;   // подію можна використати лише раз
+    p.prompt();
+    p.userChoice.then(paintInstall, paintInstall);
+  });
+  // Воркер — уже після показу сторінки: перший запуск не має чекати на кешування
+  if (document.readyState === 'complete') registerWorker();
+  else window.addEventListener('load', registerWorker);
+  paintInstall();
+}
+
 /** Після зміни валюти/округлення перемальовуємо все, де є гроші. */
 function repaintMoney() {
   applyCurrency();
@@ -6504,6 +6566,7 @@ function init() {
   bindSettings();
   bindInvite();
   bindBackup();
+  bindInstall();
 
   // Відновлення екрана на старті — не новий крок: інакше перше «Назад»
   // вело б на той самий екран, а друге вже з сайту

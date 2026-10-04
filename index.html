@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FoodCost</title>
+<!-- Застосунок на телефон (PWA): іконка на головному екрані, без адресного рядка, офлайн.
+     theme-color — під фон теми; при перемиканні теми його міняє applyTheme() -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f4f1ec">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FoodCost">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -705,6 +715,18 @@
           <button data-theme-val="dark" aria-pressed="false">Темна</button>
         </div>
       </div>
+      <!-- Встановлення як застосунку. Кнопка — лише там, де браузер дає її викликати
+           (Android, Chrome на компʼютері); на iPhone — підказка, як додати вручну;
+           уже встановлений — просто про це сказати. Текст ставить paintInstall() -->
+      <div class="set-row" id="install-row">
+        <div class="set-row-txt">
+          <span class="h2">Застосунок на телефон</span>
+          <span class="set-row-desc" id="install-desc">Іконка на головному екрані, відкривається без адресного рядка й працює без інтернету.</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-soft" id="btn-install" hidden>Встановити</button>
+        </div>
+      </div>
       <div class="set-row">
         <div class="set-row-txt">
           <span class="h2">Резервна копія</span>
@@ -840,6 +862,16 @@
         </ul>
         <p>Список згрупований за датою здачі, прострочені позначені червоним. Коли замовлення віддали, натисніть «Виконано» — воно переїде у вкладку «Виконані». У PDF замовлення не потрапляють.</p>
         <p>«Підсумки» — цифри за тиждень, місяць чи рік (за датою здачі): скільки виконано замовлень, виручка, прибуток і середній чек, а ще стовпчики виручки й що замовляли найчастіше. Стрілки ‹ › гортають періоди, клік по стовпчику місяця відкриває цей місяць. Прибуток рахується за собівартістю калькуляції з такою ж назвою, тож позиції, вписані вручну, у нього не входять. Ще не виконані замовлення показані окремо — «ще заплановано».</p>
+      </article>
+
+      <article class="panel help-sec">
+        <h2 class="h2">Застосунок на телефон</h2>
+        <p>FoodCost можна поставити на головний екран — він відкриватиметься з іконки, як звичайний застосунок, без адресного рядка, і працюватиме без інтернету.</p>
+        <ul>
+          <li><b>Android</b> — у Налаштуваннях кнопка «Встановити» (або в меню Chrome — «Додати на головний екран»).</li>
+          <li><b>iPhone</b> — у Safari «Поділитися» (квадрат зі стрілкою) → «На початковий екран».</li>
+        </ul>
+        <p>Без інтернету працює все, крім пошуку за штрихкодом. PDF і JPG офлайн — після того, як хоч раз експортували з інтернетом.</p>
       </article>
 
       <article class="panel help-sec">
