@@ -6836,10 +6836,8 @@ function boot(fresh) {
 function init() {
   toastEl = $('#toast');
   var firstRun = onbFirstRun();   // до readStore і persist: після них дані вже лежать у сховищі
-  var stored = readStore();
-  S = normalize(stored || seed());
-  // Новачкові — тема як у системі; у майстрі її одразу видно, і змінити можна там же
-  if (firstRun && !stored && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) S.theme = 'dark';
+  // Новачок починає зі світлої теми (рішення власника 07.10) — темну вибирає в майстрі сам
+  S = normalize(readStore() || seed());
 
   bindGlobal();
   bindMenu();

@@ -30,23 +30,25 @@
 }
 
 html[data-theme="dark"] {
-  --bg: #16150f; --side: #1c1b17; --side-hov: #26241f;
-  --panel: #201f1b; --panel-2: #1b1a16; --row-hov: #262420; --seg-bg: #191814;
-  --line: #302d28; --line-2: #322f29; --line-soft: #2b2924; --line-faint: #272521;
-  --dash: #3f3c35; --edge: #3f3c35; --edge-2: #575349;
-  --fg: #f0ede6; --fg-2: #c0bbb1; --fg-3: #a5a097;
-  --muted: #8d887f; --muted-2: #7e7970; --dim: #6b665e;
+  /* Нейтральний графіт без жовтизни: попередня темна читалась як темно-коричнева.
+     Шари світлішають знизу вгору — тло, меню, картки, поля; текст трохи яскравіший */
+  --bg: #121314; --side: #17181a; --side-hov: #222327;
+  --panel: #1c1d20; --panel-2: #18191b; --row-hov: #232428; --seg-bg: #151618;
+  --line: #2c2e32; --line-2: #313338; --line-soft: #27292c; --line-faint: #222427;
+  --dash: #3e4146; --edge: #3e4146; --edge-2: #575b61;
+  --fg: #eeeff1; --fg-2: #c6c8cc; --fg-3: #a8abb0;
+  --muted: #8e9298; --muted-2: #7f8389; --dim: #64686e;
   /* Forest Code на темному тлі майже зливається — той самий зелений, але світліший */
-  --accent: #3fa680; --accent-2: #63c79c; --accent-soft: #0f2a21; --on-accent: #04231a;
-  --danger: #cc7c6c; --danger-soft: #33211d; --on-danger: #1b1310;
-  --field: #26241f;
-  --ink: #0e0d0b; --ink-fg: #f0ede6;
-  --desk: #100f0d; --thumb: #2a2823;
-  --thumb-ink: rgba(240,237,230,.22); --thumb-ink-2: rgba(240,237,230,.32);
-  --thumb-stripe: rgba(240,237,230,.04); --thumb-btn: rgba(32,31,27,.7);
-  --focus: rgba(63,166,128,.22); --overlay: rgba(8,7,6,.62);
+  --accent: #3fa680; --accent-2: #63c79c; --accent-soft: #11271f; --on-accent: #04231a;
+  --danger: #d4806f; --danger-soft: #2f1f1c; --on-danger: #1b1310;
+  --field: #24262a;
+  --ink: #0b0c0d; --ink-fg: #eeeff1;
+  --desk: #0e0f10; --thumb: #26282b;
+  --thumb-ink: rgba(238,239,241,.22); --thumb-ink-2: rgba(238,239,241,.32);
+  --thumb-stripe: rgba(238,239,241,.04); --thumb-btn: rgba(28,29,32,.7);
+  --focus: rgba(63,166,128,.22); --overlay: rgba(5,6,7,.62);
   --card-shadow: rgba(0,0,0,.5); --modal-shadow: rgba(0,0,0,.6); --nav-shadow: rgba(0,0,0,.25);
-  --nav-active: #262420;
+  --nav-active: #24262a;
 }
 
 /* ═════════════════ База ═════════════════ */
@@ -1116,9 +1118,9 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .is-light .onb-swatch i:nth-child(1) { background: #edeae3; }
 .is-light .onb-swatch i:nth-child(2) { background: #fffdfa; box-shadow: 0 0 0 1px #e4dfd6; }
 .is-light .onb-swatch i:nth-child(3) { background: #075e46; }
-.is-dark .onb-swatch { background: #16150f; box-shadow: inset 0 0 0 1px #302d28; }
-.is-dark .onb-swatch i:nth-child(1) { background: #1c1b17; }
-.is-dark .onb-swatch i:nth-child(2) { background: #201f1b; box-shadow: 0 0 0 1px #302d28; }
+.is-dark .onb-swatch { background: #121314; box-shadow: inset 0 0 0 1px #2c2e32; }
+.is-dark .onb-swatch i:nth-child(1) { background: #17181a; }
+.is-dark .onb-swatch i:nth-child(2) { background: #1c1d20; box-shadow: 0 0 0 1px #2c2e32; }
 .is-dark .onb-swatch i:nth-child(3) { background: #3fa680; }
 
 .onb-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
