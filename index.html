@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=202610042008">
+<link rel="stylesheet" href="styles.css?v=202610071448">
 </head>
 <body>
 
@@ -627,7 +627,7 @@
       <p class="lede">Діють на весь застосунок одразу.</p>
       <!-- Версія: 0 до кінця бета-тесту, далі день.місяць випуску (0.28.9 = 28 вересня).
            Оновлювати при кожному пуші на сайт — її ж пишемо у звіті тестувальникам -->
-      <p class="app-ver"><span>FoodCost BETA 0.4.10</span><i> · </i><span>Група тестувальників <a href="https://t.me/FoodCost_TEST" target="_blank" rel="noopener">@FoodCost_TEST</a></span><i> · </i><span>Правки й побажання — автору <a href="https://t.me/kovelwebic" target="_blank" rel="noopener">@kovelwebic</a></span></p>
+      <p class="app-ver"><span>FoodCost BETA 0.7.10</span><i> · </i><span>Група тестувальників <a href="https://t.me/FoodCost_TEST" target="_blank" rel="noopener">@FoodCost_TEST</a></span><i> · </i><span>Правки й побажання — автору <a href="https://t.me/kovelwebic" target="_blank" rel="noopener">@kovelwebic</a></span></p>
     </div>
     <div class="panel">
       <div class="set-row">
@@ -739,6 +739,12 @@
     </div>
 
     <div class="help">
+      <article class="panel help-sec help-tour">
+        <h2 class="h2">Навчання</h2>
+        <p>Коротка екскурсія програмою: що де лежить і з чого почати. Вісім кроків — хвилина часу.</p>
+        <button class="btn btn-soft" id="btn-tour">Пройти навчання</button>
+      </article>
+
       <article class="panel help-sec">
         <span class="help-step">Крок 1</span>
         <h2 class="h2">База продуктів</h2>
@@ -947,6 +953,124 @@
   </div>
 </div>
 
+<!-- Знайомство: майстер налаштувань при найпершому вході на пристрої (fc:onboard:v1).
+     Вибране застосовується одразу; «Пропустити» лишає все як є. Наприкінці — навчання -->
+<div class="overlay" id="onb-overlay">
+  <div class="modal modal-onb" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+    <div class="onb-top">
+      <span class="onb-dots" id="onb-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <button class="link-btn" id="onb-skip">Пропустити</button>
+    </div>
+
+    <div class="onb-step" data-step="0">
+      <div class="modal-title" id="onb-title">Вітаємо у FoodCost!</div>
+      <div class="modal-sub">Налаштуймо програму під вас — це хвилина. Усе можна змінити потім у «Налаштуваннях».</div>
+      <div class="onb-label">Тема</div>
+      <div class="onb-cards">
+        <button class="onb-card is-light" data-onb-theme="light" aria-pressed="true">
+          <span class="onb-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+          <b>Світла</b>
+        </button>
+        <button class="onb-card is-dark" data-onb-theme="dark" aria-pressed="false">
+          <span class="onb-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+          <b>Темна</b>
+        </button>
+      </div>
+    </div>
+
+    <div class="onb-step" data-step="1" hidden>
+      <div class="modal-title">Валюта й ціна</div>
+      <div class="modal-sub">У чому рахуєте і чи підказувати круглу ціну для прайсу.</div>
+      <div class="onb-label">Валюта</div>
+      <div class="seg onb-seg">
+        <button data-onb-cur="₴" aria-pressed="true">₴</button>
+        <button data-onb-cur="zł" aria-pressed="false">zł</button>
+        <button data-onb-cur="$" aria-pressed="false">$</button>
+        <button data-onb-cur="€" aria-pressed="false">€</button>
+      </div>
+      <div class="onb-label">Округлення ціни</div>
+      <div class="seg onb-seg">
+        <button data-onb-round="1" aria-pressed="false">Без</button>
+        <button data-onb-round="5" aria-pressed="true">До 5</button>
+        <button data-onb-round="10" aria-pressed="false">До 10</button>
+      </div>
+      <p class="onb-note" id="onb-round-note"></p>
+    </div>
+
+    <div class="onb-step" data-step="2" hidden>
+      <div class="modal-title">Що рахувати</div>
+      <div class="modal-sub">Увімкніть потрібне. Вимкнете потім — записане нікуди не зникне.</div>
+      <div class="onb-opts">
+        <button class="onb-opt" data-onb-feat="nut" role="switch" aria-checked="false">
+          <span class="onb-opt-txt"><b>КБЖУ та алергени</b><span>Харчова цінність і алергени — для етикеток і клієнтів</span></span>
+          <span class="onb-switch" aria-hidden="true"></span>
+        </button>
+        <button class="onb-opt" data-onb-feat="orders" role="switch" aria-checked="false">
+          <span class="onb-opt-txt"><b>Замовлення</b><span>Клієнти, дати здачі, передоплата й підсумки за місяць</span></span>
+          <span class="onb-switch" aria-hidden="true"></span>
+        </button>
+        <button class="onb-opt" data-onb-feat="method" role="switch" aria-checked="true">
+          <span class="onb-opt-txt"><b>Рецепт</b><span>Текст приготування в калькуляції — бачите лише ви</span></span>
+          <span class="onb-switch" aria-hidden="true"></span>
+        </button>
+        <label class="onb-opt is-rate">
+          <span class="onb-opt-txt"><b>Оплата праці</b><span>Ставка за годину. Порожньо — працю не рахувати</span></span>
+          <span class="margin-field set-rate">
+            <input class="inp is-num" id="onb-labor" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Ставка за годину">
+            <span class="suffix" id="onb-labor-unit">₴/год</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="onb-step" data-step="3" hidden>
+      <div class="modal-title">З чого почнемо?</div>
+      <div class="onb-cards is-col">
+        <button class="onb-card" data-onb-start="demo" aria-pressed="true">
+          <b>Подивитись на прикладі</b>
+          <span class="onb-card-desc">Шість готових калькуляцій з фото, заповнена база продуктів і замовлення. Коли розберетесь — «Очистити все» в Налаштуваннях.</span>
+        </button>
+        <button class="onb-card" data-onb-start="empty" aria-pressed="false">
+          <b>Почати з чистого аркуша</b>
+          <span class="onb-card-desc">Порожня база — одразу вносите свої продукти й рецепти.</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="onb-step" data-step="4" hidden>
+      <div class="modal-title">Готово!</div>
+      <div class="modal-sub">Показати за хвилину, де що лежить і з чого почати? Навчання завжди можна пройти ще раз з «Інструкції».</div>
+      <div class="invite-acts">
+        <button class="btn btn-primary" id="onb-tour">Показати навчання</button>
+        <button class="btn btn-ghost" id="onb-self">Почати самостійно</button>
+      </div>
+    </div>
+
+    <div class="modal-foot onb-foot" id="onb-foot">
+      <button class="btn btn-ghost" id="onb-back">Назад</button>
+      <button class="btn btn-primary" id="onb-next">Далі</button>
+    </div>
+  </div>
+</div>
+
+<!-- Навчання: підсвічує частину екрана й пояснює її. Шар ловить усі кліки —
+     поки йде навчання, випадково щось змінити на сторінці не вийде -->
+<div class="tour" id="tour" hidden>
+  <div class="tour-hole" id="tour-hole"></div>
+  <div class="tour-tip" id="tour-tip" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+    <span class="tour-n" id="tour-n"></span>
+    <div class="tour-title" id="tour-title"></div>
+    <p class="tour-text" id="tour-text"></p>
+    <div class="tour-foot">
+      <button class="link-btn" id="tour-skip">Пропустити</button>
+      <span class="btn-row">
+        <button class="btn" id="tour-back">Назад</button>
+        <button class="btn btn-primary" id="tour-next">Далі</button>
+      </span>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- Етикетка на коробку: формат друку, термін і умови зберігання, прев'ю наліпки -->
@@ -1025,6 +1149,6 @@
 <datalist id="dl-recipes"></datalist>
 <datalist id="dl-clients"></datalist>
 
-<script src="app.js?v=202610042008"></script>
+<script src="app.js?v=202610071448"></script>
 </body>
 </html>

@@ -10,6 +10,8 @@
 var STORE_KEY = 'fc:state:v1';
 /* Окремо від стану: «Скинути дані» чи відновлення з файла не мають повертати запрошення */
 var INVITE_KEY = 'fc:invite:v1';
+/* Так само окремо: майстер знайомства пройдено (чи пропущено) на цьому пристрої */
+var ONBOARD_KEY = 'fc:onboard:v1';
 var UNITS = ['г', 'мл', 'шт'];
 var CURRENCIES = ['₴', 'zł', '$', '€'];
 
@@ -1945,6 +1947,351 @@ function bindInvite() {
   // «Приєднатись» — звичайне посилання в нову вкладку, тут лише закриваємо вікно
   $('#invite-join').addEventListener('click', closeInvite);
   $('#invite-skip').addEventListener('click', closeInvite);
+}
+
+/* ── Знайомство: майстер налаштувань ───────────────────────────
+   Лише при найпершому вході на пристрої — коли даних ще немає зовсім.
+   Вибране застосовується одразу (тему видно наживо), «Пропустити» лишає
+   все як є. Позначка — окремий ключ, як у запрошення: скидання даних чи
+   відновлення з файла майстер не повертають. Далі — навчання, якщо
+   захотіли, і вже потім запрошення в групу. */
+
+var ONB_LAST = 4;          // останній крок — «Готово!» з пропозицією навчання
+var onbStep = 0;
+var onbStart = 'demo';     // вибране в «З чого почнемо?»
+var onbLoaded = 'demo';    // що зараз лежить у S: перший запуск завжди засіяний демо
+
+/**
+ * Перший вхід: у сховищі ні даних, ні позначки. Або майстер відкривали, а
+ * сторінку оновили посеред нього (позначка 'open:…') — тоді показуємо знову.
+ * Сховища немає — не показуємо, інакше майстер був би щоразу.
+ */
+function onbFirstRun() {
+  try {
+    var mark = localStorage.getItem(ONBOARD_KEY);
+    return /^open/.test(mark || '') || (!mark && !localStorage.getItem(STORE_KEY));
+  } catch (e) { return false; }
+}
+
+/**
+ * Відбиток лише даних (не налаштувань): майстер замінює дані на кроці «З чого
+ * почнемо?» — і має право на це, тільки поки вони рівно ті, що він сам поклав.
+ */
+function onbHash() { return strHash(JSON.stringify([S.products, S.expenseBase, S.preps, S.folders, S.orders])); }
+
+/**
+ * Майстер повертається після оновлення сторінки лише над своїми ж даними.
+ * Якщо в них уже щось змінилось (позначка «пройдено» колись не записалась, а
+ * людина встигла попрацювати) — вважаємо знайомство пройденим: інакше
+ * «Почати з чистого аркуша» стерло б її роботу.
+ */
+function onbResumable() {
+  var mark = null;
+  try { mark = localStorage.getItem(ONBOARD_KEY); } catch (e) { return false; }
+  if (!mark) return true;   // зовсім новий вхід — дані щойно засіяні
+  if (mark === 'open:' + onbHash()) return true;
+  onbMark('1');
+  return false;
+}
+
+function onbMark(v) {
+  try { localStorage.setItem(ONBOARD_KEY, v); } catch (e) { /* не записалось — onbResumable не дасть майстру зачепити дані */ }
+}
+
+/** Налаштування, а не дані: лишаються при «Очистити все» і при виборі старту в майстрі. */
+function settingsOf(s) {
+  return { currency: s.currency, round: s.round, theme: s.theme, showNutrition: s.showNutrition, showOrders: s.showOrders,
+           showMethod: s.showMethod, labelFormat: s.labelFormat, laborRate: s.laborRate };
+}
+
+function setPressed(attr, val) {
+  $$('[' + attr + ']').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute(attr) === val ? 'true' : 'false'); });
+}
+
+function openOnboard() {
+  onbMark('open:' + onbHash());
+  // Після оновлення посеред майстра в S може лежати вже порожній старт
+  onbLoaded = onbStart = S.products.length || S.folders.length ? 'demo' : 'empty';
+  onbStep = 0;
+  paintOnb();
+  $('#onb-overlay').classList.add('is-on');
+}
+
+function paintOnb() {
+  $$('#onb-overlay .onb-step').forEach(function (s) { s.hidden = +s.getAttribute('data-step') !== onbStep; });
+  $$('#onb-dots i').forEach(function (d, i) { d.className = i === onbStep ? 'is-on' : (i < onbStep ? 'is-past' : ''); });
+  $('#onb-back').style.visibility = onbStep ? '' : 'hidden';
+  $('#onb-foot').hidden = $('#onb-skip').hidden = onbStep === ONB_LAST;
+
+  setPressed('data-onb-theme', S.theme);
+  setPressed('data-onb-cur', S.currency);
+  setPressed('data-onb-round', String(S.round));
+  setPressed('data-onb-start', onbStart);
+  var on = { nut: S.showNutrition, orders: S.showOrders, method: S.showMethod };
+  $$('[data-onb-feat]').forEach(function (b) {
+    b.setAttribute('aria-checked', on[b.getAttribute('data-onb-feat')] ? 'true' : 'false');
+  });
+  var f = $('#onb-labor');
+  if (document.activeElement !== f) f.value = S.laborRate ? qtyFmt(S.laborRate) : '';
+  $('#onb-labor-unit').textContent = S.currency + '/год';
+  // Приклад на живих числах: що саме дасть вибране округлення
+  $('#onb-round-note').textContent = S.round > 1
+    ? 'У підсумку калькуляції: ' + money(483.3) + ' — «до прайсу зручно округлити вгору до ' + moneyShort(Math.ceil(483.3 / S.round) * S.round) + '».'
+    : 'Ціна лишається до копійки: ' + money(483.3) + ', без підказки.';
+}
+
+function onbGo(step) {
+  if (onbStep === 3 && step === 4) onbApplyStart();
+  onbStep = Math.max(0, Math.min(step, ONB_LAST));
+  paintOnb();
+  setTimeout(function () { (onbStep === ONB_LAST ? $('#onb-tour') : $('#onb-next')).focus(); }, 30);
+}
+
+/** «З чого почнемо?»: демо вже засіяне при першому запуску, порожнє — замість нього. Налаштування з майстра лишаються. */
+function onbApplyStart() {
+  if (onbStart === onbLoaded) return;
+  // Друга лінія захисту: дані не ті, що клав майстер, — не чіпаємо їх ні за що
+  var mark = null;
+  try { mark = localStorage.getItem(ONBOARD_KEY); } catch (e) { /* нижче */ }
+  if (mark !== 'open:' + onbHash()) return;
+  var keep = settingsOf(S);
+  S = normalize(onbStart === 'empty' ? emptyState() : seed());
+  Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
+  S.nutAsked = true;   // про КБЖУ людина вже вирішила в майстрі — пропозиція в базі зайва
+  onbLoaded = onbStart;
+  draftDirty = false;
+  boot(true);
+  persist(true);
+  markBackup();
+  onbMark('open:' + onbHash());   // тепер «своє» — новий старт
+}
+
+function finishOnboard(tour) {
+  onbMark('1');
+  $('#onb-overlay').classList.remove('is-on');
+  persist(true);
+  if (tour) startTour(maybeShowInvite); else maybeShowInvite();
+}
+
+function bindOnboard() {
+  $('#onb-overlay').addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-onb-theme]'))) {
+      S.theme = b.getAttribute('data-onb-theme');
+      applyTheme();
+    } else if ((b = e.target.closest('[data-onb-cur]'))) {
+      S.currency = b.getAttribute('data-onb-cur');
+      repaintMoney();
+    } else if ((b = e.target.closest('[data-onb-round]'))) {
+      S.round = +b.getAttribute('data-onb-round');
+      repaintMoney();
+    } else if ((b = e.target.closest('[data-onb-feat]'))) {
+      var k = b.getAttribute('data-onb-feat');
+      if (k === 'nut') {
+        S.showNutrition = !S.showNutrition;
+        S.nutAsked = true;
+        applyNutrition();
+        paintNutOffer();
+        repaintNutPanels();
+      }
+      if (k === 'orders') { S.showOrders = !S.showOrders; applyOrders(); }
+      if (k === 'method') { S.showMethod = !S.showMethod; applyMethod(); }
+    } else if ((b = e.target.closest('[data-onb-start]'))) {
+      onbStart = b.getAttribute('data-onb-start');
+    } else {
+      return;
+    }
+    paintOnb();
+    persist();
+  });
+  $('#onb-labor').addEventListener('input', function () {
+    S.laborRate = num(this.value);
+    applyLabor();
+    persist();
+  });
+  $('#onb-labor').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); onbGo(onbStep + 1); }
+  });
+  $('#onb-next').addEventListener('click', function () { onbGo(onbStep + 1); });
+  $('#onb-back').addEventListener('click', function () { onbGo(onbStep - 1); });
+  $('#onb-skip').addEventListener('click', function () { finishOnboard(false); });
+  $('#onb-tour').addEventListener('click', function () { finishOnboard(true); });
+  $('#onb-self').addEventListener('click', function () { finishOnboard(false); });
+}
+
+/* ── Навчання ──────────────────────────────────────────────────
+   Екскурсія живим застосунком, як у Canva: відкриває потрібний екран і
+   підсвічує на ньому одне місце з поясненням. Шар навчання ловить усі
+   кліки — випадково щось змінити не вийде. Історію браузера не засмічує:
+   кроки йдуть замість поточного запису. Запускається після майстра
+   й кнопкою «Пройти навчання» в «Інструкції». */
+
+/** Телефонна розкладка: меню сховане в шухляді, на виду лише бургер. */
+function phoneNav() { return getComputedStyle($('.topbar')).display !== 'none'; }
+
+function tourScreen(id) {
+  if (S.ui.screen === id) return;
+  if (id === 'base') renderBase();
+  if (id === 'expbase') renderExpBase();
+  if (id === 'prep') renderPreps();
+  show(id);
+}
+
+/** Калькуляція для показу: перша збережена з продуктами (у демо — «Снікерс»), інакше порожня нова. */
+function tourCalc() {
+  if (S.ui.screen === 'calc') return;
+  for (var i = 0; i < S.folders.length; i++) {
+    var r = S.folders[i].recipes.filter(function (x) { return x.ing.length; })[0];
+    if (r) { openRecipe(S.folders[i].id, r.id); return; }
+  }
+  S.ui.editing = null;
+  S.draft = null;
+  loadCalc({ name: '', margin: 50, ing: [], exp: [] }, 'Нова калькуляція');
+  show('calc', null);
+}
+
+var TOUR = [
+  { open: function () { tourScreen('home'); }, side: true,
+    el: function () { return phoneNav() ? $('#btn-menu') : $('#sidebar .nav-group'); },
+    title: 'Меню',
+    text: function () {
+      return (phoneNav() ? 'Усі розділи — тут: ' : 'Тут усі розділи: ') +
+        'бази продуктів і витрат, нова калькуляція, папки з готовими калькуляціями.';
+    } },
+  { open: function () { tourScreen('base'); },
+    el: function () { return $('#btn-add-product'); },
+    title: 'База продуктів',
+    text: 'Почніть звідси. Внесіть ціну упаковки й скільки в ній — один раз. Калькуляції беруть ціни з бази, а подорожчало — міняєте лише тут.' },
+  { open: function () { tourScreen('expbase'); },
+    el: function () { return $('#btn-add-expbase'); },
+    title: 'База витрат',
+    text: 'Коробка, доставка, амортизація — фіксованою сумою або відсотком від собівартості. У калькуляцію додаються в один клік.' },
+  { open: function () { tourScreen('prep'); },
+    el: function () { return $('#btn-add-prep'); },
+    title: 'Напівфабрикати',
+    text: 'Тісто, крем, начинка — рахуєте один раз, а в калькуляцію вставляєте групою потрібної ваги.' },
+  { open: tourCalc,
+    el: function () { return $('#ing-body').closest('.panel'); },
+    title: 'Калькуляція',
+    text: 'Почніть вводити назву продукту — ціна підтягнеться з бази, вам лишається вписати кількість. Собівартість рахується одразу.' },
+  { open: tourCalc,
+    el: function () { return $('#s-calc .panel-margin'); },
+    title: 'Маржа',
+    text: 'Скільки заробити понад витрати. Або впишіть «Хочу продавати за» — і побачите, яка вийде маржа.' },
+  { open: tourCalc,
+    el: function () { return $('#s-calc .total-bar'); },
+    title: 'Ціна продажу',
+    text: '«Експортувати» — техкарта в PDF для кухні чи JPG, щоб поділитись. «Етикетка» — наліпка на коробку. «Зберегти калькуляцію» — у папку.' },
+  { open: function () { tourScreen('home'); }, side: true,
+    el: function () { return phoneNav() ? $('#btn-menu') : $('#sidebar .nav-foot'); },
+    title: 'Налаштування й інструкція',
+    text: function () {
+      return 'Валюта, тема, КБЖУ, замовлення — у «Налаштуваннях». Забули, як щось працює, — «Інструкція»' +
+        (phoneNav() ? ' (обидва в меню)' : '') + '. Там і це навчання, якщо захочете пройти ще раз.';
+    } }
+];
+
+var tourAt = -1;        // номер кроку; -1 — навчання не йде
+var tourDone = null;    // що зробити після навчання (після майстра — запрошення в групу)
+var tourMoveTimer = null;
+
+function startTour(done) {
+  closeOverlays();
+  tourDone = done || null;
+  $('#tour').hidden = false;
+  tourGo(0);
+}
+
+function tourGo(i) {
+  var first = tourAt < 0;
+  tourAt = i;
+  var st = TOUR[i];
+  navReplace = true;
+  try { st.open(); } finally { navReplace = false; }
+  $('#tour-n').textContent = (i + 1) + ' з ' + TOUR.length;
+  $('#tour-title').textContent = st.title;
+  $('#tour-text').textContent = typeof st.text === 'function' ? st.text() : st.text;
+  $('#tour-back').style.visibility = i ? '' : 'hidden';
+  $('#tour-next').textContent = i === TOUR.length - 1 ? 'Готово' : 'Далі';
+  // Підсвітка перепливає з місця на місце лише між кроками: при гортанні сторінки вона мусить іти слід у слід
+  var tour = $('#tour');
+  tour.classList.toggle('is-moving', !first);
+  clearTimeout(tourMoveTimer);
+  tourMoveTimer = setTimeout(function () { tour.classList.remove('is-moving'); }, 320);
+  tourScroll(st.el());
+  placeTour();
+  $('#tour-next').focus();
+}
+
+/** Прокрутити так, щоб підсвічене й підказка під ним стали в екран. Меню й шапка стоять на місці — їх не крутимо. */
+function tourScroll(el) {
+  if (el.closest('#sidebar, .topbar')) return;
+  var top = phoneNav() ? 56 : 0, room = window.innerHeight - top;
+  var r = el.getBoundingClientRect(), tipH = $('#tour-tip').offsetHeight + 20;
+  var at = r.height + tipH <= room - 32 ? top + (room - r.height - tipH) / 2 : top + 16;
+  window.scrollTo(0, window.pageYOffset + r.top - at);
+}
+
+function placeTour() {
+  if (tourAt < 0) return;
+  var st = TOUR[tourAt], hole = $('#tour-hole'), tip = $('#tour-tip');
+  var vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 12, pad = 6, gap = 14;
+  var r = st.el().getBoundingClientRect();
+  var tw = tip.offsetWidth, th = tip.offsetHeight;
+  var x1 = Math.max(r.left - pad, 4), x2 = Math.min(r.right + pad, vw - 4);
+  var y1 = Math.max(r.top - pad, 4), y2 = Math.min(r.bottom + pad, vh - 4);
+  var side, tx, ty;
+
+  if (st.side && !phoneNav() && vw - x2 >= tw + gap + m) {
+    side = 'right'; tx = x2 + gap; ty = Math.max(m, Math.min(y1, vh - th - m));
+  } else {
+    if (vh - y2 >= th + gap + m) side = 'below';
+    else if (y1 >= th + gap + m) side = 'above';
+    else { side = 'below'; y2 = Math.max(y1 + 48, vh - m - th - gap); }   // вище за екран — підсвічуємо верх
+    tx = Math.max(m, Math.min((x1 + x2) / 2 - tw / 2, vw - tw - m));
+    ty = side === 'below' ? y2 + gap : y1 - gap - th;
+  }
+
+  hole.style.left = x1 + 'px'; hole.style.top = y1 + 'px';
+  hole.style.width = (x2 - x1) + 'px'; hole.style.height = (y2 - y1) + 'px';
+  tip.style.left = tx + 'px'; tip.style.top = ty + 'px';
+  tip.className = 'tour-tip is-' + side;
+  // Хвостик підказки показує на середину підсвіченого
+  tip.style.setProperty('--ax', Math.max(18, Math.min((x1 + x2) / 2 - tx, tw - 18)) + 'px');
+  tip.style.setProperty('--ay', Math.max(18, Math.min((y1 + Math.min(y2, y1 + 60)) / 2 - ty, th - 18)) + 'px');
+}
+
+function endTour() {
+  if (tourAt < 0) return;
+  tourAt = -1;
+  $('#tour').hidden = true;
+  var done = tourDone;
+  tourDone = null;
+  if (done) done();
+}
+
+function bindTour() {
+  $('#tour-next').addEventListener('click', function () {
+    if (tourAt < TOUR.length - 1) tourGo(tourAt + 1); else endTour();
+  });
+  $('#tour-back').addEventListener('click', function () { if (tourAt > 0) tourGo(tourAt - 1); });
+  $('#tour-skip').addEventListener('click', endTour);
+  $('#btn-tour').addEventListener('click', function () { startTour(null); });
+  // Змінилась ширина (повернули телефон, звузили вікно) — розкладка інша, крутимо до підсвіченого ще раз.
+  // Лише висота — це телефон ховає рядок адреси при гортанні: тоді не смикаємо сторінку
+  var tourW = window.innerWidth;
+  window.addEventListener('resize', function () {
+    if (tourAt >= 0 && window.innerWidth !== tourW) tourScroll(TOUR[tourAt].el());
+    tourW = window.innerWidth;
+    placeTour();
+  });
+  window.addEventListener('scroll', placeTour);
+  document.addEventListener('keydown', function (e) {
+    if (tourAt < 0) return;
+    if (e.key === 'Escape') endTour();
+    else if (e.key === 'ArrowRight') $('#tour-next').click();
+    else if (e.key === 'ArrowLeft') $('#tour-back').click();
+  });
 }
 
 /* ═════════════════ 7. Навігація ═════════════════ */
@@ -5069,7 +5416,11 @@ function writeBackupMark(m) {
  * відкриття не має рахуватись зміною.
  */
 function dataHash() {
-  var s = JSON.stringify(S, function (k, v) { return k === 'ui' || k === 'draft' ? undefined : v; });
+  return strHash(JSON.stringify(S, function (k, v) { return k === 'ui' || k === 'draft' ? undefined : v; }));
+}
+
+/** Відбиток рядка (FNV-1a) — порівняти, чи змінились дані, не зберігаючи їх копію. */
+function strHash(s) {
   var h = 2166136261;
   for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36) + '.' + s.length;
@@ -6354,7 +6705,7 @@ function bindSettings() {
       closeAsk();
       // Налаштування — не дані: людина чистить базу, а не хоче, щоб тема
       // й валюта раптом повернулись до початкових
-      var keep = { currency: S.currency, round: S.round, theme: S.theme, showNutrition: S.showNutrition, showOrders: S.showOrders, showMethod: S.showMethod, labelFormat: S.labelFormat, laborRate: S.laborRate };
+      var keep = settingsOf(S);
       S = normalize(emptyState());
       Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
       draftDirty = false;
@@ -6401,6 +6752,7 @@ function bindGlobal() {
   // «Назад» при відкритому меню чи вікні лише закриває його: браузер уже
   // зробив крок назад, тож повертаємо поточний — екран під вікном не міняється
   window.addEventListener('popstate', function (e) {
+    endTour();   // «Назад» посеред навчання — виходимо з нього й ідемо, куди просили
     if (menuOpen() || $('.overlay.is-on')) {
       closeOverlays();
       if (curNav && history.pushState) history.pushState(curNav, '');
@@ -6483,7 +6835,11 @@ function boot(fresh) {
 
 function init() {
   toastEl = $('#toast');
-  S = normalize(readStore() || seed());
+  var firstRun = onbFirstRun();   // до readStore і persist: після них дані вже лежать у сховищі
+  var stored = readStore();
+  S = normalize(stored || seed());
+  // Новачкові — тема як у системі; у майстрі її одразу видно, і змінити можна там же
+  if (firstRun && !stored && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) S.theme = 'dark';
 
   bindGlobal();
   bindMenu();
@@ -6503,6 +6859,8 @@ function init() {
   bindLabel();
   bindSettings();
   bindInvite();
+  bindOnboard();
+  bindTour();
   bindBackup();
 
   // Відновлення екрана на старті — не новий крок: інакше перше «Назад»
@@ -6512,7 +6870,8 @@ function init() {
   fromHistory = false;
   replaceNav();
   persist(true);
-  maybeShowInvite();
+  // Запрошення в групу — після знайомства, а не поверх нього
+  if (firstRun && onbResumable()) openOnboard(); else maybeShowInvite();
   checkBackup();
 }
 

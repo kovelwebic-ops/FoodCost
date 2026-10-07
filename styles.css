@@ -1081,6 +1081,101 @@ html:not(.nut-on) .nut-only { display: none !important; }
 .invite-acts .btn-primary:active { filter: brightness(1.05); box-shadow: none; transform: none; }
 .invite-acts .btn-ghost:hover, .invite-acts .btn-ghost:focus-visible { background: var(--danger-soft); color: var(--danger); }
 
+/* ── Знайомство: майстер налаштувань ──
+   Зʼявляється сам, як і запрошення, — тож та сама неквапна поява */
+#onb-overlay.is-on { animation: fc-fade .35s ease .25s both; }
+.modal.modal-onb { max-width: 480px; animation: fc-rise .5s cubic-bezier(.2,.8,.25,1) .3s both; }
+.onb-step:not([hidden]) { animation: fc-item .3s ease both; }
+.onb-top { display: flex; align-items: center; justify-content: space-between; min-height: 26px; margin: -6px 0 12px; }
+.onb-dots { display: flex; gap: 6px; }
+.onb-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--line-2); transition: width .2s ease, background-color .2s ease; }
+.onb-dots i.is-past { background: var(--accent); opacity: .4; }
+.onb-dots i.is-on { width: 22px; background: var(--accent); }
+.onb-label { margin: 20px 0 8px; font-size: 13px; font-weight: 600; color: var(--fg-2); }
+.onb-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--fg-3); }
+.onb-seg button { flex: 1; padding: 9px 10px; font-size: 14px; }
+
+.onb-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.onb-cards.is-col { grid-template-columns: minmax(0, 1fr); margin-top: 18px; }
+.onb-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-l); background: var(--panel);
+  color: var(--fg); font: inherit; text-align: left; white-space: normal; cursor: pointer;
+}
+.onb-card:hover { border-color: var(--edge-2); }
+.onb-card[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.onb-card b { font-size: 14.5px; font-weight: 600; }
+.onb-card-desc { font-size: 13px; line-height: 1.45; color: var(--fg-3); }
+/* Мініатюра теми — кольори навмисно не з токенів: картка показує іншу тему, ніж увімкнена */
+.onb-swatch { position: relative; display: block; width: 100%; height: 72px; margin-bottom: 6px; border-radius: 8px; overflow: hidden; }
+.onb-swatch i { position: absolute; display: block; border-radius: 4px; }
+.onb-swatch i:nth-child(1) { left: 0; top: 0; bottom: 0; width: 26%; border-radius: 0; }
+.onb-swatch i:nth-child(2) { left: 34%; right: 9%; top: 13px; height: 32px; }
+.onb-swatch i:nth-child(3) { left: 34%; width: 30%; top: 53px; height: 8px; }
+.is-light .onb-swatch { background: #f4f1ec; box-shadow: inset 0 0 0 1px #e4dfd6; }
+.is-light .onb-swatch i:nth-child(1) { background: #edeae3; }
+.is-light .onb-swatch i:nth-child(2) { background: #fffdfa; box-shadow: 0 0 0 1px #e4dfd6; }
+.is-light .onb-swatch i:nth-child(3) { background: #075e46; }
+.is-dark .onb-swatch { background: #16150f; box-shadow: inset 0 0 0 1px #302d28; }
+.is-dark .onb-swatch i:nth-child(1) { background: #1c1b17; }
+.is-dark .onb-swatch i:nth-child(2) { background: #201f1b; box-shadow: 0 0 0 1px #302d28; }
+.is-dark .onb-swatch i:nth-child(3) { background: #3fa680; }
+
+.onb-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.onb-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--panel);
+  color: var(--fg); font: inherit; text-align: left; white-space: normal; cursor: pointer;
+}
+.onb-opt:hover { border-color: var(--edge-2); }
+.onb-opt.is-rate { cursor: default; }
+.onb-opt.is-rate:hover { border-color: var(--line); }
+.onb-opt-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.onb-opt-txt b { font-size: 14.5px; font-weight: 600; }
+.onb-opt-txt span { font-size: 13px; line-height: 1.4; color: var(--fg-3); }
+.onb-opt .set-rate { flex: none; }
+.onb-switch { position: relative; flex: none; width: 40px; height: 24px; border-radius: 12px; background: var(--line-2); transition: background-color .15s ease; }
+.onb-switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s ease;
+}
+.onb-opt[aria-checked="true"] .onb-switch { background: var(--accent); }
+.onb-opt[aria-checked="true"] .onb-switch::after { transform: translateX(16px); }
+.onb-foot { justify-content: space-between; }
+
+/* ── Навчання: підсвітка й підказка ──
+   Затемнення — тінь самої «дірки», тож підсвічене місце лишається живим, а
+   не копією. Шар під ними ловить кліки: сторінка під навчанням не реагує */
+.tour { position: fixed; inset: 0; z-index: 85; }
+.tour[hidden] { display: none; }
+.tour-hole {
+  position: fixed; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax var(--overlay);
+}
+.tour-tip {
+  position: fixed; width: min(340px, calc(100vw - 24px)); padding: 14px 16px 12px;
+  border-radius: var(--r-l); background: var(--panel);
+  box-shadow: 0 0 0 1px var(--line), 0 24px 50px -20px var(--modal-shadow);
+}
+.tour.is-moving .tour-hole, .tour.is-moving .tour-tip {
+  transition: top .3s cubic-bezier(.2,.7,.3,1), left .3s cubic-bezier(.2,.7,.3,1),
+              width .3s cubic-bezier(.2,.7,.3,1), height .3s cubic-bezier(.2,.7,.3,1);
+}
+.tour-tip::before {
+  content: ''; position: absolute; width: 12px; height: 12px; background: var(--panel);
+  transform: rotate(45deg); box-shadow: -1px -1px 0 var(--line);
+}
+.tour-tip.is-below::before { top: -6px; left: calc(var(--ax) - 6px); }
+.tour-tip.is-above::before { bottom: -6px; left: calc(var(--ax) - 6px); box-shadow: 1px 1px 0 var(--line); }
+.tour-tip.is-right::before { left: -6px; top: calc(var(--ay) - 6px); box-shadow: -1px 1px 0 var(--line); }
+.tour-n { font-family: var(--num); font-size: 12px; color: var(--muted); }
+.tour-title { margin: 3px 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.tour-text { margin: 0; font-size: 14px; line-height: 1.5; color: var(--fg-2); }
+.tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.tour-foot .link-btn { margin-left: -4px; }
+.tour-foot .btn { height: 36px; padding: 0 14px; }
+.help-tour .btn { margin-top: 4px; }
+
 .folder-list { display: flex; flex-direction: column; gap: 8px; margin: 18px 0 0; }
 .folder-opt {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -1733,7 +1828,10 @@ html:not(.nut-on) .nut-only { display: none !important; }
   }
   .modal-foot .btn { flex: 1; }
   /* На телефоні вікно — шторка, тож і виїжджає знизу, а не збільшується */
-  .modal.modal-invite { animation: fc-sheet .5s cubic-bezier(.2,.8,.25,1) .3s both; }
+  .modal.modal-invite, .modal.modal-onb { animation: fc-sheet .5s cubic-bezier(.2,.8,.25,1) .3s both; }
+  /* Ставка під підписом на всю ширину: поруч підпис стискався в стовпчик по слову */
+  .onb-opt.is-rate { flex-direction: column; align-items: stretch; gap: 10px; }
+  .onb-opt.is-rate .margin-field.set-rate { width: 100%; }
   .pdf-modal { max-height: 94vh; border-radius: var(--r-xl) var(--r-xl) 0 0; }
   .pdf-modal-head { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
   .pdf-modal-head .btn-row { width: 100%; }
